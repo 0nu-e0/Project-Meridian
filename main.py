@@ -1,4 +1,5 @@
 import os, yaml, logging, sys, asyncio, json, qasync
+from utils.directory_finder import resource_path
 from utils.dashboard_config import DashboardConfigManager
 from ui.welcome_screen import WelcomeScreen
 from ui.dashboard_screen import DashboardScreen
@@ -7,8 +8,8 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QPushButton,
                              QVBoxLayout, QWidget, QFrame, QDesktopWidget, QSpacerItem,
                              QSizePolicy, QGraphicsDropShadowEffect, QHBoxLayout,
                              QSpacerItem, QLabel, QStackedWidget, )
-from PyQt5.QtCore import QPropertyAnimation, QEasingCurve, QRect, QEvent, Qt, QTimer
-from PyQt5.QtGui import QResizeEvent, QPixmap
+from PyQt5.QtCore import QPropertyAnimation, QEasingCurve, QRect, QEvent, Qt, QTimer, QSize
+from PyQt5.QtGui import QResizeEvent, QPixmap, QIcon
 from pathlib import Path
 import shutil
 
@@ -36,7 +37,8 @@ class MainWindow(QMainWindow):
         self.banner_header_label = ""
 
         self.screen_mapping = {
-            "Dashboard": "dashboard_screen"
+            "Dashboard": "dashboard_screen",
+            "Projects": "projects_screen"
         }
 
         self.screen_size = QDesktopWidget().screenGeometry(-1)
@@ -137,16 +139,11 @@ class MainWindow(QMainWindow):
         self.main_layout.addWidget(self.stacked_widget)
 
         self.welcome_screen = WelcomeScreen()
-        self.dashboard_screen = DashboardScreen(
-            logger=self.logger,
-            saved_grid_layouts=DashboardConfigManager.get_all_grid_layouts()
-        )
-
+        self.dashboard_screen = DashboardScreen(logger=self.logger)
         self.dashboard_screen.setObjectName("Dashboard")
 
         self.stacked_widget.addWidget(self.dashboard_screen)
         self.stacked_widget.addWidget(self.welcome_screen)
-
         self.stacked_widget.setCurrentWidget(self.welcome_screen)
 
     def initBanner(self):
@@ -213,39 +210,43 @@ class MainWindow(QMainWindow):
         header_widget = QWidget()
         header_layout = QVBoxLayout(header_widget)
         
-        headerLabel = QLabel("Project Management Software")
+        headerLabel = QLabel("Project Management \nSoftware")
         headerLabel.setAlignment(Qt.AlignCenter) 
         headerLabel.setStyleSheet(AppStyles.label_xlgfnt_bold()) 
         header_layout.addWidget(headerLabel)
 
         logo_widget = QWidget()
-        #logo_layout = QHBoxLayout(logo_widget)
-        #logo_pixmap = QPixmap("resources/images/header_logo_blue.png")
-        #logo_pixmap = logo_pixmap.scaled(50, 50)
-        #logo_label = QLabel()
-        #logo_label.setPixmap(logo_pixmap)
-        #logo_layout.addStretch(1)
-        #logo_layout.addWidget(logo_label)
-        #logo_layout.addStretch(1)
+
         header_layout.addWidget(logo_widget)
 
         self.drawer_layout.addWidget(header_widget)
-        # usernameLabel = QLabel(self.username)
-        # usernameLabel.setAlignment(Qt.AlignCenter)
-        # usernameLabel.setStyleSheet(AppStyles.label_normal())
-        # self.drawer_layout.addWidget(usernameLabel)
+
         
         for name, screen in self.screen_mapping.items():
-            #button = QPushButton(name, self)
 
             button = AnimatedButton(text=name, blur=2, x=60, y=20, offsetX=1, offsetY=1)
 
             button.setStyleSheet(AppStyles.button_normal())
             button.clicked.connect(lambda checked, name=screen: self.buttonClicked(name))
             self.drawer_layout.addWidget(button)
+        
+
+
+        settings_button = QPushButton()
+        image_path = resource_path('resources/images/settings.png')
+        pixmap = QPixmap(image_path)
+        setting_icon = QIcon(pixmap)
+        settings_button.setIcon(setting_icon)
+        settings_button.setFixedSize(QSize(40, 40))
+        settings_button.setIconSize(QSize(40, 40)) 
+        settings_button.setStyleSheet(AppStyles.button_transparent())
+        settings_button.clicked.connect(self.showSettingsMenu)
 
         spacer = QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding)
         self.drawer_layout.addSpacerItem(spacer)
+
+        self.drawer_layout.addWidget(settings_button)
+        self.drawer_layout.setAlignment(settings_button, Qt.AlignHCenter)
 
     def buttonClicked(self, screen):
         if self.drawer_open:
@@ -253,6 +254,9 @@ class MainWindow(QMainWindow):
         
         self.drawer_animation.finished.connect(lambda: self.initiateStackedWidgetTransition(screen))
     
+    def showSettingsMenu(self):
+        pass
+
     def initiateStackedWidgetTransition(self, screen):
         sender = self.sender()
         source = sender.property("source")

@@ -1,6 +1,7 @@
 import os, json
 from uuid import uuid4
 from datetime import datetime
+from utils.directory_finder import resource_path
 from models.task import Task, TaskStatus, TaskPriority, TaskCategory, Attachment, TaskEntry, TimeLog
 
 def load_tasks_from_json():
@@ -14,9 +15,8 @@ def load_tasks_from_json():
         dict: Dictionary with task titles as keys and Task objects as values
     """
     task_objects = {}
-    json_file_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'Project_Manager', 'data', 'saved_tasks.json')
+    json_file_path = resource_path('data/saved_tasks.json')
 
-    
     try:
         # Read the JSON file
         with open(json_file_path, 'r') as file:
@@ -204,7 +204,7 @@ def save_task_to_json(task):
             category=TaskCategory.FEATURE
         )
 
-    json_file_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'Project_Manager', 'data', 'saved_tasks.json')
+    json_file_path = resource_path('data/saved_tasks.json')
 
     try:
         # Read existing data first
