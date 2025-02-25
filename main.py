@@ -1,4 +1,5 @@
 import logging, sys, asyncio, json, qasync
+from utils.dashboard_config import DashboardConfigManager
 from ui.welcome_screen import WelcomeScreen
 from ui.dashboard_screen import DashboardScreen
 from resources.styles import AppStyles, AnimatedButton
@@ -136,16 +137,17 @@ class MainWindow(QMainWindow):
         self.main_layout.addWidget(self.stacked_widget)
 
         self.welcome_screen = WelcomeScreen()
-        self.dashboard_screen = DashboardScreen(logger=self.logger)
+        self.dashboard_screen = DashboardScreen(
+            logger=self.logger,
+            saved_grid_layouts=DashboardConfigManager.get_all_grid_layouts()
+        )
 
         self.dashboard_screen.setObjectName("Dashboard")
-
 
         self.stacked_widget.addWidget(self.dashboard_screen)
         self.stacked_widget.addWidget(self.welcome_screen)
 
         self.stacked_widget.setCurrentWidget(self.welcome_screen)
-
 
     def initBanner(self):
         self.banner = QWidget(self.central_widget)
@@ -298,7 +300,6 @@ class MainWindow(QMainWindow):
         else:
             self.drawer_shadow.setEnabled(True)
 
-
     def animateStackedWidgetTransition(self, oldWidget, newWidget, duration=500):
         currentGeometry = self.stacked_widget.geometry()
         width = currentGeometry.width()
@@ -323,8 +324,6 @@ class MainWindow(QMainWindow):
 
         QTimer.singleShot(duration, lambda: self.stacked_widget.setCurrentWidget(newWidget))
 
-
-
 if __name__ == '__main__':
     setup_logging()
     logger = get_logger("CentralManager")
@@ -333,12 +332,8 @@ if __name__ == '__main__':
     loop = qasync.QEventLoop(app) # Need Qasync for PyQt async - QWidgets
     asyncio.set_event_loop(loop)
     
-    #initialize_data_files()
-
-    
     main_window = MainWindow()
     main_window.show()
-
 
     with loop:
         loop.run_forever()

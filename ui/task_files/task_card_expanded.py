@@ -20,6 +20,9 @@ from PyQt5.QtSvg import QSvgWidget
 
 class TaskCardExpanded(QWidget):
     taskDeleted = pyqtSignal(str) 
+    saveCompleted = pyqtSignal() 
+    updatedCompleted = pyqtSignal()
+    cancelTask = pyqtSignal()
     
     @classmethod
     def calculate_optimal_card_size(cls):
@@ -41,13 +44,12 @@ class TaskCardExpanded(QWidget):
         self.logger = logger
         self.task = task
         self.parent_view = parent_view
-        if self.task != None:
+        self.initial_state = None
+        if self.task is not None:
             self.store_initial_task_state()
         else: 
             self.task = Task(
-                title="",
-                description="",
-                project_id="",
+                title=""
             )
 
         self.initUI()
@@ -220,12 +222,7 @@ class TaskCardExpanded(QWidget):
         calendar_button.setIcon(calendar_icon)
         calendar_button.setFixedSize(30, 30)
         calendar_button.setIconSize(QSize(30, 30))
-        calendar_button.setStyleSheet("""
-            QPushButton {
-                border: none;
-                background: transparent;
-            }
-        """)
+        calendar_button.setStyleSheet(AppStyles.button_transparent())
         calendar_button.clicked.connect(self.showCalendar)
         
         due_date_layout.addWidget(QLabel("Due Date:"))
@@ -274,12 +271,7 @@ class TaskCardExpanded(QWidget):
         # Find and modify the navigation buttons
         for button in calendar.findChildren(QToolButton):
             if button.text() == ">" or button.text() == "<":
-                button.setStyleSheet("""
-                    QToolButton {
-                        font-size: 16px;
-                        font-weight: bold;
-                    }
-                """)
+                button.setStyleSheet(AppStyles.button_calendar_horizontal())
 
         year_spinbox = calendar.findChild(QSpinBox, "qt_calendar_yearedit")
         if year_spinbox:
@@ -290,27 +282,11 @@ class TaskCardExpanded(QWidget):
             if up_button:
                 up_button.setText("▲")
                 up_button.setIcon(QIcon())
-                up_button.setStyleSheet("""
-                    QToolButton {
-                        color: white;
-                        background-color: #36454F;
-                        border: none;
-                        outline: none;
-                        border-radius: 4px;
-                    }
-                """)
+                up_button.setStyleSheet(AppStyles.button_calendar_vertical())
             if down_button:
                 down_button.setText("▼")
                 down_button.setIcon(QIcon())
-                down_button.setStyleSheet("""
-                    QToolButton {
-                        color: white;
-                        background-color: #36454F;
-                        border: none;
-                        outline: none;
-                        border-radius: 4px;
-                    }
-                """)
+                down_button.setStyleSheet(AppStyles.button_calendar_vertical())
             
             year_spinbox.setAttribute(Qt.WA_MacShowFocusRect, 0) 
 
@@ -361,7 +337,6 @@ class TaskCardExpanded(QWidget):
                 self.task.category = category
                 break
 
-
     def createButtonSection(self):
         button_layout = QHBoxLayout()
         save_button = QPushButton("Save")
@@ -369,7 +344,9 @@ class TaskCardExpanded(QWidget):
         delete_button = QPushButton("Delete")
         
         # Use lambda to properly connect functions that need to be called when clicked
-        save_button.clicked.connect(lambda: (save_task_to_json(self.task), self.closeWindow()))
+        save_button.clicked.connect(lambda: save_task_to_json(self.task))
+        save_button.clicked.connect(self.updatedCompleted.emit)
+        save_button.clicked.connect(self.saveCompleted.emit)
 
         cancel_button.clicked.connect(self.cancelTaskChanges)
         delete_button.clicked.connect(self.deleteTask)
@@ -406,7 +383,7 @@ class TaskCardExpanded(QWidget):
         # Add post button in a horizontal layout to push it right
         button_container = QWidget()
         button_layout = QHBoxLayout(button_container)
-        button_layout.addStretch()  # This pushes the button to the right
+        button_layout.addStretch()  
         post_button = QPushButton("Post Comment")
         button_layout.addWidget(post_button)
         
@@ -414,7 +391,7 @@ class TaskCardExpanded(QWidget):
         comments_layout.addWidget(comment_input_container)
         
         # Add comments list view
-        self.comments_list = QListWidget()  # Store as instance variable
+        self.comments_list = QListWidget() 
         self.comments_list.setStyleSheet(AppStyles.list_style())
         
         comments_scroll_area = QScrollArea()
@@ -442,13 +419,7 @@ class TaskCardExpanded(QWidget):
         
         log_description = QLineEdit()
         log_description.setPlaceholderText("Describe your work...")
-        log_description.setStyleSheet("""
-            QLineEdit {
-                border: 1px solid #ccc;
-                border-radius: 8px;
-                padding: 5px;
-            }
-        """)
+        log_description.setStyleSheet(AppStyles.log_line_edit())
         
         log_button = QPushButton("Log Work")
         
@@ -458,22 +429,8 @@ class TaskCardExpanded(QWidget):
         work_logs_layout.addWidget(log_entry)
         
         # Add work logs list
-        self.work_logs_list = QListWidget()  # Store as instance variable
-        self.work_logs_list.setStyleSheet(f"""
-            QListWidget {{
-                background-color: transparent;
-                border: 0px solid #ccc;
-                border-radius: 8px;
-                padding: 5px;
-            }}
-
-            QListWidget::item {{
-                background-color: transparent;
-                border: none;
-                padding: 5px;
-                border-radius: 5px;
-            }}
-        """)
+        self.work_logs_list = QListWidget()  
+        self.work_logs_list.setStyleSheet(AppStyles.log_list())
         
         work_scroll_area = QScrollArea()
         work_scroll_area.setWidgetResizable(True)
@@ -619,12 +576,7 @@ class TaskCardExpanded(QWidget):
         
         # Details section
         details_section = CollapsibleSection("Details", self)
-        details_section.setStyleSheet("""
-            QWidget {
-                border: 1px solid #ccc;
-                border-radius: 4px;
-            }
-        """)
+        details_section.setStyleSheet(AppStyles.border_widget())
         
         # Add your regular details rows
         details_section.add_dates(self.createDatesSection())
@@ -655,12 +607,7 @@ class TaskCardExpanded(QWidget):
 
         # Dependencies section
         dependencies_section = CollapsibleSection("Dependencies", self)
-        dependencies_section.setStyleSheet("""
-            QWidget {
-                border: 1px solid #ccc;
-                border-radius: 4px;
-            }
-        """)
+        dependencies_section.setStyleSheet(AppStyles.border_widget())
         dependencies_section.add_dependencies_list()
 
         # Update available tasks
@@ -689,12 +636,7 @@ class TaskCardExpanded(QWidget):
         section_layout.setSpacing(5)
         
         attachments_section = CollapsibleSection("Attachments", self)
-        attachments_section.setStyleSheet("""
-            QWidget {
-                border: 1px solid #ccc;
-                border-radius: 4px;
-            }
-        """)
+        attachments_section.setStyleSheet(AppStyles.border_widget())
         
         # Add attachments list
         if hasattr(self.task, 'attachments'):
@@ -1040,12 +982,11 @@ class TaskCardExpanded(QWidget):
     def cancelTaskChanges(self):
         """Close expanded card and restore original task state"""
         # Restore the task to its initial state
-        self.restore_task_state()
+        if self.initial_state is not None:
+            self.restore_task_state()
         
         # Hide overlay and close
-        if self.parent_view and hasattr(self.parent_view, 'overlay'):
-            self.parent_view.overlay.hide()
-        self.close()
+        self.cancelTask.emit()
 
     def restore_task_state(self):
         """Restore the task to its original state"""
@@ -1116,6 +1057,8 @@ class TaskCardExpanded(QWidget):
                 QMessageBox.critical(self, "Error", f"An error occurred while deleting the task: {str(e)}")
 
     def closeWindow(self):
+        print("trying to close")
         if self.parent_view and hasattr(self.parent_view, 'overlay'):
+            print("trying harder")
             self.parent_view.overlay.hide()
         self.close()

@@ -27,6 +27,9 @@ class TaskCategory(Enum):
     DOCUMENTATION = "Documentation"
     RESEARCH = "Research"
     MEETING = "Meeting"
+    ECO = "ECO"
+    BORIDE_SHAPING = "Boride Shaping"
+    DRAWING_UPDATE = "Drawing Update"
 
 class DueStatus(Enum):
    OVERDUE = "Overdue"

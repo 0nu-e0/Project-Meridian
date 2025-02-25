@@ -357,6 +357,25 @@ class AppStyles:
                 color: {AppColors.white}; border-style: {AppBorders.solid_border}; font-size: {AppPixelSizes.font_xlrg}; }}
             QPushButton:hover {{background-color: {AppColors.button_toggle_hover}; }}
         """
+    
+    @staticmethod
+    def button_transparent():
+        return f"""
+            QPushButton {{ border: none; background: transparent; }}
+        """
+    
+    @staticmethod
+    def button_calendar_horizontal():
+        return f"""
+            QToolButton {{ font-size: 16px; font-weigh: bold; }}
+        """
+    
+    @staticmethod
+    def button_calendar_vertical():
+        return f"""
+            QToolButton {{ color: white; background-color: #36454F; border: none; outline; border-radius: 4px; }}
+        """
+
     ### Scroll Bar Styles ###
     
     @staticmethod
@@ -460,7 +479,6 @@ class AppStyles:
             QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {{ background: {AppColors.none}; }}
         """
     
-    
     @staticmethod
     def list_style_graph_item():
         return f"""
@@ -498,6 +516,13 @@ class AppStyles:
             QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{ border: {AppBorders.none}; background: {AppColors.none}; }}
             QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {{ background: {AppColors.none}; }}
         """
+    
+    @staticmethod
+    def log_list():
+        return f"""
+            QListWidget {{ background-color: transparent; border: 0px solid #ccc; border-radius: 8px; padding: 5px; }}
+            QListWidget::item {{ background-color: transparent; border: none; padding: 5px; border-radius: 5px; }}
+        """
 
     ### Slider Styles ###
     
@@ -528,11 +553,18 @@ class AppStyles:
             QLineEdit:focus {{ border: {AppBorders.line_edit_focus}; }}
         """
     
+    @staticmethod
     def line_edit_warn():
         return f"""
             QLineEdit {{border: {AppBorders.line_edit_warn}; border-radius: {AppPixelSizes.border_radius_xsml}; padding: {AppPixelSizes.border_radius_xsml}; 
                 background-color: {AppColors.white}; color: {AppColors.label_font_color}; font-size: {AppPixelSizes.font_norm}; font-style: {AppFontStyle.norm}; }}
             QLineEdit:focus {{ border: {AppBorders.line_edit_warn}; }}
+        """
+    
+    @staticmethod
+    def log_line_edit():
+        return f"""
+            QLineEdit {{ border: 1px solid #ccc; border-radius: 8px; padding: 5px; }}
         """
     
     ### Text Edit Styles ##
@@ -622,7 +654,6 @@ class AppStyles:
     @staticmethod
     def splitter_ver_norm():
         return f"""
-
             QSplitter::handle:vertical {{height: {AppPixelSizes.splitter_height}; }}
         """
     
@@ -632,6 +663,12 @@ class AppStyles:
     def widget():
         return f"""
             QWidget {{background-color: {AppColors.accent_background_color_dark}; border-radius: {AppPixelSizes.border_radius_sml}; }}
+        """
+    
+    @staticmethod
+    def border_widget():
+        return """
+            QWidget { border: 1px solid #ccc; border-radius: 4px; }
         """
     
     ### Test Widget Border ###
