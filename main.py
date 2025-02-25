@@ -1,3 +1,33 @@
+# -----------------------------------------------------------------------------
+# Project Manager
+# Copyright (c) 2025 Jereme Shaver
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+# -----------------------------------------------------------------------------
+# File: main.py
+# Description: Main application entry point that sets up logging, initializes the
+#              main window with animated drawer menu, banner, and screen navigation
+#              system. Handles UI layout, animations, event filtering, and ensures
+#              required configuration files exist.
+# Author: Jereme Shaver
+# -----------------------------------------------------------------------------
+
 import os, yaml, logging, sys, asyncio, json, qasync
 from utils.directory_finder import resource_path
 from utils.dashboard_config import DashboardConfigManager

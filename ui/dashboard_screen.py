@@ -1,3 +1,31 @@
+# -----------------------------------------------------------------------------
+# Project Manager
+# Copyright (c) 2025 Jereme Shaver
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+# -----------------------------------------------------------------------------
+# File: dashboard_screen.py
+# Description: Used to generate the grid spaces needed to display task and 
+#              dialog boxes associated with tasks.
+# Author: Jereme Shaver
+# -----------------------------------------------------------------------------
+
 import os, json
 from resources.styles import AppStyles, AnimatedButton
 from utils.directory_finder import resource_path
@@ -8,9 +36,9 @@ from .dashboard_child_view.grid_layout import GridLayout
 from .dashboard_child_view.add_task_group import AddGridDialog
 from ui.task_files.task_card_expanded import TaskCardExpanded
 from PyQt5.QtWidgets import (QDesktopWidget, QApplication, QWidget, QVBoxLayout, QHBoxLayout, QFrame, QScrollArea,
-                             QSpacerItem, QLabel, QSizePolicy, QStackedWidget, QGridLayout, )
+                             QSpacerItem, QLabel, QSizePolicy, QStackedWidget, QGridLayout, QPushButton, QMessageBox)
 from PyQt5.QtCore import Qt, pyqtSignal, QPropertyAnimation, QEasingCurve, QRect, QTimer, pyqtSlot, QSize
-from PyQt5.QtGui import QResizeEvent
+from PyQt5.QtGui import QResizeEvent, QPixmap, QIcon
 
 class DashboardScreen(QWidget):
     sendTaskInCardClicked = pyqtSignal(object)
@@ -31,6 +59,15 @@ class DashboardScreen(QWidget):
 
     def loadGridLayouts(self):
         return DashboardConfigManager.get_all_grid_layouts()
+    
+    # Add mouse event handlers to show/hide the button
+    def enterEvent(self, event):
+        self.remove_grid_button.setVisible(True)
+        QWidget.enterEvent(self.grid_header_widget, event)
+
+    def leaveEvent(self, event):
+        self.remove_grid_button.setVisible(False)
+        QWidget.leaveEvent(self.grid_header_widget, event)
 
     def initUI(self):
         self.initCentralWidget()
@@ -153,11 +190,33 @@ class DashboardScreen(QWidget):
             grid_section = QWidget()
             grid_section_layout = QVBoxLayout(grid_section)
             grid_section_layout.setContentsMargins(20, 0, 0, 0)
-            
+
+            # Create header with hover capability
+            self.grid_header_widget = QWidget()
+            self.grid_header_widget.setMouseTracking(True)  # Enable mouse tracking
+            grid_header_layout = QHBoxLayout(self.grid_header_widget)
+
             # Add title for this grid
             grid_title = QLabel(grid.name)
             grid_title.setStyleSheet("font-weight: bold; font-size: 16px;")
-            grid_section_layout.addWidget(grid_title)
+            grid_header_layout.addWidget(grid_title)
+
+            # Create but initially hide the remove button
+            self.remove_grid_button = QPushButton()
+            image_path = resource_path('resources/images/delete_button.png')
+            pixmap = QPixmap(image_path)
+            remove_icon = QIcon(pixmap)
+            self.remove_grid_button.setIcon(remove_icon)
+            self.remove_grid_button.setFixedSize(QSize(30, 30))
+            self.remove_grid_button.setIconSize(QSize(30, 30))
+            self.remove_grid_button.setStyleSheet(AppStyles.button_transparent)
+            self.remove_grid_button.setVisible(False)  # Hide by default
+            self.remove_grid_button.clicked.connect(lambda: self.removeGridSection(grid.id))  # Pass grid ID
+            grid_header_layout.addWidget(self.remove_grid_button)
+
+            # Attach the event handlers
+            self.grid_header_widget.enterEvent = self.enterEvent
+            self.grid_header_widget.leaveEvent = self.leaveEvent
             
             # Create filter dictionary for GridLayout
             filter_dict = {
@@ -192,6 +251,37 @@ class DashboardScreen(QWidget):
             spacer = QWidget()
             spacer.setFixedHeight(10)
             self.task_layout_container.addWidget(spacer)
+
+    def removeGridSection(self, grid_id):
+        """Remove the grid section with the specified ID"""
+        # Ask for confirmation
+        confirm = QMessageBox.question(
+            self,
+            "Confirm Removal",
+            "Are you sure you want to remove this grid section?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+        
+        if confirm == QMessageBox.Yes:
+            # Get current grid layouts
+            grid_layouts = DashboardConfigManager.get_all_grid_layouts()
+            
+            # Find and remove the grid with matching ID
+            for i, grid in enumerate(grid_layouts):
+                if grid.id == grid_id:
+                    grid_layouts.pop(i)
+                    break
+            
+            # Update positions for remaining grids
+            for i, grid in enumerate(grid_layouts):
+                grid.position = i
+            
+            # Save updated grid layouts
+            DashboardConfigManager.save_grid_layouts(grid_layouts)
+            
+            # Refresh the dashboard
+            self.completeSaveActions()
 
     def initProjectsLayout(self):
         self.setStyleSheet()
@@ -298,8 +388,7 @@ class DashboardScreen(QWidget):
 
     def completeSaveActions(self):
         print("closing layouts")
-
-        self.grid_layouts = self.loadGridLayouts()
+        self.loadGridLayouts()
         self.clear_layout(self.task_layout_container)
         self.iterrateGridLayouts()
         self.closeExpandedCard()

@@ -1,3 +1,30 @@
+# -----------------------------------------------------------------------------
+# Project Manager
+# Copyright (c) 2025 Jereme Shaver
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+# -----------------------------------------------------------------------------
+# File: task_card_expanded.py
+# Description: Used to view and modify tasks. 
+# Author: Jereme Shaver
+# -----------------------------------------------------------------------------
+
 import sys, os, json, copy
 from utils.tasks_io import load_tasks_from_json, save_task_to_json
 from datetime import datetime
@@ -1024,7 +1051,7 @@ class TaskCardExpanded(QWidget):
         if confirm == QMessageBox.Yes:
             # Get the json file path
             json_file_path = resource_path('data/saved_tasks.json')
-            
+
             try:
                 # Store the task title before deletion
                 task_title = self.task.title
