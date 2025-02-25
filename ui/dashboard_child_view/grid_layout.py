@@ -92,9 +92,9 @@ class GridLayout(QWidget):
         self.manage_tasks_widget = QWidget()
         self.manage_tasks_layout = QHBoxLayout(self.manage_tasks_widget)  
         self.manage_tasks_layout.setContentsMargins(0, 5, 15, 5)
-        task_header = QLabel("Current Tasks")
-        # print("in grid layout")
-        task_header.setStyleSheet(AppStyles.label_lgfnt())
+        # task_header = QLabel("Current Tasks")
+        # # print("in grid layout")
+        # task_header.setStyleSheet(AppStyles.label_lgfnt())
 
         filter_button = FilterButton()
 
@@ -117,7 +117,7 @@ class GridLayout(QWidget):
         filter_button.filtersChanged.connect(self.onFilterChanged)
 
         self.manage_tasks_layout.addSpacerItem(QSpacerItem(20, 20, QSizePolicy.Expanding, QSizePolicy.Minimum))
-        self.manage_tasks_layout.addWidget(task_header)
+        # self.manage_tasks_layout.addWidget(task_header)
         self.manage_tasks_layout.addWidget(filter_button)
         self.manage_tasks_layout.addStretch(1)
 

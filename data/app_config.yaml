@@ -1,158 +1,131 @@
-# Application Settings File
-# All sections are organized by functional area
-
-# Application Global Settings
 app:
-  name: "My Application"
-  version: "1.0.0"
   debug_mode: false
+  name: My Application
   startup_maximized: true
-
-# User Interface Settings
-ui:
-  # Theme and Visual Settings  
-  theme:
-    colors:
-      main_background_color: "#F5F5F5"
-      banner_color: "#2C3E50"
-      accent_background_color: "#ECEFF1"
-      label_font_color: "#333333"
-      white: "#FFFFFF"
-      list: "#E0E0E0"
-      red: "#FF5252"
-      Blue: "#1976D2"
-      Purple: "#673AB7"
-      Magenta: "#E91E63"
-    
-    pixel_sizes:
-      font_xxlrg: "24px"
-      font_xlrg: "18px"
-      font_lrg: "16px"
-      font_norm: "14px"
-      font_sml: "12px"
-      border_radius_norm: "6px"
-    
-    fonts:
-      family:
-        helvetica: "Helvetica, Arial, sans-serif"
-      weight:
-        bold: "bold"
-        norm: "normal"
-  
-  # Layout Settings
-  layout:
-    sidebar_width: 250
-    toolbar_height: 48
-    main_padding: 16
-    card_spacing: 12
-    show_statusbar: true
-  
-  # Component-specific Settings
-  components:
-    table:
-      rows_per_page: 25
-      highlight_color: "#E3F2FD"
-      header_background: "#BBDEFB"
-    charts:
-      default_color_scheme: "blue"
-      show_grid_lines: true
-      animation_duration: 500
-
-# Data Management Settings
+  version: 1.0.0
+dashboard:
+  default_grid:
+    columns: 3
+    filter:
+      category: []
+      due: []
+      status: []
+    name: New Grid
+  grid_layouts:
+  - columns: 3
+    filter:
+      category: []
+      due: []
+      status:
+      - In Progress
+      - In Review
+    id: grid_001
+    name: In Progress Tasks
+    position: 0
+  - columns: 4
+    filter:
+      category: []
+      due: []
+      status:
+      - Not Started
+    id: grid_002
+    name: Not Started Tasks
+    position: 1
+  - columns: 3
+    filter:
+      category: []
+      due: []
+      status:
+      - On Hold
+      - Cancelled
+    id: grid_cc3b37d3
+    name: rsgawrs
+    position: 2
+  - columns: 3
+    filter:
+      category: []
+      due: []
+      status:
+      - In Progress
+      - In Review
+      - Blocked
+    id: grid_cf989abc
+    name: awg
+    position: 3
 data:
-  database:
-    host: "localhost"
-    port: 5432
-    db_name: "app_database"
-    connection_timeout: 30
-  
-  files:
-    default_save_location: "~/Documents/MyApp"
-    autosave_interval: 300
-    max_recent_files: 10
-  
   cache:
     enabled: true
-    max_size_mb: 50
     expiration_days: 7
-
-# Network Settings
+    max_size_mb: 50
+  database:
+    connection_timeout: 30
+    db_name: app_database
+    host: localhost
+    port: 5432
+  files:
+    autosave_interval: 300
+    default_save_location: ~/Documents/MyApp
+    max_recent_files: 10
 network:
+  api:
+    base_url: https://api.example.com
+    retry_attempts: 3
+    timeout: 10
   proxy:
     enabled: false
-    host: ""
+    host: ''
     port: 0
-  
-  api:
-    base_url: "https://api.example.com"
-    timeout: 10
-    retry_attempts: 3
-  
   updates:
     check_automatically: true
     check_interval_days: 7
-
-# User Preferences
+ui:
+  components:
+    charts:
+      animation_duration: 500
+      default_color_scheme: blue
+      show_grid_lines: true
+    table:
+      header_background: '#BBDEFB'
+      highlight_color: '#E3F2FD'
+      rows_per_page: 25
+  layout:
+    card_spacing: 12
+    main_padding: 16
+    show_statusbar: true
+    sidebar_width: 250
+    toolbar_height: 48
+  theme:
+    colors:
+      Blue: '#1976D2'
+      Magenta: '#E91E63'
+      Purple: '#673AB7'
+      accent_background_color: '#ECEFF1'
+      banner_color: '#2C3E50'
+      label_font_color: '#333333'
+      list: '#E0E0E0'
+      main_background_color: '#F5F5F5'
+      red: '#FF5252'
+      white: '#FFFFFF'
+    fonts:
+      family:
+        helvetica: Helvetica, Arial, sans-serif
+      weight:
+        bold: bold
+        norm: normal
+    pixel_sizes:
+      border_radius_norm: 6px
+      font_lrg: 16px
+      font_norm: 14px
+      font_sml: 12px
+      font_xlrg: 18px
+      font_xxlrg: 24px
 user_preferences:
-  notifications:
-    enable_sound: true
-    enable_desktop: true
-  
-  privacy:
-    allow_analytics: false
-    allow_crash_reports: true
-  
   accessibility:
     high_contrast: false
     text_scaling: 1.0
-
-# User Grid Layout Components
-# Dashboard Configuration
-# Dashboard Configuration
-dashboard:
-  # Grid Layouts configuration
-  grid_layouts:
-    - id: "grid_001"
-      name: "In Progress Tasks"
-      position: 0
-      columns: 3
-      filter:
-        status: ["In Progress", "In Review"]
-        category: []
-        due: []
-        
-    - id: "grid_002"
-      name: "Not Started Tasks"
-      position: 1
-      columns: 4
-      filter:
-        status: ["Not Started"]
-        category: []
-        due: []
-    
-    - id: "grid_003"
-      name: "Documentation Tasks"
-      position: 2
-      columns: 3
-      filter:
-        status: []
-        category: ["Documentation", "Drawing Update"]
-        due: []
-        
-    - id: "grid_004"
-      name: "Overdue Tasks"
-      position: 3
-      columns: 3
-      filter:
-        status: []
-        category: []
-        due: ["Overdue", "Due Soon"]
-  
-  # Default/new grid settings
-  default_grid:
-    name: "New Grid"
-    columns: 3
-    filter:
-      status: []
-      category: []
-      due: []
+  notifications:
+    enable_desktop: true
+    enable_sound: true
+  privacy:
+    allow_analytics: false
+    allow_crash_reports: true

@@ -5,9 +5,10 @@ from utils.dashboard_config import DashboardConfigManager
 from models.task import Task, TaskCategory, TaskPriority, TaskEntry, TaskStatus
 from ui.task_files.task_card import TaskCard
 from .dashboard_child_view.grid_layout import GridLayout
+from .dashboard_child_view.add_task_group import AddGridDialog
 from ui.task_files.task_card_expanded import TaskCardExpanded
 from PyQt5.QtWidgets import (QDesktopWidget, QApplication, QWidget, QVBoxLayout, QHBoxLayout, QFrame, QScrollArea,
-                             QSpacerItem, QLabel, QSizePolicy, QStackedWidget, )
+                             QSpacerItem, QLabel, QSizePolicy, QStackedWidget, QGridLayout, )
 from PyQt5.QtCore import Qt, pyqtSignal, QPropertyAnimation, QEasingCurve, QRect, QTimer, pyqtSlot, QSize
 from PyQt5.QtGui import QResizeEvent
 
@@ -61,12 +62,17 @@ class DashboardScreen(QWidget):
         #separator.setStyleSheet(AppStyles.divider())
         self.main_layout.addWidget(separator)
         # Add some spacing around the separator
-        self.main_layout.addSpacing(20)
+        #self.main_layout.addSpacing(20)
+
+    def initLayoutGrouping(self):
+        layout_group_widget = QWidget()
+        self.layout_group_layout = QHBoxLayout(layout_group_widget)
 
     def initTasksLayout(self):
         # Create container for all grid layouts
         task_layout_widget = QWidget()
         self.task_layout_container = QVBoxLayout(task_layout_widget)
+        self.task_layout_container.setContentsMargins(0, 0, 0, 0)
         tasks_scroll_area = QScrollArea()
         tasks_scroll_area.setStyleSheet(AppStyles.scroll_area())
         tasks_scroll_area.setWidgetResizable(True)
@@ -83,27 +89,70 @@ class DashboardScreen(QWidget):
         self.main_layout.addWidget(tasks_scroll_area)
 
     def iterrateGridLayouts(self):
-        manage_tasks_widget = QWidget()
-        manage_tasks_layout = QHBoxLayout(manage_tasks_widget)
+        # Main container widget
+        manage_header_widget = QWidget()
+        manage_header_layout = QHBoxLayout(manage_header_widget)
+        manage_header_layout.setContentsMargins(10, 5, 10, 5)
+        
+        # Right-aligned container for both rows
+        buttons_widget = QWidget()
+        buttons_container = QHBoxLayout(buttons_widget)
+        buttons_container.setSpacing(10)
+        buttons_container.setContentsMargins(0, 0, 10, 0)
+        
+        # Define button size - use the same for both buttons
+        button_size = QSize(30, 30)
+        
+        # Task row
+        task_row_widget = QWidget()
+        task_row_layout = QHBoxLayout(task_row_widget)
+        task_row_layout.setContentsMargins(0, 0, 0, 0)
+        
         manage_tasks_label = QLabel("Add New Task")
         manage_tasks_label.setStyleSheet(AppStyles.label_lgfnt())
-
-        addTaskButton = AnimatedButton("+", blur=2, x=10, y=10, offsetX=1, offsetY=1) 
+        
+        addTaskButton = AnimatedButton("+", blur=2, x=10, y=10, offsetX=1, offsetY=1)
         addTaskButton.setStyleSheet(AppStyles.button_normal())
-
+        addTaskButton.setFixedSize(button_size)  # Set fixed size
         addTaskButton.clicked.connect(lambda: self.addNewTask(task=None))
+        
+        task_row_layout.addWidget(manage_tasks_label)
+        task_row_layout.addWidget(addTaskButton)
+        
+        # Group row
+        group_row_widget = QWidget()
+        group_row_layout = QHBoxLayout(group_row_widget)
+        group_row_layout.setContentsMargins(0, 0, 0, 0)
+        
+        manage_groups_label = QLabel("Add New Group")
+        manage_groups_label.setStyleSheet(AppStyles.label_lgfnt())
+        
+        addGroupsButton = AnimatedButton("+", blur=2, x=10, y=10, offsetX=1, offsetY=1)
+        addGroupsButton.setStyleSheet(AppStyles.button_normal())
+        addGroupsButton.setFixedSize(button_size)  # Set fixed size - same as other button
+        addGroupsButton.clicked.connect(lambda: self.addGroupTask())
+        
+        group_row_layout.addWidget(manage_groups_label)
+        group_row_layout.addWidget(addGroupsButton)
+        
+        # Add both rows to the container
+        buttons_container.addWidget(task_row_widget)
+        buttons_container.addWidget(group_row_widget)
+        
+        # Push everything to the right side
+        manage_header_layout.addStretch(1)
+        manage_header_layout.addWidget(buttons_widget)
+        
+        # Set minimum height to prevent cutoff
+        manage_header_widget.setMinimumHeight(100)
+        
+        self.task_layout_container.addWidget(manage_header_widget)
 
-        manage_tasks_layout.addSpacerItem(QSpacerItem(20, 20, QSizePolicy.Expanding, QSizePolicy.Minimum))
-        manage_tasks_layout.addWidget(manage_tasks_label)
-        manage_tasks_layout.addWidget(addTaskButton)
-
-        self.task_layout_container.addWidget(manage_tasks_widget)
-    
         for grid in self.saved_grid_layouts:
             # Create section with title for this grid
             grid_section = QWidget()
             grid_section_layout = QVBoxLayout(grid_section)
-            grid_section_layout.setContentsMargins(0, 0, 0, 0)
+            grid_section_layout.setContentsMargins(20, 0, 0, 0)
             
             # Add title for this grid
             grid_title = QLabel(grid.name)
@@ -193,6 +242,50 @@ class DashboardScreen(QWidget):
         self.overlay.installEventFilter(self)
         self.overlay.mousePressEvent = self.closeExpandedCard
 
+    def addGroupTask(self):
+        self.overlay_grid_dialog = QWidget(self)
+        self.overlay_grid_dialog.setStyleSheet("""
+            QWidget {
+                background-color: rgba(0, 0, 0, 0.5);
+            }
+        """)
+        self.overlay_grid_dialog.setGeometry(self.rect())
+
+        self.add_group_dialog = AddGridDialog(logger=self.logger)
+        self.add_group_dialog.setStyleSheet(AppStyles.expanded_task_card())
+
+        self.add_group_dialog.addGroupCancel.connect(self.cancelAddGroup)
+        self.add_group_dialog.addGroupSaveSignel.connect(self.completeSaveActions)
+
+        window = self.window()
+        window_geometry = window.geometry()
+
+        card_width, card_height = self.add_group_dialog.calculate_optimal_size()
+
+        center_x = window_geometry.x() + (window_geometry.width() - card_width) // 2
+        center_y = window_geometry.y() + (window_geometry.height() - card_height) // 2
+        
+        self.add_group_dialog.setGeometry(center_x, center_y, card_width, card_height)
+
+        self.overlay_grid_dialog.show()
+        self.add_group_dialog.show()
+
+        self.overlay_grid_dialog.installEventFilter(self)
+        self.overlay_grid_dialog.mousePressEvent = self.cancelAddGroup
+
+    def cancelAddGroup(self, event=None):  # Add event parameter with default value
+        if hasattr(self, 'add_group_dialog'):
+            self.add_group_dialog.close()
+            self.add_group_dialog.deleteLater()
+            delattr(self, 'add_group_dialog')  # Remove the attribute
+        if hasattr(self, 'overlay_grid_dialog'):
+            self.overlay_grid_dialog.close()
+            self.overlay_grid_dialog.deleteLater()
+            delattr(self, 'overlay_grid_dialog')  # Remove the attribute
+
+    def saveAddGroup(self):
+        pass
+
     # In Dashboard class
     def propagateTaskDeletion(self, task_title):
         """Propagate task deletion to all grid layouts"""
@@ -204,6 +297,7 @@ class DashboardScreen(QWidget):
         self.closeExpandedCard()
 
     def completeSaveActions(self):
+        print("closing layouts")
         self.loadGridLayouts()
         self.clear_layout(self.task_layout_container)
         self.iterrateGridLayouts()
