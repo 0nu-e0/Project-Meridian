@@ -1,6 +1,8 @@
 # Exclude saved tasks and config files
 Project_Manager/data/saved_tasks.json
 Project_Manager/data/app_config.yaml
+data/saved_tasks.json
+data/app_config.yaml
 Project_Manager/app.log
 __pychache__/
 *.py[cod]
