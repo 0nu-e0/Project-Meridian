@@ -14,7 +14,7 @@ class AppColors:
     accent_background_color = "#13151A"  # Subtle dark accent
     accent_background_color_dark = "#1C1F26"
     banner_color = "#2E2F73"  # Added back, modern purple
-    label_font_color = "#E2E4FF"  # Light purple-white
+    label_font_color = "#000000"  # Light purple-white
     button_background_gray = "#2E2F73"  # Deep electric purple
     button_gray = "#E2E4FF"
     button_black = "#000000"
