@@ -1,0 +1,3 @@
+# Exclude saved tasks and config files
+Project_Manager/data/saved_tasks.json
+Project_Manager/data/app_config.yaml
