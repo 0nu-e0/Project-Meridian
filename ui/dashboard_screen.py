@@ -31,7 +31,6 @@ from resources.styles import AppStyles, AnimatedButton
 from utils.directory_finder import resource_path
 from utils.dashboard_config import DashboardConfigManager
 from models.task import Task, TaskCategory, TaskPriority, TaskEntry, TaskStatus
-from ui.task_files.task_card import TaskCard
 from .dashboard_child_view.grid_layout import GridLayout
 from .dashboard_child_view.add_task_group import AddGridDialog
 from ui.task_files.task_card_expanded import TaskCardExpanded
@@ -209,7 +208,7 @@ class DashboardScreen(QWidget):
             self.remove_grid_button.setIcon(remove_icon)
             self.remove_grid_button.setFixedSize(QSize(30, 30))
             self.remove_grid_button.setIconSize(QSize(30, 30))
-            self.remove_grid_button.setStyleSheet(AppStyles.button_transparent)
+            self.remove_grid_button.setStyleSheet(AppStyles.button_transparent())
             self.remove_grid_button.setVisible(False)  # Hide by default
             self.remove_grid_button.clicked.connect(lambda: self.removeGridSection(grid.id))  # Pass grid ID
             grid_header_layout.addWidget(self.remove_grid_button)

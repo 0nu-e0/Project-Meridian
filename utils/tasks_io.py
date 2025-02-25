@@ -164,6 +164,11 @@ def load_tasks_from_json():
                         attachment.file_type = attachment_data['file_type']
                         
                     task.attachments.append(attachment)
+
+            if 'checklist' in task_info:
+                task.checklist = task_info['checklist']
+            else:
+                task.checklist = [] 
             
             # Add time logs
             if 'time_logs' in task_info:
@@ -285,6 +290,7 @@ def save_task_to_json(task):
                 }
                 for attachment in getattr(task, 'attachments', [])
             ],
+            'checklist': getattr(task, 'checklist', []),
             'time_logs': [
                 {
                     'id': log.id,
