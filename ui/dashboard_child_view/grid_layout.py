@@ -32,7 +32,6 @@ from ui.custom_widgets.filter_image import FilterButton
 from models.task import Task, TaskStatus, TaskPriority, TaskCategory, TaskEntry, Attachment, DueStatus
 from resources.styles import AppStyles, AnimatedButton
 from utils.directory_finder import resource_path
-from ui.task_files.task_card import TaskCard
 from ui.task_files.task_card_expanded import TaskCardExpanded
 from ui.task_files.task_card_lite import TaskCardLite
 from PyQt5.QtWidgets import (QApplication, QWidget, QGridLayout, QPushButton, QVBoxLayout, QHBoxLayout, QMainWindow,

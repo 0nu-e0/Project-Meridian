@@ -26,7 +26,7 @@
 # -----------------------------------------------------------------------------
 
 from datetime import datetime, timedelta
-from typing import List, Optional, Dict, Set
+from typing import List, Optional, Dict, Set, Tuple
 from enum import Enum
 from uuid import uuid4
 from PyQt5.QtCore import QObject, pyqtSignal
@@ -135,6 +135,38 @@ class Task(QObject):
         self.entries: List[TaskEntry] = []    
         self.time_logs: List[TimeLog] = [] 
 
+        # Checklist items
+        self.checklist: List[Dict[str, any]] = [] 
+
+    def add_checklist_item(self, text: str, checked: bool = False):
+        """Add a new item to the task's checklist."""
+        self.checklist.append({
+            'text': text,
+            'checked': checked
+        })
+        self.modified_date = datetime.now()
+        
+    def update_checklist_item(self, index: int, text: str = None, checked: bool = None):
+        """Update an existing checklist item."""
+        if 0 <= index < len(self.checklist):
+            if text is not None:
+                self.checklist[index]['text'] = text
+            if checked is not None:
+                self.checklist[index]['checked'] = checked
+            self.modified_date = datetime.now()
+            
+    def remove_checklist_item(self, index: int):
+        """Remove a checklist item by index."""
+        if 0 <= index < len(self.checklist):
+            self.checklist.pop(index)
+            self.modified_date = datetime.now()
+            
+    def get_checklist_progress(self) -> Tuple[int, int]:
+        """Get the number of completed items and total items."""
+        total = len(self.checklist)
+        completed = sum(1 for item in self.checklist if item.get('checked', False))
+        return completed, total
+
     def track_time(self, hours: float, user_id: str, description: str = ""):
         """Log time spent on the task."""
         time_log = TimeLog(hours, user_id, description)
@@ -221,6 +253,8 @@ class TaskEntry:
     def add_attachment(self, attachment: Attachment):
         """Add an attachment to the entry."""
         self.attachments.append(attachment)
+
+    
     
     def __str__(self):
         edited_str = " (edited)" if self.edited else ""

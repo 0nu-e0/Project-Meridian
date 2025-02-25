@@ -12,7 +12,7 @@
     "actual_hours": 0.0,
     "cost_estimate": 0.0,
     "actual_cost": 0.0,
-    "modified_date": "2025-02-25, 10:39:49",
+    "modified_date": "2025-02-25, 13:06:44",
     "dependencies": [],
     "blocked_by": [],
     "watchers": [],
@@ -21,6 +21,7 @@
     "tags": [],
     "custom_fields": {},
     "attachments": [],
+    "checklist": [],
     "time_logs": [],
     "activities": [
       {
@@ -62,7 +63,7 @@
     "actual_hours": 0.0,
     "cost_estimate": 0.0,
     "actual_cost": 0.0,
-    "modified_date": "2025-02-25, 09:16:09",
+    "modified_date": "2025-02-25, 12:59:45",
     "dependencies": [],
     "blocked_by": [],
     "watchers": [],
@@ -71,6 +72,7 @@
     "tags": [],
     "custom_fields": {},
     "attachments": [],
+    "checklist": [],
     "time_logs": [],
     "activities": [
       {
