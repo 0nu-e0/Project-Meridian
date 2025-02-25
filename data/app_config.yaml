@@ -4,54 +4,91 @@ app:
   startup_maximized: true
   version: 1.0.0
 dashboard:
-  default_grid:
-    columns: 3
-    filter:
-      category: []
-      due: []
-      status: []
-    name: New Grid
+
   grid_layouts:
+
   - columns: 3
     filter:
-      category: []
+      category:
+      - ECO
       due: []
-      status:
-      - In Progress
-      - In Review
-    id: grid_001
-    name: In Progress Tasks
-    position: 0
-  - columns: 4
-    filter:
-      category: []
-      due: []
-      status:
-      - Not Started
-    id: grid_002
-    name: Not Started Tasks
+      status: []
+    id: grid_8d70d6ae
+    name: ECO Tasks
     position: 1
   - columns: 3
     filter:
-      category: []
+      category:
+      - CAPA
       due: []
-      status:
-      - On Hold
-      - Cancelled
-    id: grid_cc3b37d3
-    name: rsgawrs
+      status: []
+    id: grid_2a8031e4
+    name: CAPA Group
     position: 2
   - columns: 3
     filter:
-      category: []
+      category:
+      - Boride Shaping
       due: []
-      status:
-      - In Progress
-      - In Review
-      - Blocked
-    id: grid_cf989abc
-    name: awg
+      status: []
+    id: grid_e29d915e
+    name: Boride Shaping Group
     position: 3
+  - columns: 3
+    filter:
+      category:
+      - Maintenance
+      due: []
+      status: []
+    id: grid_6d6d0ce0
+    name: Maintenance Group
+    position: 4
+  - columns: 3
+    filter:
+      category:
+      - Feature
+      due: []
+      status: []
+    id: grid_8bb6f149
+    name: Feature Group
+    position: 5
+  - columns: 3
+    filter:
+      category:
+      - Documentation
+      due: []
+      status: []
+    id: grid_03d48f8b
+    name: Documentation Group
+    position: 6
+  - columns: 3
+    filter:
+      category:
+      - Research
+      due: []
+      status: []
+    id: grid_bb6b5d7a
+    name: Research Group
+    position: 7
+  - columns: 3
+    filter:
+      category:
+      - Work Instruction
+      due: []
+      status: []
+    id: grid_93e193dc
+    name: Work Instruction Group
+    position: 8
+  - columns: 3
+    filter:
+      category:
+      - Drawing Update
+      due: []
+      status: []
+    id: grid_709f62ee
+    name: Drawing Update Group
+    position: 9
+  name: New Grid
 data:
   cache:
     enabled: true

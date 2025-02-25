@@ -270,21 +270,21 @@ class GridLayout(QWidget):
             except Exception as e:
                 print(f"Error removing task card: {e}")
 
-    def updateGridLayoutAfterRemoval(self):
-        # Reset position counters
-        self.current_row = 0
-        self.current_column = 0
+    # def updateGridLayoutAfterRemoval(self):
+    #     # Reset position counters
+    #     self.current_row = 0
+    #     self.current_column = 0
 
-        # Re-add remaining widgets to the grid layout in their new positions
-        for card in self.taskCards:
-            self.grid_layout.addWidget(card, self.current_row, self.current_column)
-            self.current_column += 1
-            if self.current_column >= self.num_columns:
-                self.current_column = 0
-                self.current_row += 1
+    #     # Re-add remaining widgets to the grid layout in their new positions
+    #     for card in self.taskCards:
+    #         self.grid_layout.addWidget(card, self.current_row, self.current_column)
+    #         self.current_column += 1
+    #         if self.current_column >= self.num_columns:
+    #             self.current_column = 0
+    #             self.current_row += 1
 
-        # Update the layout to reflect the changes
-        self.grid_layout.update()
+    #     # Update the layout to reflect the changes
+    #     self.grid_layout.update()
 
     @staticmethod
     def clearGridLayout(layout):

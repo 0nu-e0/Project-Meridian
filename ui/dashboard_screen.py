@@ -298,7 +298,8 @@ class DashboardScreen(QWidget):
 
     def completeSaveActions(self):
         print("closing layouts")
-        self.loadGridLayouts()
+
+        self.grid_layouts = self.loadGridLayouts()
         self.clear_layout(self.task_layout_container)
         self.iterrateGridLayouts()
         self.closeExpandedCard()
