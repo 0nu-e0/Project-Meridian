@@ -38,9 +38,9 @@ from PyQt5.QtWidgets import (QApplication, QDesktopWidget, QWidget, QVBoxLayout,
                              QSizePolicy, QGridLayout, QPushButton, QGraphicsDropShadowEffect, QStyle, QComboBox, QTextEdit,
                              QDateTimeEdit, QLineEdit, QCalendarWidget, QToolButton, QSpinBox, QListWidget, QTabWidget,
                              QMessageBox, QInputDialog, QListWidgetItem, QScrollArea, QTreeWidget, QTreeWidgetItem, QFileDialog,
-                             QStyleFactory
+                             QStyleFactory, 
                              )
-from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot, QEvent, QSize, QDateTime, QUrl
+from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot, QEvent, QSize, QDateTime, QUrl, QTimer
 from PyQt5.QtGui import (QColor, QPainter, QBrush, QPen, QMovie, QTextCharFormat, QColor, QIcon, QPixmap, QDesktopServices,
                         
                         )
@@ -570,7 +570,7 @@ class TaskCardExpanded(QWidget):
         scroll_area = QScrollArea()
         scroll_area.setStyleSheet(AppStyles.scroll_area())
         scroll_area.setWidgetResizable(True)
-        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff) 
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         
         # Create content widget for the scroll area
         scroll_content = QWidget()
@@ -581,11 +581,12 @@ class TaskCardExpanded(QWidget):
         details_section = self.createDetailsSection()
         dependencies_section = self.createDependenciesSection()
         attachments_section = self.createAttachmentsSection()
-
+        checklist_section = self.createChecklistSection() 
+        
         scroll_layout.addLayout(details_section)
         scroll_layout.addLayout(dependencies_section)
         scroll_layout.addLayout(attachments_section)
-
+        scroll_layout.addLayout(checklist_section)
         scroll_layout.addStretch(1)
         
         # Set the content widget to the scroll area
@@ -594,7 +595,20 @@ class TaskCardExpanded(QWidget):
         # Add scroll area to the main layout
         main_layout.addWidget(scroll_area)
         
+        # CRITICAL FIX: Force layout adjustment after a brief delay 
+        # This mimics what happens during collapse and fixes the layout
+        QTimer.singleShot(10, lambda: self.forceLayoutUpdate(scroll_content))
+        
         return main_layout
+
+    def forceLayoutUpdate(self, widget):
+        """Force the widget to update its layout to fit the available space"""
+        # This triggers layout recalculation similar to what happens on collapse
+        widget.adjustSize()
+        widget.updateGeometry()
+        # Force a resize of all child CollapsibleSection widgets
+        for child in widget.findChildren(CollapsibleSection):
+            child.updateGeometry()
     
     def createDetailsSection(self):
         # Create a layout without a parent widget
@@ -605,6 +619,8 @@ class TaskCardExpanded(QWidget):
         # Details section
         details_section = CollapsibleSection("Details", self)
         details_section.setStyleSheet(AppStyles.border_widget())
+
+        details_section.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         
         # Add your regular details rows
         details_section.add_dates(self.createDatesSection())
@@ -635,6 +651,7 @@ class TaskCardExpanded(QWidget):
 
         # Dependencies section
         dependencies_section = CollapsibleSection("Dependencies", self)
+        dependencies_section.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         dependencies_section.setStyleSheet(AppStyles.border_widget())
         dependencies_section.add_dependencies_list()
 
@@ -658,6 +675,27 @@ class TaskCardExpanded(QWidget):
         
         return section_layout
     
+    def createChecklistSection(self):
+        section_layout = QVBoxLayout()
+        section_layout.setContentsMargins(0, 0, 0, 0)
+        section_layout.setSpacing(5)
+        
+        # Create section
+        self.checklist_section = CollapsibleSection("Checklist", self)
+        self.checklist_section.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        self.checklist_section.setStyleSheet(AppStyles.border_widget())
+        
+        # Add checklist functionality
+        self.checklist_section.add_checklist("Task Items")
+        
+        # If there's existing data, load it
+        if hasattr(self, 'task') and self.task and hasattr(self.task, 'checklist'):
+            self.checklist_section.set_checklist_data(self.task.checklist)
+        
+        section_layout.addWidget(self.checklist_section)
+        section_layout.addStretch()
+        return section_layout
+    
     def createAttachmentsSection(self):
         section_layout = QVBoxLayout()
         section_layout.setContentsMargins(0, 0, 15, 0)
@@ -665,6 +703,7 @@ class TaskCardExpanded(QWidget):
         
         attachments_section = CollapsibleSection("Attachments", self)
         attachments_section.setStyleSheet(AppStyles.border_widget())
+        attachments_section.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         
         # Add attachments list
         if hasattr(self.task, 'attachments'):
@@ -1016,6 +1055,8 @@ class TaskCardExpanded(QWidget):
         # Hide overlay and close
         self.cancelTask.emit()
 
+    
+
     def restore_task_state(self):
         """Restore the task to its original state"""
         task = self.task
@@ -1038,6 +1079,8 @@ class TaskCardExpanded(QWidget):
         task.entries = self.initial_state['entries']
         task.time_logs = self.initial_state['time_logs']
         task.attachments = self.initial_state['attachments']
+
+        task.checklist = self.initial_state['checklists']
 
     def deleteTask(self):
         """Delete the task and close the expanded card"""
@@ -1083,6 +1126,30 @@ class TaskCardExpanded(QWidget):
                     
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"An error occurred while deleting the task: {str(e)}")
+
+    def add_checklist_item_to_task(self, text):
+        """Add a checklist item to the task"""
+        if not hasattr(self.task, 'checklist'):
+            self.task.checklist = []
+            
+        self.task.checklist.append({
+            'text': text,
+            'checked': False
+        })
+
+    def remove_checklist_item_from_task(self, text):
+        """Remove a checklist item from the task"""
+        if hasattr(self.task, 'checklist'):
+            # Remove the item with matching text
+            self.task.checklist = [item for item in self.task.checklist if item['text'] != text]
+            
+    def update_checklist_item_in_task(self, text, checked):
+        """Update the checked state of a checklist item"""
+        if hasattr(self.task, 'checklist'):
+            for item in self.task.checklist:
+                if item['text'] == text:
+                    item['checked'] = checked
+                    break
 
     def closeWindow(self):
         print("trying to close")
