@@ -238,6 +238,8 @@ class DashboardScreen(QWidget):
             
             # Create a grid layout with the filter
             grid_layout = GridLayout(logger=self.logger, filter=filter_dict)
+
+            grid_section_layout.addWidget(self.grid_header_widget )
             grid_section_layout.addWidget(grid_layout)
             self.grid_layouts.append(grid_layout)
             grid_layout.taskDeleted.connect(self.propagateTaskDeletion)
