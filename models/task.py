@@ -30,6 +30,9 @@ class TaskCategory(Enum):
     ECO = "ECO"
     BORIDE_SHAPING = "Boride Shaping"
     DRAWING_UPDATE = "Drawing Update"
+    CAPA = "CAPA"
+    BUILD_FIXTURE = "Build Fixture"
+    WORK_INSTRUCTION = "Work Instruction"
 
 class DueStatus(Enum):
    OVERDUE = "Overdue"
