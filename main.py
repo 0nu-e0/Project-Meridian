@@ -1,4 +1,4 @@
-import logging, sys, asyncio, json, qasync
+import os, yaml, logging, sys, asyncio, json, qasync
 from utils.dashboard_config import DashboardConfigManager
 from ui.welcome_screen import WelcomeScreen
 from ui.dashboard_screen import DashboardScreen
@@ -324,10 +324,42 @@ class MainWindow(QMainWindow):
 
         QTimer.singleShot(duration, lambda: self.stacked_widget.setCurrentWidget(newWidget))
 
+def ensure_required_files():
+    base_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'Project_Manager', 'data')
+    
+    # Ensure the directory exists
+    os.makedirs(base_dir, exist_ok=True)
+
+    # File paths
+    saved_tasks_path = os.path.join(base_dir, 'saved_tasks.json')
+    app_config_path = os.path.join(base_dir, 'app_config.yaml')
+
+    # Check and create saved_tasks.json if it doesn't exist
+    if not os.path.exists(saved_tasks_path):
+        default_tasks = {"tasks": []}
+        with open(saved_tasks_path, 'w') as f:
+            json.dump(default_tasks, f, indent=4)
+        print(f"Created missing file: {saved_tasks_path}")
+
+    # Check and create app_config.yaml if it doesn't exist
+    if not os.path.exists(app_config_path):
+        default_config = {
+            "app_name": "Project Manager",
+            "version": "1.0",
+            "settings": {}
+        }
+        with open(app_config_path, 'w') as f:
+            yaml.dump(default_config, f, default_flow_style=False)
+        print(f"Created missing file: {app_config_path}")
+
+    print("File check completed.")
+
+
 if __name__ == '__main__':
     setup_logging()
     logger = get_logger("CentralManager")
     logging.info("Logging system initialized")
+    ensure_required_files()
     app = QApplication(sys.argv)
     loop = qasync.QEventLoop(app) # Need Qasync for PyQt async - QWidgets
     asyncio.set_event_loop(loop)
