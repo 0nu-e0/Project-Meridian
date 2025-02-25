@@ -2,6 +2,7 @@ import sys, os, json, copy
 from utils.tasks_io import load_tasks_from_json, save_task_to_json
 from datetime import datetime
 from pathlib import Path
+from utils.directory_finder import resource_path
 from models.task import Task, TaskCategory, TaskPriority, TaskStatus, Attachment, TaskEntry, TimeLog
 from ui.custom_widgets.collapsable_section import CollapsibleSection
 from resources.styles import AppColors
@@ -216,7 +217,7 @@ class TaskCardExpanded(QWidget):
 
         # Calendar Button with icon
         calendar_button = QPushButton()
-        image_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'resources', 'images', 'Calendar.png')
+        image_path = resource_path('resources/images/Calendar.png')
         pixmap = QPixmap(image_path)
         calendar_icon = QIcon(pixmap)
         calendar_button.setIcon(calendar_icon)
@@ -1022,8 +1023,8 @@ class TaskCardExpanded(QWidget):
         
         if confirm == QMessageBox.Yes:
             # Get the json file path
-            json_file_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-                                        'data', 'saved_tasks.json')
+            json_file_path = resource_path('data/saved_tasks.json')
+            
             try:
                 # Store the task title before deletion
                 task_title = self.task.title

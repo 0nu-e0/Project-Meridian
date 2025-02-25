@@ -1,5 +1,6 @@
 import os, json
 from resources.styles import AppStyles, AnimatedButton
+from utils.directory_finder import resource_path
 from utils.dashboard_config import DashboardConfigManager
 from models.task import Task, TaskCategory, TaskPriority, TaskEntry, TaskStatus
 from ui.task_files.task_card import TaskCard
@@ -13,14 +14,13 @@ from PyQt5.QtGui import QResizeEvent
 class DashboardScreen(QWidget):
     sendTaskInCardClicked = pyqtSignal(object)
     savecomplete = pyqtSignal()
-    json_file_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'saved_tasks.json')
+    json_file_path = resource_path('data/saved_tasks.json')
 
-    def __init__(self, logger, saved_grid_layouts=None):
+    def __init__(self, logger):
         super().__init__()
 
         self.logger = logger
         self.saved_grid_layouts = self.loadGridLayouts() or []
-        # print(f"Total grids loaded: {len(self.grid_layouts)}")
         for grid in self.saved_grid_layouts:
             print(f"Grid: {grid.id} - {grid.name}")
         self.consoles = {}
@@ -32,7 +32,6 @@ class DashboardScreen(QWidget):
         return DashboardConfigManager.get_all_grid_layouts()
 
     def initUI(self):
-        #self.setStyleSheet(AppStyles.background_color()) 
         self.initCentralWidget()
         self.initBannerSpacer()
         self.addSeparator()
@@ -49,7 +48,6 @@ class DashboardScreen(QWidget):
         
     def initBannerSpacer(self):
         self.banner_widget = QWidget()
-        #self.banner_widget.setStyleSheet("border: 1px solid purple;")
         self.banner_layout = QVBoxLayout(self.banner_widget)
         banner_height = int(self.height()*0.15) 
         self.banner_spacer = QSpacerItem(1, banner_height, QSizePolicy.Expanding, QSizePolicy.Fixed)
@@ -65,15 +63,6 @@ class DashboardScreen(QWidget):
         # Add some spacing around the separator
         self.main_layout.addSpacing(20)
 
-    # def initTasksLayout(self):
-    #     task_layout_widget = QWidget()
-    #     task_layout_container = QVBoxLayout(task_layout_widget)
-    #     grid_layout = GridLayout(logger=self.logger)
-        
-    #     task_layout_container.addWidget(grid_layout)
-
-    #     self.main_layout.addWidget(task_layout_widget)
-
     def initTasksLayout(self):
         # Create container for all grid layouts
         task_layout_widget = QWidget()
@@ -84,6 +73,16 @@ class DashboardScreen(QWidget):
         tasks_scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         tasks_scroll_area.setWidget(task_layout_widget)
 
+        self.iterrateGridLayouts()
+
+        # If no grid layouts, create at least one grid
+        if not self.saved_grid_layouts:
+            grid_layout = GridLayout(logger=self.logger)
+            self.task_layout_container.addWidget(grid_layout)
+        
+        self.main_layout.addWidget(tasks_scroll_area)
+
+    def iterrateGridLayouts(self):
         manage_tasks_widget = QWidget()
         manage_tasks_layout = QHBoxLayout(manage_tasks_widget)
         manage_tasks_label = QLabel("Add New Task")
@@ -99,61 +98,7 @@ class DashboardScreen(QWidget):
         manage_tasks_layout.addWidget(addTaskButton)
 
         self.task_layout_container.addWidget(manage_tasks_widget)
-
-        self.iterrateGridLayouts()
-        # # Loop through each grid layout in self.grid_layouts
-        # for grid in self.saved_grid_layouts:
-        #     # Create section with title for this grid
-        #     grid_section = QWidget()
-        #     grid_section_layout = QVBoxLayout(grid_section)
-        #     grid_section_layout.setContentsMargins(0, 0, 0, 0)
-            
-        #     # Add title for this grid
-        #     grid_title = QLabel(grid.name)
-        #     grid_title.setStyleSheet("font-weight: bold; font-size: 16px;")
-        #     grid_section_layout.addWidget(grid_title)
-            
-        #     # Create filter dictionary for GridLayout
-        #     filter_dict = {
-        #         'status': [],
-        #         'category': [],
-        #         'due': []
-        #     }
-            
-        #     # Direct mapping - the YAML file now uses the exact enum values
-        #     if hasattr(grid.filter, 'status') and grid.filter.status:
-        #         filter_dict['status'] = grid.filter.status
-            
-        #     if hasattr(grid.filter, 'category') and grid.filter.category:
-        #         filter_dict['category'] = grid.filter.category
-                
-        #     if hasattr(grid.filter, 'due') and grid.filter.due:
-        #         filter_dict['due'] = grid.filter.due
-            
-        #     print(f"Applying filter to {grid.name}: {filter_dict}")
-            
-        #     # Create a grid layout with the filter
-        #     grid_layout = GridLayout(logger=self.logger, filter=filter_dict)
-        #     grid_section_layout.addWidget(grid_layout)
-        #     self.grid_layouts.append(grid_layout)
-        #     grid_layout.taskDeleted.connect(self.propagateTaskDeletion)
-            
-        #     # Add the section to the container
-        #     task_layout_container.addWidget(grid_section)
-            
-        #     # Add a small spacer between grids
-        #     spacer = QWidget()
-        #     spacer.setFixedHeight(10)
-        #     task_layout_container.addWidget(spacer)
-        
-        # If no grid layouts, create at least one grid
-        if not self.saved_grid_layouts:
-            grid_layout = GridLayout(logger=self.logger)
-            self.task_layout_container.addWidget(grid_layout)
-        
-        self.main_layout.addWidget(tasks_scroll_area)
-
-    def iterrateGridLayouts(self):
+    
         for grid in self.saved_grid_layouts:
             # Create section with title for this grid
             grid_section = QWidget()
@@ -273,7 +218,7 @@ class DashboardScreen(QWidget):
             else:
                 self.clear_layout(item.layout()) 
 
-    def closeExpandedCard(self):
+    def closeExpandedCard(self, event=None):  # Add event parameter with default value
         if hasattr(self, 'expanded_card'):
             self.expanded_card.close()
             self.expanded_card.deleteLater()

@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from ui.custom_widgets.filter_image import FilterButton
 from models.task import Task, TaskStatus, TaskPriority, TaskCategory, TaskEntry, Attachment, DueStatus
 from resources.styles import AppStyles, AnimatedButton
+from utils.directory_finder import resource_path
 from ui.task_files.task_card import TaskCard
 from ui.task_files.task_card_expanded import TaskCardExpanded
 from ui.task_files.task_card_lite import TaskCardLite
@@ -22,7 +23,7 @@ class GridLayout(QWidget):
     toggleTaskManagerView = pyqtSignal()
     taskDeleted = pyqtSignal(str)
 
-    json_file_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'saved_tasks.json')
+    json_file_path = resource_path('data/saved_tasks.json')
 
     def __init__(self, logger, filter=None):
         super().__init__()
@@ -71,13 +72,7 @@ class GridLayout(QWidget):
     def load_known_tasks(self):
 
         self.tasks = load_tasks_from_json()
-        
-        # Logging/debugging
-        # if self.tasks:
-        #     print(f"Loaded {len(self.tasks)} tasks")
-        # else:
-        #     print("No tasks loaded or error occurred")
-        
+
         return self.tasks
 
     def initUI(self):
@@ -121,25 +116,14 @@ class GridLayout(QWidget):
 
         filter_button.filtersChanged.connect(self.onFilterChanged)
 
-        # self.manage_tasks_label = QLabel("Add New Task")
-        # self.manage_tasks_label.setStyleSheet(AppStyles.label_lgfnt())
-
-        # self.addTaskButton = AnimatedButton("+", blur=2, x=10, y=10, offsetX=1, offsetY=1) 
-        # self.addTaskButton.setStyleSheet(AppStyles.button_normal())
-
         self.manage_tasks_layout.addSpacerItem(QSpacerItem(20, 20, QSizePolicy.Expanding, QSizePolicy.Minimum))
         self.manage_tasks_layout.addWidget(task_header)
         self.manage_tasks_layout.addWidget(filter_button)
         self.manage_tasks_layout.addStretch(1)
-        # self.manage_tasks_layout.addWidget(self.manage_tasks_label)
-        # self.manage_tasks_layout.addWidget(self.addTaskButton)
-
-        # self.addTaskButton.clicked.connect(self.addNewTask)
 
         self.central_layout.addWidget(self.manage_tasks_widget)
 
     def initCardGridLayout(self):
-        # print("reached grid layout")
         self.current_row = 0
         self.current_column = 0
         self.min_spacing = 20
@@ -153,19 +137,11 @@ class GridLayout(QWidget):
         
         self.grid_layout = QGridLayout()
         self.grid_layout.setContentsMargins(0, 0, 0, 0)
-        #self.grid_layout.setSpacing(40)
-       # self.grid_layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)  
         self.grid_layout.setAlignment(Qt.AlignTop) 
         
         self.grid_container_widget = QWidget()
         self.grid_container_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.grid_container_widget.setLayout(self.grid_layout)
-        
-        # scroll_area = QScrollArea()
-        # scroll_area.setFrameShape(QScrollArea.NoFrame)
-        # scroll_area.setWidgetResizable(True)
-        # scroll_area.setWidget(self.grid_container_widget)
-        # scroll_area.setStyleSheet(AppStyles.scroll_area())
     
         self.addTaskCard()
         self.central_layout.addWidget(self.grid_container_widget)
@@ -272,62 +248,7 @@ class GridLayout(QWidget):
 
     def handleCardClicked(self, task):
         self.sendTaskInCardClicked.emit(task)
-        # # Create overlay shadow effect
-        # self.overlay = QWidget(self)
-        # self.overlay.setStyleSheet("""
-        #     QWidget {
-        #         background-color: rgba(0, 0, 0, 0.5);
-        #     }
-        # """)
-        # self.overlay.setGeometry(self.rect())
-        
-        # # Create expanded card
-        # self.expanded_card = TaskCardExpanded(logger=self.logger, task=task, parent_view=self)
-        # self.expanded_card.setStyleSheet(AppStyles.expanded_task_card())
-        # #self.expanded_card.setAttribute(Qt.WA_TranslucentBackground, True)
 
-        # self.expanded_card.taskDeleted.connect(self.removeTaskCard)
-        # self.expanded_card.saveCompleted.connect(self.saveCompleted.emit)
-        # # Get screen and window geometries
-        # screen_geometry = QApplication.desktop().screenGeometry()
-        # window = self.window()  # Get the main window
-        # window_geometry = window.geometry()
-        
-        # # Calculate card dimensions
-        # card_width, card_height = self.expanded_card.calculate_optimal_card_size()
-        
-        # # Calculate center position relative to the window
-        # center_x = window_geometry.x() + (window_geometry.width() - card_width) // 2
-        # center_y = window_geometry.y() + (window_geometry.height() - card_height) // 2
-        
-        # # Set position and show expanded card
-        # self.expanded_card.setGeometry(center_x, center_y, card_width, card_height)
-        # self.expanded_card.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
-        
-        # # Show overlay and card
-        # self.overlay.show()
-        # self.expanded_card.show()
-        
-        # # Install event filter to handle clicks outside
-        # self.overlay.installEventFilter(self)
-        
-    def eventFilter(self, obj, event):
-        if obj == self.overlay and event.type() == QEvent.MouseButtonPress:
-            # Check if click is outside the expanded card
-            if not self.expanded_card.geometry().contains(event.globalPos()):
-                self.closeExpandedCard()
-                return True
-        return super().eventFilter(obj, event)
-
-    def closeExpandedCard(self):
-        if hasattr(self, 'expanded_card'):
-            self.expanded_card.close()
-            self.expanded_card.deleteLater()
-        if hasattr(self, 'overlay'):
-            self.overlay.close()
-            self.overlay.deleteLater()
-            
-    # In GridLayout class
     def removeTaskCard(self, task_title):
         """Remove a task card from this grid layout"""
         for i, card in enumerate(self.taskCards):
@@ -377,51 +298,6 @@ class GridLayout(QWidget):
         except Exception as e:
             print(f"Error in clearGridLayout: {e}")
 
-    # def handleCardClick(self, task):
-    #     #print("handling card click: ", task)
-    #     # self.switchToConsoleView.emit()
-    #     self.sendTaskInCardClicked.emit(task)
-    #     self.expanded_card.taskDeleted.connect(self.removeTaskCard)
-
-    # def addNewTask(self):
-    #     # Create overlay shadow effect
-    #     self.overlay = QWidget(self)
-    #     self.overlay.setStyleSheet("""
-    #         QWidget {
-    #             background-color: rgba(0, 0, 0, 0.5);
-    #         }
-    #     """)
-    #     self.overlay.setGeometry(self.rect())
-        
-    #     # Create expanded card
-    #     self.expanded_card = TaskCardExpanded(logger=self.logger, task=None, parent_view=self)
-    #     self.expanded_card.setStyleSheet(AppStyles.expanded_task_card())
-    #     #self.expanded_card.setAttribute(Qt.WA_TranslucentBackground, True)
-
-    #     self.expanded_card.taskDeleted.connect(self.removeTaskCard)
-    #     # Get screen and window geometries
-    #     screen_geometry = QApplication.desktop().screenGeometry()
-    #     window = self.window()  # Get the main window
-    #     window_geometry = window.geometry()
-        
-    #     # Calculate card dimensions
-    #     card_width, card_height = self.expanded_card.calculate_optimal_card_size()
-        
-    #     # Calculate center position relative to the window
-    #     center_x = window_geometry.x() + (window_geometry.width() - card_width) // 2
-    #     center_y = window_geometry.y() + (window_geometry.height() - card_height) // 2
-        
-    #     # Set position and show expanded card
-    #     self.expanded_card.setGeometry(center_x, center_y, card_width, card_height)
-    #     self.expanded_card.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
-        
-    #     # Show overlay and card
-    #     self.overlay.show()
-    #     self.expanded_card.show()
-        
-    #     # Install event filter to handle clicks outside
-    #     self.overlay.installEventFilter(self)
-        
     def onFilterChanged(self, active_filters):
         """Handle filter changes"""
         print(f"Grid layout '{getattr(self, 'name', 'unknown')}' handling active filters: {active_filters}")
@@ -474,81 +350,7 @@ class GridLayout(QWidget):
             if show_card:
                 visible_count += 1
         
-        # print(f"Total visible cards after filtering: {visible_count}")
-        
-        # Debug grid layout before rearrangement
-        # print(f"Grid layout before rearrangement:")
-        # self.print_grid_state()
-        
-        # After updating visibility, rearrange the grid layout
         self.rearrangeGridLayout()
-        
-        # # Debug grid layout after rearrangement
-        # print(f"Grid layout after rearrangement:")
-        # self.print_grid_state()
-
-    # def print_grid_state(self):
-    #     """Debug function to print the current state of the grid layout"""
-    #     try:
-    #         if not hasattr(self, 'grid_layout'):
-    #             print("No grid_layout attribute found")
-    #             return
-                
-    #         # Print info about grid layout
-    #         print(f"Grid layout has {self.grid_layout.count()} items")
-            
-    #         # Try to determine grid dimensions
-    #         rows = 0
-    #         cols = 0
-    #         positions = []
-            
-    #         for i in range(self.grid_layout.count()):
-    #             item = self.grid_layout.itemAt(i)
-    #             if item.widget():
-    #                 widget = item.widget()
-    #                 # Try to get the item's position
-    #                 index = self.grid_layout.indexOf(widget)
-    #                 if index != -1:
-    #                     row, col, _, _ = self.grid_layout.getItemPosition(index)
-    #                     positions.append((row, col))
-    #                     rows = max(rows, row + 1)
-    #                     cols = max(cols, col + 1)
-            
-    #         print(f"Grid dimensions: {rows} rows x {cols} columns")
-    #         print(f"Widget positions: {positions}")
-            
-    #         # Print a grid visual
-    #         grid = [['.' for _ in range(cols)] for _ in range(rows)]
-    #         for row, col in positions:
-    #             if 0 <= row < rows and 0 <= col < cols:
-    #                 grid[row][col] = 'X'
-            
-    #         print("Grid state:")
-    #         for row in grid:
-    #             print("".join(row))
-            
-    #     except Exception as e:
-    #         print(f"Error in print_grid_state: {e}")
-
-    # def removeTaskCard(self, task_title):
-    #     """Remove a task card from the grid layout"""
-    #     # Find the card with matching task title
-    #     for i, card in enumerate(self.taskCards):
-    #         if card.task.title == task_title:
-    #             # Remove from the layout
-    #             self.grid_layout.removeWidget(card)
-                
-    #             # Remove from our list
-    #             self.taskCards.pop(i)
-                
-    #             # Delete the widget
-    #             card.deleteLater()
-                
-    #             # Rearrange remaining cards if needed
-    #             self.rearrangeCards()
-                
-    #             # Break after finding the card
-    #             break
 
     def rearrangeCards(self):
         """Rearrange cards in the grid after one is removed"""
