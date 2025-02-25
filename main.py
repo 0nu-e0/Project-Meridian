@@ -230,8 +230,6 @@ class MainWindow(QMainWindow):
             button.clicked.connect(lambda checked, name=screen: self.buttonClicked(name))
             self.drawer_layout.addWidget(button)
         
-
-
         settings_button = QPushButton()
         image_path = resource_path('resources/images/settings.png')
         pixmap = QPixmap(image_path)
