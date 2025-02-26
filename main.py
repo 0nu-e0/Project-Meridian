@@ -156,7 +156,6 @@ class MainWindow(QMainWindow):
         self.drawer_animation.setProperty("source", "Drawer")
         self.central_widget_animation = QPropertyAnimation(self.central_widget, b"geometry")
 
-
     def initCentralWidget(self):
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
@@ -242,7 +241,7 @@ class MainWindow(QMainWindow):
         
         headerLabel = QLabel("Project Management \nSoftware")
         headerLabel.setAlignment(Qt.AlignCenter) 
-        headerLabel.setStyleSheet(AppStyles.label_xlgfnt_bold()) 
+        headerLabel.setStyleSheet(AppStyles.label_xlgfnt_bold_dark()) 
         header_layout.addWidget(headerLabel)
 
         logo_widget = QWidget()
@@ -310,12 +309,10 @@ class MainWindow(QMainWindow):
 
     def toggleDrawer(self):
         # Determine the end positions for the drawer and central widget
-
         drawer_end_x = 0 if not self.drawer_open else -self.drawer_width
         central_widget_end_x = self.drawer_width if not self.drawer_open else 0
 
         # Configure and start the drawer animation
-
         self.drawer_animation.setEndValue(QRect(drawer_end_x, 0, self.drawer_width, self.drawer.height()))
         self.drawer_animation.start()
 

@@ -41,7 +41,8 @@ class AppColors:
     accent_background_color = "#13151A"  # Subtle dark accent
     accent_background_color_dark = "#1C1F26"
     banner_color = "#2E2F73"  # Added back, modern purple
-    label_font_color = "#000000"  # Light purple-white
+    label_font_color_light = "#FFFFFF"   
+    label_font_color_dark = "#000000"  #balck
     button_background_gray = "#2E2F73"  # Deep electric purple
     button_gray = "#E2E4FF"
     button_black = "#000000"
@@ -225,39 +226,39 @@ class AppStyles:
     
     @staticmethod
     def label_lgfnt_bold():
-        return f"color: {AppColors.label_font_color}; font-size: {AppPixelSizes.font_lrg}; font-weight: {AppFontWeight.bold}; font-family: {AppFontFamily.helvetica}; border: none;"
+        return f"color: {AppColors.label_font_color_light}; font-size: {AppPixelSizes.font_lrg}; font-weight: {AppFontWeight.bold}; font-family: {AppFontFamily.helvetica}; border: none;"
     
     @staticmethod
-    def label_xlgfnt_bold():
-        return f"color: {AppColors.label_font_color}; font-size: {AppPixelSizes.font_xlrg}; font-weight: {AppFontWeight.bold}; font-family: {AppFontFamily.helvetica};"
+    def label_xlgfnt_bold_dark():
+        return f"color: {AppColors.label_font_color_light}; font-size: {AppPixelSizes.font_xlrg}; font-weight: {AppFontWeight.bold}; font-family: {AppFontFamily.helvetica};"
     
     @staticmethod
     def label_lgfnt():
-        return f"color: {AppColors.label_font_color}; font-size: {AppPixelSizes.font_lrg}; font-family: {AppFontFamily.helvetica};"
+        return f"color: {AppColors.label_font_color_light}; font-size: {AppPixelSizes.font_lrg}; font-family: {AppFontFamily.helvetica};"
     
     @staticmethod
     def label_xlgfnt():
-        return f"color: {AppColors.label_font_color}; font-size: {AppPixelSizes.font_xlrg}; font-family: {AppFontFamily.helvetica};"
+        return f"color: {AppColors.label_font_color_light}; font-size: {AppPixelSizes.font_xlrg}; font-family: {AppFontFamily.helvetica};"
     
     @staticmethod
     def label_normal():
-        return f"color: {AppColors.label_font_color}; font-size: {AppPixelSizes.font_norm}; font-style: {AppFontWeight.norm}; font-family: {AppFontFamily.helvetica};"
+        return f"color: {AppColors.label_font_color_light}; font-size: {AppPixelSizes.font_xxlrg}; font-style: {AppFontWeight.norm}; font-family: {AppFontFamily.helvetica}; background: transparent;"
     
     @staticmethod
     def list_label_normal():
-        return f"color: {AppColors.label_font_color}; background-color: {AppColors.list}; font-size: {AppPixelSizes.font_norm}; font-style: {AppFontWeight.norm}; font-family: {AppFontFamily.helvetica};"
+        return f"color: {AppColors.label_font_color_light}; background-color: {AppColors.list}; font-size: {AppPixelSizes.font_norm}; font-style: {AppFontWeight.norm}; font-family: {AppFontFamily.helvetica};"
     
     @staticmethod
     def label_small():
-        return f"color: {AppColors.label_font_color}; font-size: {AppPixelSizes.font_sml}; font-weight: {AppFontWeight.norm}; font-family: {AppFontFamily.helvetica};"
+        return f"color: {AppColors.label_font_color_light}; font-size: {AppPixelSizes.font_sml}; font-weight: {AppFontWeight.norm}; font-family: {AppFontFamily.helvetica};"
     
     @staticmethod
     def label_bold():
-        return f"color: {AppColors.label_font_color}; font-size: {AppPixelSizes.font_norm}; font-weight: {AppFontWeight.bold}; font-family: {AppFontFamily.helvetica}; border: none;"
+        return f"color: {AppColors.label_font_color_light}; font-size: {AppPixelSizes.font_norm}; font-weight: {AppFontWeight.bold}; font-family: {AppFontFamily.helvetica}; border: none;"
     
     @staticmethod
     def label_bold_wht():
-        return f"color: {AppColors.label_font_color}; font-size: {AppPixelSizes.font_norm}; font-weight: {AppFontWeight.bold}; background-color: {AppColors.white}; font-family: {AppFontFamily.helvetica};"
+        return f"color: {AppColors.label_font_color_light}; font-size: {AppPixelSizes.font_norm}; font-weight: {AppFontWeight.bold}; background-color: {AppColors.white}; font-family: {AppFontFamily.helvetica};"
     
     @staticmethod
     def label_normal_warn():
@@ -279,7 +280,7 @@ class AppStyles:
     
     @staticmethod
     def banner_header():
-        return f"color: {AppColors.label_font_color}; font-size: {AppPixelSizes.font_xxlrg}; font-weight: {AppFontWeight.bold};"
+        return f"color: {AppColors.label_font_color_light}; font-size: {AppPixelSizes.font_xxlrg}; font-weight: {AppFontWeight.bold};"
     
     @staticmethod
     def drawer_style():
@@ -620,7 +621,7 @@ class AppStyles:
                 border-radius: {AppPixelSizes.border_radius_xsml}; 
                 padding: {AppPixelSizes.border_radius_xsml};
                 background-color: transparent; 
-                color: {AppColors.label_font_color}; 
+                color: {AppColors.label_font_color_light}; 
                 font-size: {AppPixelSizes.font_norm}; 
                 font-style: {AppFontStyle.norm}; 
             }}
@@ -640,7 +641,7 @@ class AppStyles:
             }}
             /* Or use a Unicode character if you don't want to use an image */
             QComboBox::down-arrow {{
-                color: {AppColors.label_font_color};
+                color: {AppColors.label_font_color_light};
                 width: 8px;
                 height: 8px;
             }}
@@ -658,7 +659,7 @@ class AppStyles:
     def combo_box_wide():
         return f"""
             QComboBox {{border: {AppBorders.combo_box_norm}; border-radius: {AppPixelSizes.border_radius_xsml}; padding: {AppPixelSizes.border_radius_xsml}; 
-                background-color: {AppColors.white}; color: {AppColors.label_font_color}; font-size: {AppPixelSizes.font_norm}; font-style: {AppFontStyle.norm}; }}
+                background-color: {AppColors.white}; color: {AppColors.label_font_color_light}; font-size: {AppPixelSizes.font_norm}; font-style: {AppFontStyle.norm}; }}
             QComboBox::drop-down {{subcontrol-origin: padding; subcontrol-position: top right; width: 30px; border-left-width: 1px; border-left-style: solid; border-top-right-radius: 1px; border-bottom-right-radius: 1px; }}
         """
     
@@ -666,7 +667,7 @@ class AppStyles:
     def combo_box_x_wide():
         return f"""
             QComboBox {{border: {AppBorders.combo_box_norm}; border-radius: {AppPixelSizes.border_radius_xsml}; padding: {AppPixelSizes.border_radius_xsml}; 
-                background-color: {AppColors.white}; color: {AppColors.label_font_color}; font-size: {AppPixelSizes.font_norm}; font-style: {AppFontStyle.norm}; }}
+                background-color: {AppColors.white}; color: {AppColors.label_font_color_light}; font-size: {AppPixelSizes.font_norm}; font-style: {AppFontStyle.norm}; }}
             QComboBox::drop-down {{subcontrol-origin: padding; subcontrol-position: top right; width: 80px; border-left-width: 1px; border-left-style: solid; border-top-right-radius: 1px; border-bottom-right-radius: 1px; }}
         """
     
