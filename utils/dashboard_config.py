@@ -48,7 +48,7 @@ class DashboardConfigManager:
         config_path = Path(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 
                                     'data', 'app_config.yaml'))
         
-        print(f"Looking for dashboard config at: {config_path}")
+        # print(f"Looking for dashboard config at: {config_path}")
         
         # Check if the file exists
         if not config_path.exists():
@@ -59,7 +59,7 @@ class DashboardConfigManager:
         try:
             with open(config_path, 'r') as file:
                 yaml_data = yaml.safe_load(file)
-                print(f"YAML loaded successfully. Keys: {list(yaml_data.keys())}")
+                # print(f"YAML loaded successfully. Keys: {list(yaml_data.keys())}")
                 
                 # Check if dashboard section exists
                 if 'dashboard' not in yaml_data:
@@ -73,7 +73,7 @@ class DashboardConfigManager:
                 
                 # Get the grid layouts from the YAML
                 yaml_grid_layouts = yaml_data['dashboard']['grid_layouts']
-                print(f"Found {len(yaml_grid_layouts)} grid layouts in configuration")
+                # print(f"Found {len(yaml_grid_layouts)} grid layouts in configuration")
                 
                 # Convert YAML grid layouts to objects
                 grid_layouts = []
@@ -100,11 +100,11 @@ class DashboardConfigManager:
                     grid.filter.due = filter_data.get('due', [])
                     
                     # Debug output
-                    print(f"Grid {grid.name} filter values: status={grid.filter.status}, category={grid.filter.category}, due={grid.filter.due}")
+                    # print(f"Grid {grid.name} filter values: status={grid.filter.status}, category={grid.filter.category}, due={grid.filter.due}")
                     
                     grid_layouts.append(grid)
                 
-                print(f"Successfully processed {len(grid_layouts)} grid layouts")
+                # print(f"Successfully processed {len(grid_layouts)} grid layouts")
                 return grid_layouts
                 
         except Exception as e:

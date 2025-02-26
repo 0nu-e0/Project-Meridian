@@ -300,7 +300,7 @@
     "actual_hours": 0.0,
     "cost_estimate": 0.0,
     "actual_cost": 0.0,
-    "modified_date": "2025-02-25, 09:44:35",
+    "modified_date": "2025-02-26, 09:09:36",
     "dependencies": [],
     "blocked_by": [],
     "watchers": [],
@@ -309,6 +309,7 @@
     "tags": [],
     "custom_fields": {},
     "attachments": [],
+    "checklist": [],
     "time_logs": [],
     "activities": [
       {
@@ -330,6 +331,14 @@
       {
         "text": "Need to fix the roiginal FAI inspection report as there was an issue with 48606. Inspection found non-conformities that were not accruate. Parts are good, must fix the report.",
         "timestamp": "02/25/2025 09:44",
+        "type": "comment",
+        "edited": false,
+        "edit_timestamp": null,
+        "user_id": "Current User"
+      },
+      {
+        "text": "Report updated. Waiting quality approval.",
+        "timestamp": "02/26/2025 09:09",
         "type": "comment",
         "edited": false,
         "edit_timestamp": null,
@@ -384,7 +393,7 @@
     "actual_hours": 0.0,
     "cost_estimate": 0.0,
     "actual_cost": 0.0,
-    "modified_date": "2025-02-25, 15:22:44",
+    "modified_date": "2025-02-26, 09:35:50",
     "dependencies": [],
     "blocked_by": [],
     "watchers": [],
@@ -416,6 +425,14 @@
       {
         "text": "Read the etching proces WI",
         "timestamp": "02/25/2025 08:43",
+        "type": "comment",
+        "edited": false,
+        "edit_timestamp": null,
+        "user_id": "Current User"
+      },
+      {
+        "text": "Read the WI. Possible places wire couldve cracked:\n\ncenterless grinding\nclipping the wire into two pieces\nif length was too long, couldve hit bottom of beaker",
+        "timestamp": "02/26/2025 09:34",
         "type": "comment",
         "edited": false,
         "edit_timestamp": null,
@@ -661,7 +678,7 @@
     "actual_hours": 0.0,
     "cost_estimate": 0.0,
     "actual_cost": 0.0,
-    "modified_date": "2025-02-25, 14:52:24",
+    "modified_date": "2025-02-26, 09:10:11",
     "dependencies": [],
     "blocked_by": [],
     "watchers": [],
@@ -670,6 +687,7 @@
     "tags": [],
     "custom_fields": {},
     "attachments": [],
+    "checklist": [],
     "time_logs": [],
     "activities": [
       {
@@ -691,6 +709,14 @@
       {
         "text": "Sent the updated drawing to Jen",
         "timestamp": "02/25/2025 14:52",
+        "type": "comment",
+        "edited": false,
+        "edit_timestamp": null,
+        "user_id": "Current User"
+      },
+      {
+        "text": "Updated the drawing surface roughness, sent back to vender.",
+        "timestamp": "02/26/2025 09:10",
         "type": "comment",
         "edited": false,
         "edit_timestamp": null,
