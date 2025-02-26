@@ -853,6 +853,9 @@ class TaskCardExpanded(QWidget):
         # Content label
         content_label = QLabel(entry.content)
         content_label.setWordWrap(True)
+
+        # horizontal_widget = QWidget()
+        # horizontal_layout = QHBoxLayout(horizontal_widget)
         
         # Timestamp
         timestamp_label = QLabel(entry.timestamp.strftime("%m/%d/%Y %H:%M"))
@@ -872,10 +875,11 @@ class TaskCardExpanded(QWidget):
         
         actions_layout.addWidget(edit_label)
         actions_layout.addWidget(delete_label)
+        actions_layout.addWidget(timestamp_label)
         
         # Add widgets to layout
         entry_layout.addWidget(content_label)
-        entry_layout.addWidget(timestamp_label)
+        # entry_layout.addWidget(timestamp_label)
         entry_layout.addLayout(actions_layout)
         
         # Create and set up list item
