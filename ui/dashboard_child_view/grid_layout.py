@@ -174,8 +174,8 @@ class GridLayout(QWidget):
     def rearrangeGridLayout(self):
         """Rearrange the grid layout to remove gaps"""
         try:
-            print("Starting grid rearrangement")
-            print(f"Number of columns: {self.num_columns}")
+            # print("Starting grid rearrangement")
+            # print(f"Number of columns: {self.num_columns}")
             
             # Collect all visible widgets
             visible_widgets = []
@@ -189,7 +189,7 @@ class GridLayout(QWidget):
                     if widget.isVisible():
                         visible_widgets.append(widget)
             
-            print(f"Total widgets: {len(self.widgets)}, Visible widgets: {len(visible_widgets)}")
+            # print(f"Total widgets: {len(self.widgets)}, Visible widgets: {len(visible_widgets)}")
         
             # Reset counters
             self.current_row = 0
@@ -197,7 +197,7 @@ class GridLayout(QWidget):
             
             # First add only visible widgets
             for widget in visible_widgets:
-                print(f"Adding visible widget at row {self.current_row}, column {self.current_column}")
+                # print(f"Adding visible widget at row {self.current_row}, column {self.current_column}")
                 self.grid_layout.addWidget(widget, self.current_row, self.current_column)
                 
                 # Set row position in card
@@ -215,7 +215,7 @@ class GridLayout(QWidget):
             
             for widget in self.widgets:
                 if widget not in visible_widgets:
-                    print(f"Adding hidden widget at row {hidden_row}, column {hidden_col}")
+                    # print(f"Adding hidden widget at row {hidden_row}, column {hidden_col}")
                     self.grid_layout.addWidget(widget, hidden_row, hidden_col)
                     hidden_col += 1
                     if hidden_col >= self.num_columns:
@@ -228,13 +228,13 @@ class GridLayout(QWidget):
             if container_widget:
                 container_widget.adjustSize()
                 
-            print("Grid rearrangement completed")
+            # print("Grid rearrangement completed")
             
         except Exception as e:
             print(f"Error in rearrangeGridLayout: {e}")
 
     def addTaskCard(self):
-        print("Adding task")
+        # print("Adding task")
         for task_name, task in self.tasks.items():
             # Task is already a fully populated Task object - no need to create or populate it again
             
@@ -325,8 +325,8 @@ class GridLayout(QWidget):
 
     def onFilterChanged(self, active_filters):
         """Handle filter changes"""
-        print(f"Grid layout '{getattr(self, 'name', 'unknown')}' handling active filters: {active_filters}")
-        print(f"Total task cards before filtering: {len(self.taskCards)}")
+        # print(f"Grid layout '{getattr(self, 'name', 'unknown')}' handling active filters: {active_filters}")
+        # print(f"Total task cards before filtering: {len(self.taskCards)}")
         
         # Count cards that will be visible
         visible_count = 0
@@ -339,13 +339,13 @@ class GridLayout(QWidget):
             if active_filters['status']:
                 if task.status.value not in active_filters['status']:
                     show_card = False
-                    print(f"Card '{task.title}' hidden by status filter")
+                    # print(f"Card '{task.title}' hidden by status filter")
                     
             # Check category filters
             if show_card and active_filters['category']:
                 if task.category.value not in active_filters['category']:
                     show_card = False
-                    print(f"Card '{task.title}' hidden by category filter")
+                    # print(f"Card '{task.title}' hidden by category filter")
                     
             # Check due date filters
             if show_card and active_filters['due']:
@@ -368,7 +368,7 @@ class GridLayout(QWidget):
                     
                 if due_status not in active_filters['due']:
                     show_card = False
-                    print(f"Card '{task.title}' hidden by due date filter")
+                    # print(f"Card '{task.title}' hidden by due date filter")
             
             # Set card visibility
             card.setVisible(show_card)

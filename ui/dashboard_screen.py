@@ -49,8 +49,8 @@ class DashboardScreen(QWidget):
 
         self.logger = logger
         self.saved_grid_layouts = self.loadGridLayouts() or []
-        for grid in self.saved_grid_layouts:
-            print(f"Grid: {grid.id} - {grid.name}")
+        # for grid in self.saved_grid_layouts:
+            # print(f"Grid: {grid.id} - {grid.name}")
         self.consoles = {}
         self.taskCards = []
         self.grid_layouts = []
@@ -249,7 +249,7 @@ class DashboardScreen(QWidget):
             if hasattr(grid.filter, 'due') and grid.filter.due:
                 filter_dict['due'] = grid.filter.due
             
-            print(f"Applying filter to {grid.name}: {filter_dict}")
+            # print(f"Applying filter to {grid.name}: {filter_dict}")
             
             # Create a grid layout with the filter
             grid_layout = GridLayout(logger=self.logger, filter=filter_dict)

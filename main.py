@@ -390,6 +390,13 @@ if __name__ == '__main__':
     logging.info("Logging system initialized")
     ensure_required_files()
     app = QApplication(sys.argv)
+    app.setStyle("Fusion")
+    app.setStyleSheet("""
+        QWidget {
+            background-color: #3b3b3b;
+            color: white
+        }
+    """)
     loop = qasync.QEventLoop(app) # Need Qasync for PyQt async - QWidgets
     asyncio.set_event_loop(loop)
     
