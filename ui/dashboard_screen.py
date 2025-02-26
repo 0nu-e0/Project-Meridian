@@ -59,14 +59,14 @@ class DashboardScreen(QWidget):
     def loadGridLayouts(self):
         return DashboardConfigManager.get_all_grid_layouts()
     
-    # Add mouse event handlers to show/hide the button
-    def enterEvent(self, event):
-        self.remove_grid_button.setVisible(True)
-        QWidget.enterEvent(self.grid_header_widget, event)
+    # # Add mouse event handlers to show/hide the button
+    # def enterEvent(self, event):
+    #     self.remove_grid_button.setVisible(True)
+    #     QWidget.enterEvent(grid_header_widget, event)
 
-    def leaveEvent(self, event):
-        self.remove_grid_button.setVisible(False)
-        QWidget.leaveEvent(self.grid_header_widget, event)
+    # def leaveEvent(self, event):
+    #     self.remove_grid_button.setVisible(False)
+    #     QWidget.leaveEvent(self.grid_header_widget, event)
 
     def initUI(self):
         self.initCentralWidget()
@@ -189,33 +189,48 @@ class DashboardScreen(QWidget):
             grid_section = QWidget()
             grid_section_layout = QVBoxLayout(grid_section)
             grid_section_layout.setContentsMargins(20, 0, 0, 0)
-
+            
             # Create header with hover capability
-            self.grid_header_widget = QWidget()
-            self.grid_header_widget.setMouseTracking(True)  # Enable mouse tracking
-            grid_header_layout = QHBoxLayout(self.grid_header_widget)
-
+            grid_header_widget = QWidget()  # No "self." prefix
+            grid_header_widget.setMouseTracking(True)
+            grid_header_layout = QHBoxLayout(grid_header_widget)
+            
             # Add title for this grid
             grid_title = QLabel(grid.name)
             grid_title.setStyleSheet("font-weight: bold; font-size: 16px;")
             grid_header_layout.addWidget(grid_title)
-
+            
             # Create but initially hide the remove button
-            self.remove_grid_button = QPushButton()
+            remove_grid_button = QPushButton()  # No "self." prefix
             image_path = resource_path('resources/images/delete_button.png')
             pixmap = QPixmap(image_path)
             remove_icon = QIcon(pixmap)
-            self.remove_grid_button.setIcon(remove_icon)
-            self.remove_grid_button.setFixedSize(QSize(30, 30))
-            self.remove_grid_button.setIconSize(QSize(30, 30))
-            self.remove_grid_button.setStyleSheet(AppStyles.button_transparent())
-            self.remove_grid_button.setVisible(False)  # Hide by default
-            self.remove_grid_button.clicked.connect(lambda: self.removeGridSection(grid.id))  # Pass grid ID
-            grid_header_layout.addWidget(self.remove_grid_button)
-
-            # Attach the event handlers
-            self.grid_header_widget.enterEvent = self.enterEvent
-            self.grid_header_widget.leaveEvent = self.leaveEvent
+            remove_grid_button.setIcon(remove_icon)
+            remove_grid_button.setFixedSize(QSize(15, 15))
+            remove_grid_button.setIconSize(QSize(15, 15))
+            remove_grid_button.setStyleSheet(AppStyles.button_transparent())
+            remove_grid_button.setVisible(False)
+            remove_grid_button.clicked.connect(lambda checked, g_id=grid.id: self.removeGridSection(g_id))
+            grid_header_layout.addWidget(remove_grid_button)
+            grid_header_layout.addStretch(1)
+            
+            # Create local event handler functions
+            def make_enter_event(button, widget):
+                def custom_enter_event(event):
+                    button.setVisible(True)
+                    QWidget.enterEvent(widget, event)
+                return custom_enter_event
+            
+            def make_leave_event(button, widget):
+                def custom_leave_event(event):
+                    button.setVisible(False)
+                    QWidget.leaveEvent(widget, event)
+                return custom_leave_event
+            
+            # Attach event handlers to this specific grid header
+            grid_header_widget.enterEvent = make_enter_event(remove_grid_button, grid_header_widget)
+            grid_header_widget.leaveEvent = make_leave_event(remove_grid_button, grid_header_widget)
+            
             
             # Create filter dictionary for GridLayout
             filter_dict = {
@@ -239,7 +254,7 @@ class DashboardScreen(QWidget):
             # Create a grid layout with the filter
             grid_layout = GridLayout(logger=self.logger, filter=filter_dict)
 
-            grid_section_layout.addWidget(self.grid_header_widget )
+            grid_section_layout.addWidget(grid_header_widget)
             grid_section_layout.addWidget(grid_layout)
             self.grid_layouts.append(grid_layout)
             grid_layout.taskDeleted.connect(self.propagateTaskDeletion)

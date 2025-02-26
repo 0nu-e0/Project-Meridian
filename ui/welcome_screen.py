@@ -34,12 +34,12 @@ class WelcomeScreen(QWidget):
         super().__init__(parent)
 
         self.central_widget = QWidget()
-        #self.central_widget.setStyleSheet("background-color: #f5f5f5;")
+        self.central_widget.setStyleSheet(AppStyles.background_color()) 
 
         layout = QVBoxLayout()
         layout.setAlignment(Qt.AlignCenter) 
 
-        label = QLabel("Welcome to the App")
+        label = QLabel("Welcome to some App")
         self.setStyleSheet(AppStyles.background_color()) 
         label.setStyleSheet(AppStyles.label_normal())
 
