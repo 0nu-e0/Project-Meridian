@@ -637,6 +637,12 @@ class TaskCardExpanded(QWidget):
             for member in self.task.collaborators:
                 details_section.team_input.setText(member)
                 details_section.add_team_member()
+
+        if not self.task.collaborators:
+            print("No teams found")
+            details_section.toggle_collapsed()
+        else:
+            print("found teams")
                 
         # Add section to layout
         section_layout.addWidget(details_section)
@@ -670,6 +676,9 @@ class TaskCardExpanded(QWidget):
                 dependencies_section.task_combo.setCurrentText(dep)
                 dependencies_section.add_dependency()
 
+        if not self.task.dependencies:
+            dependencies_section.toggle_collapsed()
+
         section_layout.addWidget(dependencies_section)
         section_layout.addStretch()
         
@@ -677,7 +686,7 @@ class TaskCardExpanded(QWidget):
     
     def createChecklistSection(self):
         section_layout = QVBoxLayout()
-        section_layout.setContentsMargins(0, 0, 0, 0)
+        section_layout.setContentsMargins(0, 0, 15, 0)
         section_layout.setSpacing(5)
         
         # Create section
@@ -687,10 +696,17 @@ class TaskCardExpanded(QWidget):
         
         # Add checklist functionality
         self.checklist_section.add_checklist("Task Items")
+
+        self.checklist_section.checklist_item_added.connect(self.addChecklistItem)
         
         # If there's existing data, load it
-        if hasattr(self, 'task') and self.task and hasattr(self.task, 'checklist'):
-            self.checklist_section.set_checklist_data(self.task.checklist)
+        if hasattr(self.task, 'checklist') and self.task.checklist:
+            checklist_items = list(self.task.checklist)
+            self.checklist_section.checklist_input.setText()
+            self.checklist_section.add_checklist_item()
+
+        if not self.task.dependencies:
+            self.checklist_section.toggle_collapsed()
         
         section_layout.addWidget(self.checklist_section)
         section_layout.addStretch()
@@ -706,12 +722,15 @@ class TaskCardExpanded(QWidget):
         attachments_section.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         
         # Add attachments list
-        if hasattr(self.task, 'attachments'):
+        if hasattr(self.task, 'attachments') and self.task.attachments:
             attachments_section.add_attachments(self.task.attachments)
         else:
             if self.task is not None:
                 self.task.attachments = []
                 attachments_section.add_attachments([])
+
+        if not self.task.attachments:
+            attachments_section.toggle_collapsed()
             
         # Connect signals
         attachments_section.attachment_clicked.connect(self.open_attachment)
@@ -1161,3 +1180,11 @@ class TaskCardExpanded(QWidget):
             print("trying harder")
             self.parent_view.overlay.hide()
         self.close()
+
+    def addChecklistItem(self, text):
+        """Add checklist item to the current task"""
+        # Add to the Task object's checklist list
+        self.task.checklist.append({
+            'text': text,
+            'checked': False
+        })
