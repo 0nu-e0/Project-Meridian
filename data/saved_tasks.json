@@ -110,7 +110,7 @@
     "actual_hours": 0.0,
     "cost_estimate": 0.0,
     "actual_cost": 0.0,
-    "modified_date": "2025-02-25, 16:25:19",
+    "modified_date": "2025-02-26, 13:07:37",
     "dependencies": [],
     "blocked_by": [],
     "watchers": [],
@@ -141,6 +141,14 @@
       {
         "text": "Need new power cable for the turbo. It possibly exists but cannot find yet.",
         "timestamp": "02/25/2025 16:25",
+        "type": "comment",
+        "edited": false,
+        "edit_timestamp": null,
+        "user_id": "Current User"
+      },
+      {
+        "text": "Power cable found",
+        "timestamp": "02/26/2025 13:07",
         "type": "comment",
         "edited": false,
         "edit_timestamp": null,
@@ -306,7 +314,7 @@
     "actual_hours": 0.0,
     "cost_estimate": 0.0,
     "actual_cost": 0.0,
-    "modified_date": "2025-02-26, 09:09:36",
+    "modified_date": "2025-02-26, 13:32:27",
     "dependencies": [],
     "blocked_by": [],
     "watchers": [],
@@ -345,6 +353,14 @@
       {
         "text": "Report updated. Waiting quality approval.",
         "timestamp": "02/26/2025 09:09",
+        "type": "comment",
+        "edited": false,
+        "edit_timestamp": null,
+        "user_id": "Current User"
+      },
+      {
+        "text": "Spoke with Arthur, he wants to push back on Maykay to get an FAI with all measurements, not just an average. Talk with Jen.",
+        "timestamp": "02/26/2025 13:32",
         "type": "comment",
         "edited": false,
         "edit_timestamp": null,
@@ -723,6 +739,41 @@
       {
         "text": "Updated the drawing surface roughness, sent back to vender.",
         "timestamp": "02/26/2025 09:10",
+        "type": "comment",
+        "edited": false,
+        "edit_timestamp": null,
+        "user_id": "Current User"
+      }
+    ]
+  },
+  "Generate FAI Forms and Documentation": {
+    "id": "083fde05-a7b5-4fea-848e-ac2bf4669c50",
+    "title": "Generate FAI Forms and Documentation",
+    "description": "There is no official FAI documentation at APT. Generate it. ",
+    "category": "FEATURE",
+    "creation_date": "2025-02-26, 13:09:46",
+    "status": "NOT_STARTED",
+    "priority": "MEDIUM",
+    "percentage_complete": 0,
+    "estimated_hours": 0.0,
+    "actual_hours": 0.0,
+    "cost_estimate": 0.0,
+    "actual_cost": 0.0,
+    "modified_date": "2025-02-26, 13:11:16",
+    "dependencies": [],
+    "blocked_by": [],
+    "watchers": [],
+    "collaborators": [],
+    "team_members": [],
+    "tags": [],
+    "custom_fields": {},
+    "attachments": [],
+    "checklist": [],
+    "time_logs": [],
+    "activities": [
+      {
+        "text": "Documentation drafts generated. Forms have been generated and used in FAI-48606-20250210 and FAI-48606-20250226",
+        "timestamp": "02/26/2025 13:11",
         "type": "comment",
         "edited": false,
         "edit_timestamp": null,

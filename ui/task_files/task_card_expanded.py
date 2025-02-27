@@ -809,14 +809,17 @@ class TaskCardExpanded(QWidget):
             self.task.entries.append(new_entry)
 
     def display_activities(self):
-        """Display task entries in the appropriate lists"""
+        """Display task entries in the appropriate lists, ordered by newest first."""
         # Clear existing items
         self.comments_list.clear()
         self.work_logs_list.clear()
-        
+
         # Display entries by type
         if hasattr(self.task, 'entries'):
-            for entry in self.task.entries:
+            # Sort entries by timestamp in descending order (newest first)
+            sorted_entries = sorted(self.task.entries, key=lambda entry: entry.timestamp, reverse=True)
+
+            for entry in sorted_entries:
                 if entry.entry_type == "comment":
                     self.add_entry_to_list(entry, self.comments_list)
                 elif entry.entry_type == "work_log":
