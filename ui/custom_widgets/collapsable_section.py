@@ -260,6 +260,7 @@ class CollapsibleSection(QWidget):
         return members
 
     def toggle_collapsed(self):
+        print("Collapsing")
         self.is_collapsed = not self.is_collapsed
         self.content.setVisible(not self.is_collapsed)
         self.arrow_button.setText("▶" if self.is_collapsed else "▼")
@@ -601,7 +602,7 @@ class CollapsibleSection(QWidget):
         
         # Create the list widget to hold checklist items
         self.checklist = QListWidget()
-        self.checklist.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        self.checklist.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         self.checklist.setFixedHeight(100)  # Initial height, will adjust as items are added
         self.checklist.setFrameShape(QFrame.NoFrame)
         self.checklist.setVerticalScrollMode(QListWidget.ScrollPerPixel)
@@ -629,8 +630,37 @@ class CollapsibleSection(QWidget):
             checkbox = QCheckBox()
             checkbox.setStyleSheet("""
                 QCheckBox {
-                    border: none;
+                    spacing: 5px;
                     background-color: transparent;
+                }
+                
+                QCheckBox::indicator {
+                    width: 18px;
+                    height: 18px;
+                    border: 1px solid #C4C4C4;
+                    border-radius: 3px;
+                    background-color: white;
+                }
+                
+                QCheckBox::indicator:hover {
+                    border-color: #0052CC;
+                }
+                
+                QCheckBox::indicator:checked {
+                    background-color: #0052CC;
+                    border-color: #0052CC;
+                }
+                
+                QCheckBox::indicator:checked::after {
+                    content: '';
+                    position: absolute;
+                    left: 6px;
+                    top: 3px;
+                    width: 5px;
+                    height: 10px;
+                    border: solid white;
+                    border-width: 0 2px 2px 0;
+                    transform: rotate(45deg);
                 }
             """)
             
@@ -652,7 +682,7 @@ class CollapsibleSection(QWidget):
                     color: #999;
                 }
                 QPushButton:hover {
-                    color: #FF5252;
+                    color: #000000;
                 }
             """)
             remove_button.setFixedSize(20, 20)
@@ -686,6 +716,8 @@ class CollapsibleSection(QWidget):
                                         self.update_checklist_item_state(idx, state == Qt.Checked))
             remove_button.clicked.connect(lambda checked=False, item=item, idx=len(self.checklist_data)-1: 
                                         self.remove_checklist_item(item, idx))
+            
+            self.checklist_item_added.emit(text)
             
             # Clear input field
             self.checklist_input.clear()
