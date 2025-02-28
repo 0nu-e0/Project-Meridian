@@ -96,9 +96,10 @@ class TaskCardExpanded(QWidget):
             'assignee': task.assignee,
             'dependencies': set(task.dependencies) if task.dependencies else set(),
             'collaborators': set(task.collaborators) if task.collaborators else set(),
-            'entries': list(task.entries),  # Get a copy of the entries list
-            'time_logs': list(task.time_logs),  # Get a copy of the time_logs list
-            'attachments': list(task.attachments)  # Get a copy of the attachments list
+            'entries': list(task.entries), 
+            'time_logs': list(task.time_logs),  
+            'attachments': list(task.attachments),
+            'checklist': list(self.task.checklist)
         }
         
     def initUI(self):
@@ -367,6 +368,7 @@ class TaskCardExpanded(QWidget):
 
     def createButtonSection(self):
         button_layout = QHBoxLayout()
+        button_layout.setContentsMargins(0, 0, 0, 15)
         save_button = QPushButton("Save")
         cancel_button = QPushButton("Cancel")
         delete_button = QPushButton("Delete")
@@ -696,16 +698,29 @@ class TaskCardExpanded(QWidget):
         
         # Add checklist functionality
         self.checklist_section.add_checklist("Task Items")
-
-        self.checklist_section.checklist_item_added.connect(self.addChecklistItem)
         
-        # If there's existing data, load it
+        # IMPORTANT: Load the existing data BEFORE connecting the signal
         if hasattr(self.task, 'checklist') and self.task.checklist:
-            checklist_items = list(self.task.checklist)
-            self.checklist_section.checklist_input.setText()
-            self.checklist_section.add_checklist_item()
-
-        if not self.task.dependencies:
+            for item in self.task.checklist:
+                # Set the text in the input field
+                self.checklist_section.checklist_input.setText(item['text'])
+                
+                # Add the item (this will emit a signal but nothing is connected yet)
+                self.checklist_section.add_checklist_item()
+                
+                # Check the box if needed
+                if item.get('checked', False):
+                    last_idx = self.checklist_section.checklist.count() - 1
+                    list_item = self.checklist_section.checklist.item(last_idx)
+                    item_widget = self.checklist_section.checklist.itemWidget(list_item)
+                    checkbox = item_widget.layout().itemAt(0).widget()
+                    checkbox.setChecked(True)
+        
+        # NOW connect the signal AFTER all items are loaded
+        self.checklist_section.checklist_item_added.connect(self.addChecklistItem)
+        self.checklist_section.checklist_item_removed.connect(self.removeChecklistItem)
+        
+        if not self.task.checklist:
             self.checklist_section.toggle_collapsed()
         
         section_layout.addWidget(self.checklist_section)
@@ -746,6 +761,7 @@ class TaskCardExpanded(QWidget):
         return section_layout
 
     def open_attachment(self, file_path):
+        self.closeWindow()
         """Open the attachment in its native application."""
         url = QUrl.fromLocalFile(file_path)
         QDesktopServices.openUrl(url)
@@ -1106,7 +1122,7 @@ class TaskCardExpanded(QWidget):
         task.time_logs = self.initial_state['time_logs']
         task.attachments = self.initial_state['attachments']
 
-        task.checklist = self.initial_state['checklists']
+        task.checklist = self.initial_state['checklist']
 
     def deleteTask(self):
         """Delete the task and close the expanded card"""
@@ -1186,8 +1202,19 @@ class TaskCardExpanded(QWidget):
 
     def addChecklistItem(self, text):
         """Add checklist item to the current task"""
+        # Check the flag to prevent recursion during loading
+        if hasattr(self, '_loading_checklist_items') and self._loading_checklist_items:
+            return
+            
         # Add to the Task object's checklist list
         self.task.checklist.append({
             'text': text,
             'checked': False
         })
+
+    def removeChecklistItem(self, text):
+        """Remove a checklist item from the task"""
+        if hasattr(self.task, 'checklist'):
+            # Remove the item with matching text
+            self.task.checklist = [item for item in self.task.checklist if item['text'] != text]
+    
