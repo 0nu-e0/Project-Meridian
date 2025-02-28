@@ -240,7 +240,7 @@
     "actual_hours": 0.0,
     "cost_estimate": 0.0,
     "actual_cost": 0.0,
-    "modified_date": "2025-02-25, 08:33:53",
+    "modified_date": "2025-02-27, 15:51:33",
     "dependencies": [],
     "blocked_by": [],
     "watchers": [],
@@ -248,9 +248,36 @@
     "team_members": [],
     "tags": [],
     "custom_fields": {},
-    "attachments": [],
+    "attachments": [
+      {
+        "file_path": "W:/Documents/Lot Documents/SO168585 CO 1.pdf",
+        "file_name": "SO168585 CO 1.pdf",
+        "added_date": "02/27/2025 13:40",
+        "added_by": "Current User",
+        "file_size": null,
+        "file_type": null
+      },
+      {
+        "file_path": "W:/Documents/Lot Documents/500 ft spools.pdf",
+        "file_name": "500 ft spools.pdf",
+        "added_date": "02/27/2025 13:41",
+        "added_by": "Current User",
+        "file_size": null,
+        "file_type": null
+      }
+    ],
+    "checklist": [],
     "time_logs": [],
-    "activities": []
+    "activities": [
+      {
+        "text": "Reschedule ECO for a second run. Need BOM updates, need to build out a plan for this. BOM items to update:\n95889\nk-95888\nk-95890\nk-95891",
+        "timestamp": "02/27/2025 15:50",
+        "type": "comment",
+        "edited": false,
+        "edit_timestamp": null,
+        "user_id": "Current User"
+      }
+    ]
   },
   "HfC, ZrC, DWG49532, and DWG47329 ECO-00191": {
     "id": "b6e52c4f-f06e-4d0e-bf7b-2fccbf32ab99",
@@ -744,7 +771,7 @@
     "id": "083fde05-a7b5-4fea-848e-ac2bf4669c50",
     "title": "Generate FAI Forms and Documentation",
     "description": "There is no official FAI documentation at APT. Generate it. ",
-    "category": "FEATURE",
+    "category": "DOCUMENTATION",
     "creation_date": "2025-02-26, 13:09:46",
     "status": "NOT_STARTED",
     "priority": "MEDIUM",
@@ -753,7 +780,7 @@
     "actual_hours": 0.0,
     "cost_estimate": 0.0,
     "actual_cost": 0.0,
-    "modified_date": "2025-02-26, 13:11:16",
+    "modified_date": "2025-02-27, 07:59:33",
     "dependencies": [],
     "blocked_by": [],
     "watchers": [],
@@ -774,5 +801,31 @@
         "user_id": "Current User"
       }
     ]
+  },
+  "FormScan Leveling WI": {
+    "id": "1d532eee-6d5b-48fd-8cfe-7e110676bf31",
+    "title": "FormScan Leveling WI",
+    "description": "Generate WI for leveling the FormScan",
+    "category": "WORK_INSTRUCTION",
+    "creation_date": "2025-02-27, 07:57:34",
+    "status": "NOT_STARTED",
+    "priority": "MEDIUM",
+    "percentage_complete": 0,
+    "estimated_hours": 0.0,
+    "actual_hours": 0.0,
+    "cost_estimate": 0.0,
+    "actual_cost": 0.0,
+    "modified_date": "2025-02-27, 07:58:18",
+    "dependencies": [],
+    "blocked_by": [],
+    "watchers": [],
+    "collaborators": [],
+    "team_members": [],
+    "tags": [],
+    "custom_fields": {},
+    "attachments": [],
+    "checklist": [],
+    "time_logs": [],
+    "activities": []
   }
 }

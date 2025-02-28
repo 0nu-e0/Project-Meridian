@@ -521,7 +521,7 @@ class CollapsibleSection(QWidget):
         
         # Create link with text elision for long filenames
         link = QLabel()
-        link.setText(f"<a href='{attachment.file_path}'>{filename}</a>")
+        link.setText(f"<a href='{attachment.file_path}' style='color: white;'>{filename}</a>")
         link.setTextInteractionFlags(Qt.TextBrowserInteraction)
         link.linkActivated.connect(lambda url: self.attachment_clicked.emit(url))
         
