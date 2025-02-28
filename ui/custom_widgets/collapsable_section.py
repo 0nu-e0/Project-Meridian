@@ -591,26 +591,32 @@ class CollapsibleSection(QWidget):
                 padding: 5px 15px;
                 border-radius: 3px;
             }
-            QPushButton:hover {
-                background-color: #0747A6;
-                border: none;
-            }
         """)
         
         input_layout.addWidget(self.checklist_input)
         input_layout.addWidget(add_button)
         
-        # Create the list widget to hold checklist items
-        self.checklist = QListWidget()
-        self.checklist.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-        self.checklist.setFixedHeight(100)  # Initial height, will adjust as items are added
-        self.checklist.setFrameShape(QFrame.NoFrame)
-        self.checklist.setVerticalScrollMode(QListWidget.ScrollPerPixel)
-        self.checklist.setStyleSheet(AppStyles.list_style())
+        # Create a container for checklist items
+        self.checklist_layout = QVBoxLayout()
+        self.checklist_layout.setAlignment(Qt.AlignTop)  # This is critical - align all items to the top
+        self.checklist_layout.setSpacing(2)  # Reduce spacing between items
+        self.checklist_layout.setContentsMargins(0, 0, 0, 0)  # Remove margins
+        
+        self.checklist_widget = QWidget()
+        self.checklist_widget.setStyleSheet("background: transparent; border: none")
+        self.checklist_widget.setLayout(self.checklist_layout)
+        
+        # Create a scroll area for the checklist widget
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setFrameShape(QFrame.NoFrame)
+        scroll_area.setStyleSheet("background: transparent; border: none")
+        scroll_area.setFixedHeight(200)
+        scroll_area.setWidget(self.checklist_widget)
         
         # Add everything to the content layout
         self.content_layout.addWidget(input_row)
-        self.content_layout.addWidget(self.checklist)
+        self.content_layout.addWidget(scroll_area)
         
         # Connect signals
         add_button.clicked.connect(self.add_checklist_item)
@@ -620,58 +626,31 @@ class CollapsibleSection(QWidget):
         """Add a new item to the checklist"""
         text = self.checklist_input.text().strip()
         if text:
-            # Create container widget for the item
-            item_widget = QWidget()
-            item_widget.setStyleSheet("border: none;")
-            item_layout = QHBoxLayout(item_widget)
-            item_layout.setContentsMargins(5, 5, 5, 5)
+            # Create item layout with fixed height
+            item_layout = QHBoxLayout()
+            item_layout.setContentsMargins(5, 2, 5, 2)
+            item_layout.setSpacing(5)
             
-            # Create checkbox
+            # Create checkbox (keeping original style)
             checkbox = QCheckBox()
             checkbox.setStyleSheet("""
-                QCheckBox {
-                    spacing: 5px;
-                    background-color: transparent;
-                }
-                
                 QCheckBox::indicator {
-                    width: 18px;
-                    height: 18px;
+                    width: 10px;
+                    height: 16px;
+                }
+                QCheckBox {
                     border: 1px solid #C4C4C4;
-                    border-radius: 3px;
-                    background-color: white;
-                }
-                
-                QCheckBox::indicator:hover {
-                    border-color: #0052CC;
-                }
-                
-                QCheckBox::indicator:checked {
-                    background-color: #0052CC;
-                    border-color: #0052CC;
-                }
-                
-                QCheckBox::indicator:checked::after {
-                    content: '';
-                    position: absolute;
-                    left: 6px;
-                    top: 3px;
-                    width: 5px;
-                    height: 10px;
-                    border: solid white;
-                    border-width: 0 2px 2px 0;
-                    transform: rotate(45deg);
                 }
             """)
             
-            # Create label
+            # Create label with fixed height
             label = QLabel(text)
             label.setStyleSheet("""
                 border: none;
                 background-color: transparent;
                 padding-left: 5px;
             """)
-            label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+            label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
             
             # Create remove button
             remove_button = QPushButton("✕")
@@ -689,59 +668,118 @@ class CollapsibleSection(QWidget):
             
             # Add widgets to layout
             item_layout.addWidget(checkbox)
-            item_layout.addWidget(label)
-            item_layout.addStretch()
+            item_layout.addWidget(label, 1)
             item_layout.addWidget(remove_button)
             
-            # Create list item
-            item = QListWidgetItem()
-            item.setSizeHint(item_widget.sizeHint())
+            # Create container widget with fixed height
+            item_widget = QWidget()
+            item_widget.setStyleSheet("background: transparent")
+            item_widget.setFixedHeight(30)  # Set explicit height
+            item_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            item_widget.setLayout(item_layout)
             
-            # Add to list
-            self.checklist.addItem(item)
-            self.checklist.setItemWidget(item, item_widget)
+            # Add to layout (without extra alignment parameters)
+            self.checklist_layout.addWidget(item_widget)
             
             # Add to internal data store
-            self.checklist_data.append({
+            item_data = {
                 'text': text,
-                'checked': False
-            })
-            
-            # Update list height
-            items_height = self.checklist.count() * 35  # Each item is about 35px high
-            self.checklist.setFixedHeight(min(items_height + 5, 250))  # Limit max height
+                'checked': False,
+                'widget': item_widget,
+                'checkbox': checkbox,
+                'label': label
+            }
+            self.checklist_data.append(item_data)
             
             # Connect signals
-            checkbox.stateChanged.connect(lambda state, idx=len(self.checklist_data)-1: 
+            idx = len(self.checklist_data) - 1
+            checkbox.stateChanged.connect(lambda state, idx=idx: 
                                         self.update_checklist_item_state(idx, state == Qt.Checked))
-            remove_button.clicked.connect(lambda checked=False, item=item, idx=len(self.checklist_data)-1: 
-                                        self.remove_checklist_item(item, idx))
+            remove_button.clicked.connect(lambda checked=False, item_text=text, idx=idx: 
+                                     self.remove_checklist_item(idx, item_text))
             
-            self.checklist_item_added.emit(text)
+            # Emit signal for item added (if it exists)
+            if hasattr(self, 'checklist_item_added'):
+                self.checklist_item_added.emit(text)
             
             # Clear input field
             self.checklist_input.clear()
 
-    def remove_checklist_item(self, item, index):
-        """Remove an item from the checklist"""
-        row = self.checklist.row(item)
-        self.checklist.takeItem(row)
+    def update_checklist_item_state(self, idx, checked):
+        """Update the state of a checklist item"""
+        if 0 <= idx < len(self.checklist_data):
+            self.checklist_data[idx]['checked'] = checked
+            
+            # You can update appearance based on checked state if needed
+            # For example, strikethrough for completed items:
+            label = self.checklist_data[idx]['label']
+            if checked:
+                label.setStyleSheet("""
+                    border: none;
+                    background-color: transparent;
+                    padding-left: 5px;
+                    text-decoration: line-through;
+                    color: #888;
+                """)
+            else:
+                label.setStyleSheet("""
+                    border: none;
+                    background-color: transparent;
+                    padding-left: 5px;
+                """)
+
+    def remove_checklist_item(self, idx, item_text):
+        """Remove an item from the checklist and emit signal with text"""
+        if 0 <= idx < len(self.checklist_data):
+            # Get the widget to remove
+            widget = self.checklist_data[idx]['widget']
+            
+            # Remove from layout
+            self.checklist_layout.removeWidget(widget)
+            widget.deleteLater()
+            
+            # Remove from data store
+            self.checklist_data.pop(idx)
+            
+            # Update indices for remaining items
+            self._update_checklist_indices()
+            
+            # Emit signal with the removed item's text
+            self.checklist_item_removed.emit(item_text)
+
+    def _update_checklist_indices(self):
+        """Update the indices of checklist items after removal"""
+        for i, item_data in enumerate(self.checklist_data):
+            # Disconnect old connections
+            checkbox = item_data['checkbox']
+            checkbox.disconnect()
+            
+            # Connect with new index
+            checkbox.stateChanged.connect(lambda state, idx=i: 
+                                        self.update_checklist_item_state(idx, state == Qt.Checked))
+
+    # def remove_checklist_item(self, item, index):
+    #     """Remove an item from the checklist"""
+    #     row = self.checklist.row(item)
+    #     self.checklist.takeItem(row)
         
-        # Remove from internal data
-        if 0 <= index < len(self.checklist_data):
-            self.checklist_data.pop(index)
+    #     # Remove from internal data
+    #     if 0 <= index < len(self.checklist_data):
+    #         self.checklist_data.pop(index)
         
-        # Update list height
-        items_height = self.checklist.count() * 35
-        self.checklist.setFixedHeight(max(min(items_height + 5, 250), 35))  # Maintain minimum height
+    #     # Update list height
+    #     items_height = self.checklist.count() * 35
+    #     self.checklist.setFixedHeight(max(min(items_height + 5, 250), 35))  # Maintain minimum height
         
-        # Re-index all checklist items to match data array
-        self.reindex_checklist_items()
+    #     # Re-index all checklist items to match data array
+    #     self.reindex_checklist_items()
 
     def update_checklist_item_state(self, index, checked):
         """Update checked state in internal data"""
+        print("updating")
         if 0 <= index < len(self.checklist_data):
             self.checklist_data[index]['checked'] = checked
+            print(self.checklist_data[index]['checked'])
 
     def reindex_checklist_items(self):
         """Update indices for all checklist items after a removal"""
