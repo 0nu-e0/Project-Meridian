@@ -309,36 +309,38 @@ class DashboardScreen(QWidget):
         # Create overlay shadow effect
         self.overlay = QWidget(self)
         self.overlay.setStyleSheet("""
-            QWidget {
-                background-color: rgba(0, 0, 0, 0.5);
-            }
+        QWidget {
+        background-color: rgba(0, 0, 0, 0.5);
+        }
         """)
         self.overlay.setGeometry(self.rect())
         
-        # Create expanded card
-        self.expanded_card = TaskCardExpanded(logger=self.logger, task=task, parent_view=self)
+        # Get the main window to use as parent
+        window = self.window()
+        
+        # Create expanded card with the main window as parent
+        self.expanded_card = TaskCardExpanded(logger=self.logger, task=task, parent_view=self, parent=window)
         self.expanded_card.setStyleSheet(AppStyles.expanded_task_card())
-        #self.expanded_card.setAttribute(Qt.WA_TranslucentBackground, True)
-
-        # In Dashboard's addNewTask method
+        
+        # Set up connections
         self.expanded_card.taskDeleted.connect(self.propagateTaskDeletion)
         self.expanded_card.saveCompleted.connect(self.completeSaveActions)
         self.expanded_card.cancelTask.connect(self.closeExpandedCard)
-        # Get screen and window geometries
-        screen_geometry = QApplication.desktop().screenGeometry()
-        window = self.window()  # Get the main window
-        window_geometry = window.geometry()
         
         # Calculate card dimensions
         card_width, card_height = self.expanded_card.calculate_optimal_card_size()
         
         # Calculate center position relative to the window
-        center_x = window_geometry.x() + (window_geometry.width() - card_width) // 2
-        center_y = window_geometry.y() + (window_geometry.height() - card_height) // 2
+        window_geometry = window.geometry()
+        center_x = (window_geometry.width() - card_width) // 2
+        center_y = (window_geometry.height() - card_height) // 2
         
-        # Set position and show expanded card
+        # Set position and window properties
         self.expanded_card.setGeometry(center_x, center_y, card_width, card_height)
-        self.expanded_card.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
+        self.expanded_card.setWindowFlags(Qt.FramelessWindowHint)
+        
+        # Set the dialog to be application modal instead of using WindowStaysOnTopHint
+        self.expanded_card.setWindowModality(Qt.ApplicationModal)
         
         # Show overlay and card
         self.overlay.show()
