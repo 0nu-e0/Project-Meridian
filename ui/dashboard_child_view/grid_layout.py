@@ -212,29 +212,8 @@ class GridLayout(QWidget):
             # Mark as initialized
             self.initComplete = True
             
-<<<<<<< Updated upstream
             # Update the layout
             # self.grid_layout.update()
-=======
-            for widget in self.widgets:
-                if widget not in visible_widgets:
-                    # print(f"Adding hidden widget at row {hidden_row}, column {hidden_col}")
-                    self.grid_layout.addWidget(widget, hidden_row, hidden_col)
-                    hidden_col += 1
-                    if hidden_col >= self.num_columns:
-                        hidden_col = 0
-                        hidden_row += 1
-            
-            self.grid_layout.update()
-            
-            container_widget = self.grid_layout.parentWidget()
-            if container_widget:
-                container_widget.adjustSize()
-
-            self.grid_layout.setAlignment(Qt.AlignTop)
-                
-            # print("Grid rearrangement completed")
->>>>>>> Stashed changes
             
         except Exception as e:
             print(f"Error in rearrangeGridLayout: {e}")
