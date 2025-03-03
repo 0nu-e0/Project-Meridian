@@ -1,5 +1,5 @@
 # -----------------------------------------------------------------------------
-# Project Manager
+# Project Maridian
 # Copyright (c) 2025 Jereme Shaver
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -120,11 +120,15 @@ class TaskCardLite(QWidget):
 
     def setExpanded(self, expanded):
         if expanded:
-            self.setFixedHeight(int(self.expanded_height))
-            self.updateContent(expanded=True)
+            self.setMinimumHeight(int(self.expanded_height))
+            self.setMaximumHeight(int(self.expanded_height))
         else:
-            self.setFixedHeight(int(self.original_height))
-            self.updateContent(expanded=False)
+            self.setMinimumHeight(int(self.original_height))
+            self.setMaximumHeight(int(self.original_height))
+
+        self.updateContent(expanded)
+        self.update()  # Force a repaint
+
 
     def task_routine(self, task_name, description, creation_date, due_date, status, assigned, catagory, priority):
         self.task_name = task_name
@@ -157,11 +161,18 @@ class TaskCardLite(QWidget):
             item = self.main_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
-                
+
+        # Rebuild UI based on the expanded state
         if expanded:
             self.generateExpandedUI()
         else:
             self.generateUI()
+
+        # Ensure layout refreshes properly
+        self.main_layout.invalidate()  # Invalidate current layout
+        self.main_layout.activate()    # Force re-layout only on this widget
+        self.updateGeometry()          # Notify parent layout of size change
+
 
     def generateUI(self):
         card_layout_widget = QWidget()

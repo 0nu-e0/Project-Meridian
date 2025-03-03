@@ -1,5 +1,5 @@
 # -----------------------------------------------------------------------------
-# Project Manager
+# Project Maridian
 # Copyright (c) 2025 Jereme Shaver
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -44,92 +44,103 @@ class DashboardConfigManager:
         Returns:
             list: List of grid layout configurations
         """
-        # Define the config file path
-        config_path = Path(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 
-                                    'data', 'app_config.yaml'))
+        from utils.app_config import AppConfig
+        import logging
         
-        # print(f"Looking for dashboard config at: {config_path}")
+        logger = logging.getLogger(__name__)
+        
+        # Get the config file path from AppConfig
+        app_config = AppConfig()
+        config_path = os.path.join(app_config.app_data_dir, "config", "app_config.yaml")
         
         # Check if the file exists
-        if not config_path.exists():
-            print(f"Config file does not exist at: {config_path}")
+        if not os.path.exists(config_path):
+            logger.warning(f"Config file does not exist at: {config_path}")
             return []
         
         # Load the YAML file directly
         try:
             with open(config_path, 'r') as file:
                 yaml_data = yaml.safe_load(file)
-                # print(f"YAML loaded successfully. Keys: {list(yaml_data.keys())}")
+            
+            # Check if dashboard section exists
+            if 'dashboard' not in yaml_data:
+                logger.warning("No dashboard section found in YAML file")
+                return []
+            
+            # Check if grid_layouts section exists
+            if 'grid_layouts' not in yaml_data['dashboard']:
+                logger.warning("No grid_layouts section found in dashboard configuration")
+                return []
+            
+            # Get the grid layouts from the YAML
+            yaml_grid_layouts = yaml_data['dashboard']['grid_layouts']
+            
+            # Convert YAML grid layouts to objects
+            grid_layouts = []
+            for grid_data in yaml_grid_layouts:
+                # Create grid object
+                grid = type('', (), {})()
                 
-                # Check if dashboard section exists
-                if 'dashboard' not in yaml_data:
-                    print("No dashboard section found in YAML file")
-                    return []
-                    
-                # Check if grid_layouts section exists
-                if 'grid_layouts' not in yaml_data['dashboard']:
-                    print("No grid_layouts section found in dashboard configuration")
-                    return []
+                # Set basic properties
+                grid.id = grid_data.get('id', f"grid_{len(grid_layouts)}")
+                grid.name = grid_data.get('name', "Unnamed Grid")
+                grid.position = grid_data.get('position', len(grid_layouts))
+                grid.columns = grid_data.get('columns', 3)
                 
-                # Get the grid layouts from the YAML
-                yaml_grid_layouts = yaml_data['dashboard']['grid_layouts']
-                # print(f"Found {len(yaml_grid_layouts)} grid layouts in configuration")
+                # Create filter object
+                grid.filter = type('', (), {})()
                 
-                # Convert YAML grid layouts to objects
-                grid_layouts = []
-                for grid_data in yaml_grid_layouts:
-                    # Create grid object
-                    grid = type('', (), {})()
-                    
-                    # Set basic properties
-                    grid.id = grid_data.get('id', f"grid_{len(grid_layouts)}")
-                    grid.name = grid_data.get('name', "Unnamed Grid")
-                    grid.position = grid_data.get('position', len(grid_layouts))
-                    grid.columns = grid_data.get('columns', 3)
-                    
-                    # Create filter object
-                    grid.filter = type('', (), {})()
-                    
-                    # Set filter properties
-                    filter_data = grid_data.get('filter', {})
-                    
-                    # Extract filter values directly from YAML
-                    # Make sure to preserve these exact keys for your GridLayout
-                    grid.filter.status = filter_data.get('status', [])
-                    grid.filter.category = filter_data.get('category', [])
-                    grid.filter.due = filter_data.get('due', [])
-                    
-                    # Debug output
-                    # print(f"Grid {grid.name} filter values: status={grid.filter.status}, category={grid.filter.category}, due={grid.filter.due}")
-                    
-                    grid_layouts.append(grid)
+                # Set filter properties
+                filter_data = grid_data.get('filter', {})
                 
-                # print(f"Successfully processed {len(grid_layouts)} grid layouts")
-                return grid_layouts
+                # Extract filter values directly from YAML
+                # Make sure to preserve these exact keys for your GridLayout
+                grid.filter.status = filter_data.get('status', [])
+                grid.filter.category = filter_data.get('category', [])
+                grid.filter.due = filter_data.get('due', [])
                 
+                grid_layouts.append(grid)
+            
+            # logger.info(f"Successfully loaded {len(grid_layouts)} grid layouts from configuration")
+            return grid_layouts
+            
         except Exception as e:
-            print(f"Error loading dashboard configuration: {e}")
+            # logger.error(f"Error loading dashboard configuration: {e}")
             import traceback
-            traceback.print_exc()
+            # logger.error(traceback.format_exc())
             return []
     
     @staticmethod
     def save_grid_layouts(grid_layouts):
         """
-        Save grid layouts to the configuration file.
+        Save grid layouts to the configuration file in the AppConfig directory.
         
         Args:
             grid_layouts (list): List of grid layout objects to save
         """
-        # Define the config file path
-        config_path = Path(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 
-                                      'data', 'app_config.yaml'))
+        from utils.app_config import AppConfig
+        import logging
+        
+        logger = logging.getLogger(__name__)
+        
+        # Get the config file path from AppConfig
+        app_config = AppConfig()
+        config_dir = os.path.join(app_config.app_data_dir, "config")
+        config_path = os.path.join(config_dir, "app_config.yaml")
+        
+        # Ensure the config directory exists
+        os.makedirs(config_dir, exist_ok=True)
         
         # Load existing YAML file
         try:
-            with open(config_path, 'r') as file:
-                yaml_data = yaml.safe_load(file) or {}
-        except Exception:
+            if os.path.exists(config_path):
+                with open(config_path, 'r') as file:
+                    yaml_data = yaml.safe_load(file) or {}
+            else:
+                yaml_data = {}
+        except Exception as e:
+            logger.error(f"Error loading configuration: {e}")
             yaml_data = {}
         
         # Ensure dashboard section exists
@@ -155,7 +166,6 @@ class DashboardConfigManager:
                     grid_data['filter']['category'] = grid.filter.category
                 if hasattr(grid.filter, 'due'):
                     grid_data['filter']['due'] = grid.filter.due
-                
                 # Include legacy fields if present
                 if hasattr(grid.filter, 'type'):
                     grid_data['filter']['type'] = grid.filter.type
@@ -169,15 +179,91 @@ class DashboardConfigManager:
         # Update the YAML data
         yaml_data['dashboard']['grid_layouts'] = yaml_grid_layouts
         
+        # Preserve other sections if they exist in the original file
+        # This prevents losing other configurations when saving grid layouts
+        
         # Save the YAML file
         try:
             with open(config_path, 'w') as file:
-                yaml.dump(yaml_data, file, default_flow_style=False)
-            print(f"Successfully saved {len(yaml_grid_layouts)} grid layouts to configuration")
+                yaml.dump(yaml_data, file, default_flow_style=False, sort_keys=False)
+            
+            logger.info(f"Successfully saved {len(yaml_grid_layouts)} grid layouts to {config_path}")
             return True
         except Exception as e:
-            print(f"Error saving dashboard configuration: {e}")
+            logger.error(f"Error saving dashboard configuration: {e}")
             return False
+
+    # Also need a corresponding load method to read from the new location
+    @staticmethod
+    def load_grid_layouts():
+        """
+        Load grid layouts from the configuration file in the AppConfig directory.
+        
+        Returns:
+            list: List of grid layout objects
+        """
+        from utils.app_config import AppConfig
+        import logging
+        
+        logger = logging.getLogger(__name__)
+        
+        # Get the config file path from AppConfig
+        app_config = AppConfig()
+        config_path = os.path.join(app_config.app_data_dir, "config", "app_config.yaml")
+        
+        # Check if file exists
+        if not os.path.exists(config_path):
+            logger.warning(f"Configuration file not found at {config_path}")
+            return []
+        
+        # Load YAML file
+        try:
+            with open(config_path, 'r') as file:
+                yaml_data = yaml.safe_load(file) or {}
+        except Exception as e:
+            logger.error(f"Error loading configuration: {e}")
+            return []
+        
+        # Extract grid layouts
+        try:
+            layouts_data = yaml_data.get('dashboard', {}).get('grid_layouts', [])
+            
+            # Convert to grid layout objects - customize this part for your application
+            grid_layouts = []
+            for layout_data in layouts_data:
+                # Create an instance of your grid layout class
+                # This is a placeholder - replace with your actual class
+                grid = GridLayout(
+                    id=layout_data.get('id'),
+                    name=layout_data.get('name'),
+                    position=layout_data.get('position'),
+                    columns=layout_data.get('columns', 3)
+                )
+                
+                # Set up filters if present
+                filter_data = layout_data.get('filter', {})
+                if filter_data:
+                    grid.filter = GridFilter()
+                    grid.filter.category = filter_data.get('category', [])
+                    grid.filter.status = filter_data.get('status', [])
+                    grid.filter.due = filter_data.get('due', [])
+                    
+                    # Handle legacy fields
+                    if 'type' in filter_data:
+                        grid.filter.type = filter_data['type']
+                    if 'priority' in filter_data:
+                        grid.filter.priority = filter_data['priority']
+                    if 'tags' in filter_data:
+                        grid.filter.tags = filter_data['tags']
+                
+                grid_layouts.append(grid)
+            
+            logger.info(f"Loaded {len(grid_layouts)} grid layouts from configuration")
+            return grid_layouts
+            
+        except Exception as e:
+            logger.error(f"Error parsing grid layouts: {e}")
+            return []
     
     @staticmethod
     def add_grid_layout(name=None, columns=None):

@@ -1,5 +1,5 @@
 # -----------------------------------------------------------------------------
-# Project Manager
+# Project Maridian
 # Copyright (c) 2025 Jereme Shaver
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -374,7 +374,7 @@ class TaskCardExpanded(QWidget):
         delete_button = QPushButton("Delete")
         
         # Use lambda to properly connect functions that need to be called when clicked
-        save_button.clicked.connect(lambda: save_task_to_json(self.task))
+        save_button.clicked.connect(lambda: save_task_to_json(self.task, self.logger))
         save_button.clicked.connect(self.updatedCompleted.emit)
         save_button.clicked.connect(self.saveCompleted.emit)
 
@@ -1074,7 +1074,7 @@ class TaskCardExpanded(QWidget):
     def load_dependencies(self):
         """Load all available tasks for dependencies"""
         # Get all task titles from the task objects
-        tasks = load_tasks_from_json()
+        tasks = load_tasks_from_json(self.logger)
         return list(tasks.keys())
 
     def add_dependency_to_task(self, dependency_task_title):
@@ -1134,31 +1134,35 @@ class TaskCardExpanded(QWidget):
         )
         
         if confirm == QMessageBox.Yes:
-            # Get the json file path
-            json_file_path = resource_path('data/saved_tasks.json')
-
+            # Get the json file path from AppConfig
+            from utils.app_config import AppConfig
+            app_config = AppConfig()
+            json_file_path = app_config.tasks_file
+            
             try:
-                # Store the task title before deletion
+                # Store the task ID and title before deletion
+                task_id = self.task.id
                 task_title = self.task.title
                 
                 # Load existing tasks
                 with open(json_file_path, 'r') as file:
                     tasks_data = json.load(file)
                 
-                # Remove the task
-                if task_title in tasks_data:
-                    del tasks_data[task_title]
+                # Remove the task by ID
+                if task_id in tasks_data:
+                    del tasks_data[task_id]
                     
                     # Save the updated data
                     with open(json_file_path, 'w') as file:
                         json.dump(tasks_data, file, indent=2)
                     
-                    # Emit the deletion signal
+                    # Emit the deletion signal with task title (for backward compatibility)
                     self.taskDeleted.emit(task_title)
                     
                     # Close the expanded card
-                    if self.parent_view and hasattr(self.parent_view, 'overlay'):
+                    if hasattr(self, 'parent_view') and self.parent_view and hasattr(self.parent_view, 'overlay'):
                         self.parent_view.overlay.hide()
+                    
                     self.close()
                     
                     # Show success message
@@ -1167,8 +1171,9 @@ class TaskCardExpanded(QWidget):
                     QMessageBox.warning(self, "Warning", f"Task '{task_title}' not found in saved tasks.")
                     
             except Exception as e:
+                self.logger.error(f"Error deleting task: {e}")
                 QMessageBox.critical(self, "Error", f"An error occurred while deleting the task: {str(e)}")
-
+                
     def add_checklist_item_to_task(self, text):
         """Add a checklist item to the task"""
         if not hasattr(self.task, 'checklist'):

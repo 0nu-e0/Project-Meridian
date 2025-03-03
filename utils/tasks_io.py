@@ -1,5 +1,5 @@
 # -----------------------------------------------------------------------------
-# Project Manager
+# Project Maridian
 # Copyright (c) 2025 Jereme Shaver
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -28,53 +28,68 @@
 import os, json
 from uuid import uuid4
 from datetime import datetime
+from utils.app_config import AppConfig
 from utils.directory_finder import resource_path
 from models.task import Task, TaskStatus, TaskPriority, TaskCategory, Attachment, TaskEntry, TimeLog
 
-def load_tasks_from_json():
+def load_tasks_from_json(logger):
     """
     Load tasks from JSON file into Task objects
-    
-    Args:
-        json_file_path: Path to the JSON file
-        
+
     Returns:
-        dict: Dictionary with task titles as keys and Task objects as values
+        dict: Dictionary with task titles as keys and Task objects as values, sorted by priority
     """
+    from utils.app_config import AppConfig
+
     task_objects = {}
-    json_file_path = resource_path('data/saved_tasks.json')
+
+    # Get the file path from AppConfig
+    app_config = AppConfig()
+    json_file_path = app_config.tasks_file
+
+    # logger.info(f"Attempting to load tasks from: {json_file_path}")
+
+    # Check if file exists
+    if not os.path.exists(json_file_path):
+        logger.warning(f"Task file not found at: {json_file_path}")
+        return {}
 
     try:
         # Read the JSON file
         with open(json_file_path, 'r') as file:
             tasks_data = json.load(file)
-            
+
+        # logger.info(f"Successfully loaded {len(tasks_data)} tasks from {json_file_path}")
+
         # Convert each task data to Task object
-        for task_name, task_info in tasks_data.items():
+        for task_key, task_info in tasks_data.items():
+            # Get the title from the task info or use the key as fallback
+            task_name = task_info.get('title', task_key)
+
             # Create base Task object
             task = Task(
                 title=task_name,
                 description=task_info.get('description', ''),
                 project_id=task_info.get('project_id', None)
             )
-            
+
             # Set ID if available, otherwise use the generated one
             if 'id' in task_info:
                 task.id = task_info['id']
-                
+
             # Set enum values
             if 'status' in task_info:
                 status_value = task_info['status'].replace(" ", "_").upper()
                 task.status = TaskStatus[status_value]
-                
+
             if 'priority' in task_info:
                 priority_value = task_info['priority'].upper()
                 task.priority = TaskPriority[priority_value]
-                
+
             if 'category' in task_info:
                 category_value = task_info['category'].replace(" ", "_").upper()
                 task.category = TaskCategory[category_value]
-                
+
             # Set numeric values
             if 'percentage_complete' in task_info:
                 percentage = task_info['percentage_complete']
@@ -82,19 +97,19 @@ def load_tasks_from_json():
                     task.percentage_complete = int(percentage.rstrip('%'))
                 else:
                     task.percentage_complete = percentage
-                    
+
             if 'estimated_hours' in task_info:
                 task.estimated_hours = float(task_info['estimated_hours'])
-                
+
             if 'actual_hours' in task_info:
                 task.actual_hours = float(task_info['actual_hours'])
-                
+
             if 'cost_estimate' in task_info:
                 task.cost_estimate = float(task_info['cost_estimate'])
-                
+
             if 'actual_cost' in task_info:
                 task.actual_cost = float(task_info['actual_cost'])
-                
+
             # Set date values
             date_fields = {
                 'creation_date': '%Y-%m-%d, %H:%M:%S',
@@ -104,44 +119,44 @@ def load_tasks_from_json():
                 'reminder_date': '%Y-%m-%d, %H:%M:%S',
                 'modified_date': '%Y-%m-%d, %H:%M:%S'
             }
-            
+
             for field, format_str in date_fields.items():
                 if field in task_info and task_info[field]:
                     try:
                         setattr(task, field, datetime.strptime(task_info[field], format_str))
                     except ValueError:
                         # Handle potential format issues
-                        print(f"Warning: Could not parse date for {field} in task {task_name}")
-            
+                        logger.warning(f"Could not parse date for {field} in task {task_name}")
+
             # Set string values
             string_fields = ['assignee', 'creator', 'modified_by', 'sprint_id', 'milestone_id', 'parent_task_id']
             for field in string_fields:
                 if field in task_info:
                     setattr(task, field, task_info[field])
-            
+
             # Set collection values
             if 'dependencies' in task_info:
                 task.dependencies = set(task_info['dependencies'])
-                
+
             if 'blocked_by' in task_info:
                 task.blocked_by = set(task_info['blocked_by'])
-                
+
             if 'watchers' in task_info:
                 task.watchers = set(task_info['watchers'])
-                
+
             if 'collaborators' in task_info:
                 task.collaborators = set(task_info['collaborators'])
-                
+
             if 'team_members' in task_info:
                 task.collaborators = set(task_info['team_members'])
-                
+
             if 'tags' in task_info:
                 task.tags = set(task_info['tags'])
-                
+
             # Set custom fields
             if 'custom_fields' in task_info:
                 task.custom_fields = task_info['custom_fields']
-                
+
             # Add attachments
             if 'attachments' in task_info:
                 for attachment_data in task_info['attachments']:
@@ -150,84 +165,45 @@ def load_tasks_from_json():
                         user_id=attachment_data.get('added_by', 'System'),
                         description=attachment_data.get('file_name', '')
                     )
-                    
+
                     if 'added_date' in attachment_data:
                         try:
                             attachment.upload_date = datetime.strptime(attachment_data['added_date'], '%m/%d/%Y %H:%M')
                         except ValueError:
                             attachment.upload_date = datetime.now()
-                            
+
                     if 'file_size' in attachment_data:
                         attachment.file_size = attachment_data['file_size']
-                        
+
                     if 'file_type' in attachment_data:
                         attachment.file_type = attachment_data['file_type']
-                        
+
                     task.attachments.append(attachment)
 
             if 'checklist' in task_info:
                 task.checklist = task_info['checklist']
             else:
-                task.checklist = [] 
-            
-            # Add time logs
-            if 'time_logs' in task_info:
-                for log_data in task_info['time_logs']:
-                    time_log = TimeLog(
-                        hours=log_data['hours'],
-                        user_id=log_data['user_id'],
-                        description=log_data.get('description', '')
-                    )
-                    
-                    if 'timestamp' in log_data:
-                        try:
-                            time_log.timestamp = datetime.strptime(log_data['timestamp'], '%Y-%m-%d %H:%M:%S')
-                        except ValueError:
-                            time_log.timestamp = datetime.now()
-                            
-                    task.time_logs.append(time_log)
-            
-            # Add entries (comments, etc.)
-            if 'activities' in task_info:
-                for entry_data in task_info['activities']:
-                    entry = TaskEntry(
-                        content=entry_data['text'],
-                        entry_type=entry_data.get('type', 'comment'),
-                        user_id=entry_data.get('user_id', None)
-                    )
-                    
-                    if 'timestamp' in entry_data:
-                        try:
-                            entry.timestamp = datetime.strptime(entry_data['timestamp'], '%m/%d/%Y %H:%M')
-                        except ValueError:
-                            entry.timestamp = datetime.now()
-                            
-                    entry.edited = entry_data.get('edited', False)
-                    
-                    if 'edit_timestamp' in entry_data and entry_data['edit_timestamp']:
-                        try:
-                            entry.edit_timestamp = datetime.strptime(entry_data['edit_timestamp'], '%m/%d/%Y %H:%M')
-                        except ValueError:
-                            pass
-                            
-                    task.entries.append(entry)
-            
+                task.checklist = []
+
             # Add the task to our dictionary
             task_objects[task_name] = task
-            
-        return task_objects
-        
+
+        # Return tasks sorted by priority
+        return dict(sorted(task_objects.items(), key=lambda item: item[1].priority.value, reverse=True))
+
     except Exception as e:
-        print(f"Error loading tasks from JSON: {e}")
+        logger.error(f"Error loading tasks from JSON: {e}")
         return {}
-    
-def save_task_to_json(task):
+
+def save_task_to_json(task, logger):
     """
-    Save a Task object to the JSON file
+    Save a Task object to the JSON file in the user's app data directory
     
     Args:
         task: The Task object to save (can be new or existing)
     """
+    from utils.app_config import AppConfig
+    
     # Initialize new task if None
     if task is None:
         task = Task(
@@ -236,9 +212,20 @@ def save_task_to_json(task):
             category=TaskCategory.FEATURE
         )
 
-    json_file_path = resource_path('data/saved_tasks.json')
+    # Get the path from AppConfig
+    app_config = AppConfig()
+    json_file_path = app_config.tasks_file
+    
+    # Add debug logging
+    logger.info(f"Attempting to save task to: {json_file_path}")
 
     try:
+        # Ensure the directory exists
+        data_dir = os.path.dirname(json_file_path)
+        if not os.path.exists(data_dir):
+            logger.info(f"Creating directory: {data_dir}")
+            os.makedirs(data_dir, exist_ok=True)
+        
         # Read existing data first
         tasks_data = {}
         if os.path.exists(json_file_path):
@@ -317,15 +304,19 @@ def save_task_to_json(task):
         # Clean up None values for cleaner JSON
         task_data = {k: v for k, v in task_data.items() if v is not None}
         
-        # Use title or generate a new one if None
-        task_title = getattr(task, 'title', f"Task_{str(uuid4())[:8]}")
+        # Use ID as the key instead of title to avoid duplicates
+        task_id = task_data['id']
         
         # Update the task in the dictionary
-        tasks_data[task_title] = task_data
+        tasks_data[task_id] = task_data
         
         # Write back to file
         with open(json_file_path, 'w') as file:
             json.dump(tasks_data, file, indent=2)
             
+        logger.info(f"Task saved to {json_file_path}")
+        return True
+            
     except Exception as e:
-        print(f"Error saving task to JSON: {e}")
+        logger.error(f"Error saving task to JSON: {e}")
+        return False

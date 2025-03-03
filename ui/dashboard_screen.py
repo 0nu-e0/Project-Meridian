@@ -1,5 +1,5 @@
 # -----------------------------------------------------------------------------
-# Project Manager
+# Project Maridian
 # Copyright (c) 2025 Jereme Shaver
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -28,6 +28,7 @@
 
 import os, json
 from resources.styles import AppStyles, AnimatedButton
+from utils.tasks_io import load_tasks_from_json
 from utils.directory_finder import resource_path
 from utils.dashboard_config import DashboardConfigManager
 from models.task import Task, TaskCategory, TaskPriority, TaskEntry, TaskStatus
@@ -42,32 +43,25 @@ from PyQt5.QtGui import QResizeEvent, QPixmap, QIcon
 class DashboardScreen(QWidget):
     sendTaskInCardClicked = pyqtSignal(object)
     savecomplete = pyqtSignal()
-    json_file_path = resource_path('data/saved_tasks.json')
 
-    def __init__(self, logger):
+    def __init__(self, logger, width):
         super().__init__()
 
         self.logger = logger
+        self.dashboard_width = width
+        self.tasks = load_tasks_from_json(self.logger)
         self.saved_grid_layouts = self.loadGridLayouts() or []
         # for grid in self.saved_grid_layouts:
             # print(f"Grid: {grid.id} - {grid.name}")
         self.consoles = {}
         self.taskCards = []
         self.grid_layouts = []
+        self.initComplete = False
         self.initUI()
 
     def loadGridLayouts(self):
         return DashboardConfigManager.get_all_grid_layouts()
     
-    # # Add mouse event handlers to show/hide the button
-    # def enterEvent(self, event):
-    #     self.remove_grid_button.setVisible(True)
-    #     QWidget.enterEvent(grid_header_widget, event)
-
-    # def leaveEvent(self, event):
-    #     self.remove_grid_button.setVisible(False)
-    #     QWidget.leaveEvent(self.grid_header_widget, event)
-
     def initUI(self):
         self.initCentralWidget()
         self.initBannerSpacer()
@@ -95,10 +89,7 @@ class DashboardScreen(QWidget):
         separator = QFrame()
         separator.setFrameShape(QFrame.HLine)
         separator.setFixedHeight(2)
-        #separator.setStyleSheet(AppStyles.divider())
         self.main_layout.addWidget(separator)
-        # Add some spacing around the separator
-        #self.main_layout.addSpacing(20)
 
     def initLayoutGrouping(self):
         layout_group_widget = QWidget()
@@ -135,8 +126,9 @@ class DashboardScreen(QWidget):
         buttons_container = QHBoxLayout(buttons_widget)
         buttons_container.setSpacing(10)
         buttons_container.setContentsMargins(0, 0, 10, 0)
+
+        card_count_widget = QLabel(f"Current Task Count: {len(self.tasks)}")
         
-        # Define button size - use the same for both buttons
         button_size = QSize(30, 30)
         
         # Task row
@@ -152,6 +144,8 @@ class DashboardScreen(QWidget):
         addTaskButton.setFixedSize(button_size)  # Set fixed size
         addTaskButton.clicked.connect(lambda: self.addNewTask(task=None))
         
+        task_row_layout.addWidget(card_count_widget)
+        task_row_layout.addStretch(1)
         task_row_layout.addWidget(manage_tasks_label)
         task_row_layout.addWidget(addTaskButton)
         
@@ -165,7 +159,7 @@ class DashboardScreen(QWidget):
         
         addGroupsButton = AnimatedButton("+", blur=2, x=10, y=10, offsetX=1, offsetY=1)
         addGroupsButton.setStyleSheet(AppStyles.button_normal())
-        addGroupsButton.setFixedSize(button_size)  # Set fixed size - same as other button
+        addGroupsButton.setFixedSize(button_size) 
         addGroupsButton.clicked.connect(lambda: self.addGroupTask())
         
         group_row_layout.addWidget(manage_groups_label)
@@ -191,7 +185,7 @@ class DashboardScreen(QWidget):
             grid_section_layout.setContentsMargins(20, 0, 0, 0)
             
             # Create header with hover capability
-            grid_header_widget = QWidget()  # No "self." prefix
+            grid_header_widget = QWidget() 
             grid_header_widget.setMouseTracking(True)
             grid_header_layout = QHBoxLayout(grid_header_widget)
             
@@ -201,7 +195,7 @@ class DashboardScreen(QWidget):
             grid_header_layout.addWidget(grid_title)
             
             # Create but initially hide the remove button
-            remove_grid_button = QPushButton()  # No "self." prefix
+            remove_grid_button = QPushButton() 
             image_path = resource_path('resources/images/delete_button.png')
             pixmap = QPixmap(image_path)
             remove_icon = QIcon(pixmap)
@@ -231,7 +225,6 @@ class DashboardScreen(QWidget):
             grid_header_widget.enterEvent = make_enter_event(remove_grid_button, grid_header_widget)
             grid_header_widget.leaveEvent = make_leave_event(remove_grid_button, grid_header_widget)
             
-            
             # Create filter dictionary for GridLayout
             filter_dict = {
                 'status': [],
@@ -249,16 +242,18 @@ class DashboardScreen(QWidget):
             if hasattr(grid.filter, 'due') and grid.filter.due:
                 filter_dict['due'] = grid.filter.due
             
-            # print(f"Applying filter to {grid.name}: {filter_dict}")
-            
             # Create a grid layout with the filter
-            grid_layout = GridLayout(logger=self.logger, filter=filter_dict)
+            width = self.width()
+            # print(f"parent width: {width}")
+            grid_layout = GridLayout(logger=self.logger, filter=filter_dict, width=self.dashboard_width)
 
             grid_section_layout.addWidget(grid_header_widget)
             grid_section_layout.addWidget(grid_layout)
             self.grid_layouts.append(grid_layout)
             grid_layout.taskDeleted.connect(self.propagateTaskDeletion)
             grid_layout.sendTaskInCardClicked.connect(self.addNewTask)
+
+            grid_layout.grid_title = grid.filter.category[0]
             
             # Add the section to the container
             self.task_layout_container.addWidget(grid_section)
@@ -298,12 +293,6 @@ class DashboardScreen(QWidget):
             
             # Refresh the dashboard
             self.completeSaveActions()
-
-    def initProjectsLayout(self):
-        self.setStyleSheet()
-
-    def initGanttLayout(self):
-        self.setStyleSheet()
 
     def addNewTask(self, task=None):
         # Create overlay shadow effect
