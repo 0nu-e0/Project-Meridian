@@ -1,5 +1,5 @@
 # -----------------------------------------------------------------------------
-# Project Manager
+# Project Maridian
 # Copyright (c) 2025 Jereme Shaver
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -91,10 +91,11 @@ class AppConfig:
             self._user_config_path = Path(os.path.expanduser("~/.myapp/user_config.yaml"))
             
             # print(f"Looking for config at: {self._config_path}")
-            if os.path.exists(self._config_path):
-                print(f"File exists!")
-            else:
-                print(f"File does not exist")
+            # if os.path.exists(self._config_path):
+            #     print(f"File exists!")
+            # else:
+            #     pass
+                # print(f"File does not exist")
                 
             self.load_config()
             self._loaded = True

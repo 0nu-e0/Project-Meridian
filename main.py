@@ -1,5 +1,5 @@
 # -----------------------------------------------------------------------------
-# Project Manager
+# Project Maridian
 # Copyright (c) 2025 Jereme Shaver
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -31,6 +31,7 @@
 import os, yaml, logging, sys, asyncio, json, qasync
 from utils.directory_finder import resource_path
 from utils.dashboard_config import DashboardConfigManager
+from utils.directory_migragtion import migrate_data_if_needed
 from ui.welcome_screen import WelcomeScreen
 from ui.dashboard_screen import DashboardScreen
 from resources.styles import AppStyles, AnimatedButton
@@ -74,7 +75,7 @@ class MainWindow(QMainWindow):
         self.screen_size = QDesktopWidget().screenGeometry(-1)
         self.resize(int(self.screen_size.width() * 0.90), int(self.screen_size.height() * 0.90))
         self.setMinimumSize(int(self.screen_size.width() * 0.5), int(self.screen_size.height() * 0.5))
-        
+        self.window_width = self.width()
         self.initUI()
 
         self.drawer_open = False
@@ -87,6 +88,8 @@ class MainWindow(QMainWindow):
         self.banner_header.raise_()
 
         self.drawer.setGeometry(-self.drawer.width(), 0, self.drawer.width(), self.height())
+
+        self.window_width = self.width()
 
     def eventFilter(self, source, event):
         if event.type() == QEvent.MouseButtonPress:
@@ -145,7 +148,7 @@ class MainWindow(QMainWindow):
                 print(f"Error moving toggle drawer button: {e}")
     
     def initUI(self):
-        self.setWindowTitle("Project Manager Software")
+        self.setWindowTitle("Project Maridian")
         
         self.initCentralWidget()
         self.initBanner()
@@ -158,6 +161,7 @@ class MainWindow(QMainWindow):
 
     def initCentralWidget(self):
         self.central_widget = QWidget()
+        self.central_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setCentralWidget(self.central_widget)
         self.main_layout = QVBoxLayout(self.central_widget)
         self.main_layout.setContentsMargins(0, 0, 0, 0)
@@ -165,10 +169,14 @@ class MainWindow(QMainWindow):
 
     def initStackedWidgets(self):
         self.stacked_widget = QStackedWidget()
+        self.stacked_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.main_layout.addWidget(self.stacked_widget)
 
         self.welcome_screen = WelcomeScreen()
-        self.dashboard_screen = DashboardScreen(logger=self.logger)
+        self.welcome_screen.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        
+        self.dashboard_screen = DashboardScreen(logger=self.logger, width=self.window_width)
+        self.dashboard_screen.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.dashboard_screen.setObjectName("Dashboard")
 
         self.stacked_widget.addWidget(self.dashboard_screen)
@@ -239,7 +247,7 @@ class MainWindow(QMainWindow):
         header_widget = QWidget()
         header_layout = QVBoxLayout(header_widget)
         
-        headerLabel = QLabel("Project Management \nSoftware")
+        headerLabel = QLabel("Project Maridian")
         headerLabel.setAlignment(Qt.AlignCenter) 
         headerLabel.setStyleSheet(AppStyles.label_xlgfnt_bold_dark()) 
         header_layout.addWidget(headerLabel)
@@ -368,26 +376,36 @@ def ensure_required_files():
         default_tasks = {"tasks": []}
         with open(saved_tasks_path, 'w') as f:
             json.dump(default_tasks, f, indent=4)
-        print(f"Created missing file: {saved_tasks_path}")
+        # print(f"Created missing file: {saved_tasks_path}")
 
     # Check and create app_config.yaml if it doesn't exist
     if not os.path.exists(app_config_path):
         default_config = {
-            "app_name": "Project Manager",
+            "app_name": "Project Maridian",
             "version": "1.0",
             "settings": {}
         }
         with open(app_config_path, 'w') as f:
             yaml.dump(default_config, f, default_flow_style=False)
-        print(f"Created missing file: {app_config_path}")
+        # print(f"Created missing file: {app_config_path}")
 
-    print("File check completed.")
+    # print("File check completed.")
 
 
 if __name__ == '__main__':
     setup_logging()
     logger = get_logger("CentralManager")
-    logging.info("Logging system initialized")
+    # logging.info("Logging system initialized")
+    
+    # Initialize AppConfig early to ensure directories exist
+    from utils.app_config import AppConfig
+    app_config = AppConfig()  # This will trigger directory creation
+    # logging.info(f"Application directories verified: {app_config.app_data_dir}")
+    
+    # Run data migration instead of check_and_migrate_all_data()
+
+    migrate_data_if_needed()
+    
     ensure_required_files()
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
@@ -397,12 +415,9 @@ if __name__ == '__main__':
             color: white
         }
     """)
-    loop = qasync.QEventLoop(app) # Need Qasync for PyQt async - QWidgets
+    loop = qasync.QEventLoop(app)  # Need Qasync for PyQt async - QWidgets
     asyncio.set_event_loop(loop)
-    
     main_window = MainWindow()
     main_window.show()
-
     with loop:
         loop.run_forever()
-        
