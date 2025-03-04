@@ -708,16 +708,17 @@ class TaskCardExpanded(QWidget):
                 # Add the item (this will emit a signal but nothing is connected yet)
                 self.checklist_section.add_checklist_item()
                 
-                # Check the box if needed
+                # Check the box if needed using checklist_data
                 if item.get('checked', False):
-                    last_idx = self.checklist_section.checklist.count() - 1
-                    list_item = self.checklist_section.checklist.item(last_idx)
-                    item_widget = self.checklist_section.checklist.itemWidget(list_item)
-                    checkbox = item_widget.layout().itemAt(0).widget()
-                    checkbox.setChecked(True)
-        
+                    last_idx = len(self.checklist_section.checklist_data) - 1
+                    if last_idx >= 0:
+                        checkbox = self.checklist_section.checklist_data[last_idx].get('checkbox')
+                        if checkbox:
+                            checkbox.setChecked(True)
+                
         # NOW connect the signal AFTER all items are loaded
         self.checklist_section.checklist_item_added.connect(self.addChecklistItem)
+        self.checklist_section.checkbox_state_changed.connect(self.updateCheckboxState)
         self.checklist_section.checklist_item_removed.connect(self.removeChecklistItem)
         
         if not self.task.checklist:
@@ -1223,3 +1224,12 @@ class TaskCardExpanded(QWidget):
             # Remove the item with matching text
             self.task.checklist = [item for item in self.task.checklist if item['text'] != text]
     
+    def updateCheckboxState(self, text, checked):
+        """Update the task's checklist item state"""
+        # Find the item with matching text in the task's checklist
+        for i, item in enumerate(self.task.checklist):
+            if item['text'] == text:
+                # Update the checked state
+                self.task.checklist[i]['checked'] = checked
+                break
+        

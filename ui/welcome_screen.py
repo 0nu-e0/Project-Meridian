@@ -39,7 +39,7 @@ class WelcomeScreen(QWidget):
         layout = QVBoxLayout()
         layout.setAlignment(Qt.AlignCenter) 
 
-        label = QLabel("Welcome to some App")
+        label = QLabel("Welcome to Project Maridian")
         self.setStyleSheet(AppStyles.background_color()) 
         label.setStyleSheet(AppStyles.label_normal())
 
