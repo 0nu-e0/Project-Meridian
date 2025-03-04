@@ -139,13 +139,11 @@ class Task(QObject):
         self.checklist: List[Dict[str, any]] = [] 
 
     def add_checklist_item(self, text: str, checked: bool = False):
-        """Add a new item to the task's checklist."""
         self.checklist.append({
             'text': text,
             'checked': checked
         })
-        self.modified_date = datetime.now()
-        
+            
     def update_checklist_item(self, index: int, text: str = None, checked: bool = None):
         """Update an existing checklist item."""
         if 0 <= index < len(self.checklist):

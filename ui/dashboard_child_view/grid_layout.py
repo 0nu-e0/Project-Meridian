@@ -67,11 +67,11 @@ class GridLayout(QWidget):
         # Set initial card visibility based on filters
         # If no filter provided, show all cards by default
         if self.filter is not None:
-            print("filter is not none")
+            # print("filter is not none")
             self.onFilterChanged(self.filter)
         else:
             # Make all cards visible by default if no filter
-            print("filter is none")
+            # print("filter is none")
             self.visibleCards = self.taskCards.copy()
         
         # Force a rearrangement of the layout with the visible cards
@@ -165,7 +165,7 @@ class GridLayout(QWidget):
 
     def rearrangeGridLayout(self):
         """Rearrange the grid layout using the visibleCards list"""
-        print(f"rearrangement called")
+        # print(f"rearrangement called")
         
         try:
             # Clear the current layout

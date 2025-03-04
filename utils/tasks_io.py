@@ -180,10 +180,73 @@ def load_tasks_from_json(logger):
 
                     task.attachments.append(attachment)
 
+            # Load task entries (activities)
+            if 'activities' in task_info:
+                for entry_data in task_info['activities']:
+                    entry = TaskEntry(
+                        content=entry_data.get('text', ''),
+                        entry_type=entry_data.get('type', 'comment'),
+                        user_id=entry_data.get('user_id', 'System')
+                    )
+                    
+                    # Parse timestamp
+                    if 'timestamp' in entry_data:
+                        try:
+                            entry.timestamp = datetime.strptime(entry_data['timestamp'], '%m/%d/%Y %H:%M')
+                        except ValueError:
+                            entry.timestamp = datetime.now()
+                    
+                    # Parse edit information
+                    entry.edited = entry_data.get('edited', False)
+                    if entry.edited and 'edit_timestamp' in entry_data and entry_data['edit_timestamp']:
+                        try:
+                            entry.edit_timestamp = datetime.strptime(entry_data['edit_timestamp'], '%m/%d/%Y %H:%M')
+                        except ValueError:
+                            entry.edit_timestamp = None
+                    
+                    task.entries.append(entry)
+            
+            # Load time logs
+            if 'time_logs' in task_info:
+                for log_data in task_info['time_logs']:
+                    log = TimeLog(
+                        hours=log_data.get('hours', 0),
+                        user_id=log_data.get('user_id', 'System'),
+                        description=log_data.get('description', '')
+                    )
+                    
+                    if 'id' in log_data:
+                        log.id = log_data['id']
+                    
+                    if 'timestamp' in log_data:
+                        try:
+                            log.timestamp = datetime.strptime(log_data['timestamp'], '%Y-%m-%d %H:%M:%S')
+                        except ValueError:
+                            log.timestamp = datetime.now()
+                    
+                    task.time_logs.append(log)
+            
+            # Fix checklist loading
             if 'checklist' in task_info:
-                task.checklist = task_info['checklist']
+                # Make sure checklist is properly formatted with text and checked status
+                task.checklist = []
+                for item in task_info['checklist']:
+                    if isinstance(item, dict) and 'text' in item:
+                        # Standard format - use 'checked' as the key name
+                        task.checklist.append({
+                            'text': item['text'],
+                            'checked': item.get('checked', False)
+                        })
+                    elif isinstance(item, str):
+                        # Item is just a string, create a dict with checked = False
+                        task.checklist.append({'text': item, 'checked': False})
+                    else:
+                        # Skip invalid items
+                        logger.warning(f"Skipping invalid checklist item in task {task_name}: {item}")
             else:
                 task.checklist = []
+
+            print(task.checklist)
 
             # Add the task to our dictionary
             task_objects[task_name] = task
@@ -277,7 +340,14 @@ def save_task_to_json(task, logger):
                 }
                 for attachment in getattr(task, 'attachments', [])
             ],
-            'checklist': getattr(task, 'checklist', []),
+            'checklist': [
+                {
+                    'text': item['text'],
+                    'checked': item.get('completed', item.get('checked', False))
+                } if isinstance(item, dict) else
+                    {'text': item, 'checked': False}
+                for item in getattr(task, 'checklist', [])
+                ],
             'time_logs': [
                 {
                     'id': log.id,
