@@ -1,5 +1,5 @@
 # -----------------------------------------------------------------------------
-# Project Maridian
+# Project Meridian
 # Copyright (c) 2025 Jereme Shaver
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -28,7 +28,7 @@
 # Author: Jereme Shaver
 # -----------------------------------------------------------------------------
 
-import os, yaml, logging, sys, asyncio, json, qasync
+import os, yaml, logging, sys, asyncio, json, qasync, ctypes
 from utils.directory_finder import resource_path
 from utils.dashboard_config import DashboardConfigManager
 from utils.directory_migragtion import migrate_data_if_needed
@@ -153,7 +153,7 @@ class MainWindow(QMainWindow):
                 print(f"Error moving toggle drawer button: {e}")
     
     def initUI(self):
-        self.setWindowTitle("Project Maridian")
+        self.setWindowTitle("Project Meridian")
         
         self.initCentralWidget()
         self.initBanner()
@@ -252,7 +252,7 @@ class MainWindow(QMainWindow):
         header_widget = QWidget()
         header_layout = QVBoxLayout(header_widget)
         
-        headerLabel = QLabel("Project Maridian")
+        headerLabel = QLabel("Project Meridian")
         headerLabel.setAlignment(Qt.AlignCenter) 
         headerLabel.setStyleSheet(AppStyles.label_xlgfnt_bold_dark()) 
         header_layout.addWidget(headerLabel)
@@ -386,7 +386,7 @@ def ensure_required_files():
     # Check and create app_config.yaml if it doesn't exist
     if not os.path.exists(app_config_path):
         default_config = {
-            "app_name": "Project Maridian",
+            "app_name": "Project Meridian",
             "version": "1.0",
             "settings": {}
         }
@@ -420,6 +420,35 @@ if __name__ == '__main__':
             color: white
         }
     """)
+
+
+
+    app_icon = QIcon()
+
+    icon_sizes = [16, 24, 32, 48, 64, 128, 256]
+    for size in icon_sizes:
+        # Construct the path using your resource_path function
+        icon_path = resource_path(f'resources/images/app_icon_{size}x{size}.png')
+        if os.path.exists(icon_path):
+            app_icon.addFile(icon_path, QSize(size, size))
+
+    # If no resolution-specific icons were found, use Untitled2.png as fallback
+    if app_icon.isNull():
+        fallback_path = resource_path('resources/images/Untitled2.png')
+        app_icon = QIcon(fallback_path)
+
+    # Set the icon for the application
+    app.setWindowIcon(app_icon)
+
+    if sys.platform == 'win32':
+        # Get the application ID
+        app_id = 'ProjectMeridian.v0.1'
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(app_id)
+        
+        # Also set the icon for the window and executable
+        myappid = u'ProjectMeridian.v0.1'  # arbitrary string
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+
     loop = qasync.QEventLoop(app)  # Need Qasync for PyQt async - QWidgets
     asyncio.set_event_loop(loop)
     main_window = MainWindow()

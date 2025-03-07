@@ -1,5 +1,5 @@
 # -----------------------------------------------------------------------------
-# Project Maridian
+# Project Meridian
 # Copyright (c) 2025 Jereme Shaver
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy

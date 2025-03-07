@@ -1,5 +1,5 @@
 # -----------------------------------------------------------------------------
-# Project Maridian
+# Project Meridian
 # Copyright (c) 2025 Jereme Shaver
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -39,7 +39,7 @@ class WelcomeScreen(QWidget):
         layout = QVBoxLayout()
         layout.setAlignment(Qt.AlignCenter) 
 
-        label = QLabel("Welcome to Project Maridian")
+        label = QLabel("Welcome to Project Meridian")
         self.setStyleSheet(AppStyles.background_color()) 
         label.setStyleSheet(AppStyles.label_normal())
 
