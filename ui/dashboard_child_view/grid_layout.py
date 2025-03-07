@@ -49,7 +49,7 @@ class GridLayout(QWidget):
     taskDeleted = pyqtSignal(str)
 
 
-    def __init__(self, logger, filter=None, width=None):
+    def __init__(self, logger, width, filter=None):
         super().__init__()
         self.logger = logger
         self.filter = filter
@@ -79,6 +79,12 @@ class GridLayout(QWidget):
 
     def load_known_tasks(self):
         self.tasks = load_tasks_from_json(self.logger)
+
+    def resizeEvent(self, event: QResizeEvent):
+        super().resizeEvent(event)
+
+        # self.updateGeometry()
+        self.rearrangeGridLayout()
 
     def initUI(self):
         self.initCentralWidget()
@@ -143,10 +149,9 @@ class GridLayout(QWidget):
             parent = parent.parent()
         
         # Now parent should be the top-level window
-        self.screen_width = self.grid_width
         # print("self.screen_width")
         self.min_spacing = 20
-        self.num_columns = int(max(1, self.screen_width / (self.card_width + self.min_spacing)))
+        self.num_columns = int(max(1, self.grid_width / (self.card_width + self.min_spacing)))
         # print(f"size calc: {self.screen_width} // {self.card_width + self.min_spacing}")
         # print(f"Num of columns {self.grid_title}: {self.num_columns}")
         self.grid_layout = QGridLayout()
@@ -175,13 +180,18 @@ class GridLayout(QWidget):
                 
             # Calculate layout parameters
             self.min_spacing = 20
+            task_card_lite = TaskCardLite
+            task_card_lite.screen_width = self.grid_width
             self.card_width, self.card_height = TaskCardLite.calculate_optimal_card_size()
             total_card_space = self.card_width + self.min_spacing
-            available_width = self.grid_width or self.width()
+            print(self.grid_width)
+            print(total_card_space)
             
             # Calculate optimal number of columns
-            num_cards_fit = int(available_width / total_card_space)
+            num_cards_fit = int(self.grid_width / total_card_space)
+            print(num_cards_fit)
             new_num_columns = max(1, num_cards_fit)
+            print(f"num_col: {new_num_columns}")
             self.num_columns = new_num_columns
             
             # Reset position counters
@@ -348,29 +358,3 @@ class GridLayout(QWidget):
         # Rearrange the layout with the updated visibleCards
         self.rearrangeGridLayout()
         
-    # def calculateDueStatus(self, task):
-    #     """
-    #     Calculate the due status of a task based on its due date.
-        
-    #     Args:
-    #         task: The task object with a due_date attribute
-            
-    #     Returns:
-    #         str: One of the DueStatus values
-    #     """
-    #     if not task.due_date:
-    #         return DueStatus.NO_DUE_DATE.value
-        
-    #     # Calculate days until due
-    #     today = datetime.now().date()
-    #     due_date = task.due_date.date() if isinstance(task.due_date, datetime) else task.due_date
-    #     days_until_due = (due_date - today).days
-        
-    #     if days_until_due < 0:
-    #         return DueStatus.OVERDUE.value
-    #     elif days_until_due <= 3:
-    #         return DueStatus.DUE_SOON.value
-    #     elif days_until_due <= 14:
-    #         return DueStatus.UPCOMING.value
-    #     else:
-    #         return DueStatus.FAR_FUTURE.value

@@ -135,7 +135,7 @@ class CollapsibleSection(QWidget):
         self.content = QWidget()
         self.content_layout = QVBoxLayout(self.content)
         self.content_layout.setContentsMargins(15, 5, 8, 8)
-        self.content_layout.setSpacing(12)
+        self.content_layout.setSpacing(8)
         
         # Add widgets to main layout
         layout.addWidget(self.header)
@@ -472,15 +472,27 @@ class CollapsibleSection(QWidget):
             self.attachments_widget.deleteLater()
             
         self.attachments_layout = QVBoxLayout()
+        self.attachments_layout.setSpacing(2)  # Reduce vertical spacing between elements
         self.attachments_widget = QWidget()
+        self.attachments_widget.setContentsMargins(0, 0, 0, 3)
         self.attachments_widget.setStyleSheet("background: transparent; border: none")
         self.attachments_widget.setLayout(self.attachments_layout)
         
         # Add header with Add button
         header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(0, 0, 0, 0)  # Remove margins
         header_label = QLabel("Files:")
         add_button = QPushButton("+")
-        add_button.setFixedSize(24, 24)
+        add_button.setStyleSheet("""
+            QPushButton {
+                font-size: 15px;
+            }
+            QPushButton:hover {
+                font-size: 20px;
+                font-weight: bold;
+            }
+        """)
+        add_button.setFixedSize(20, 20)
         add_button.clicked.connect(self.add_attachment_clicked.emit)
         
         header_layout.addWidget(header_label)
@@ -490,15 +502,35 @@ class CollapsibleSection(QWidget):
         header_widget = QWidget()
         header_widget.setLayout(header_layout)
         self.attachments_layout.addWidget(header_widget)
-        
-        # print(f"attachements: {attachments}")
+
+        if attachments:
+            open_all_widget = QWidget()
+            open_all_layout = QHBoxLayout(open_all_widget)
+            open_all_layout.setContentsMargins(0, 0, 0, 0)  # Remove all margins
+            open_all_button = QPushButton("Open All")
+            open_all_button.setStyleSheet("""
+                QPushButton {
+                    padding: 2px 4px;  /* Reduce padding */
+                }
+                QPushButton:hover {
+                    text-decoration: underline;
+                }
+            """)
+            open_all_button.clicked.connect(lambda: self.openAllAttachments(attachments))
+            open_all_layout.addWidget(open_all_button)
+            open_all_layout.setAlignment(Qt.AlignLeft)
+
+            self.attachments_layout.addWidget(open_all_widget)
+            self.attachments_layout.setAlignment(Qt.AlignTop)
+
         # Add attachments
         if attachments:
             for attachment in attachments:
                 self.add_attachment_item(attachment)
         else:
             self.attachments_layout.addWidget(QLabel("No attachments"))
-            
+        
+        self.attachments_layout.addStretch(1)   
         self.content_layout.addWidget(self.attachments_widget)
     
     def add_attachment_item(self, attachment):
@@ -547,6 +579,10 @@ class CollapsibleSection(QWidget):
         item_widget.setLayout(item_layout)
         
         self.attachments_layout.addWidget(item_widget)
+
+    def openAllAttachments(self, attachments):
+        for attachment in attachments:
+            self.attachment_clicked.emit(attachment.file_path)
 
 #################################################################################################################################
 
