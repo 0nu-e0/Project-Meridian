@@ -246,7 +246,7 @@ def load_tasks_from_json(logger):
             else:
                 task.checklist = []
 
-            print(task.checklist)
+            #print(task.checklist)
 
             # Add the task to our dictionary
             task_objects[task_name] = task

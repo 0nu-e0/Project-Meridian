@@ -179,6 +179,7 @@ class DashboardScreen(QWidget):
         self.task_layout_container.addWidget(manage_header_widget)
 
         for grid in self.saved_grid_layouts:
+            print("Adding Grids")
             # Create section with title for this grid
             grid_section = QWidget()
             grid_section_layout = QVBoxLayout(grid_section)
@@ -243,8 +244,6 @@ class DashboardScreen(QWidget):
                 filter_dict['due'] = grid.filter.due
             
             # Create a grid layout with the filter
-            width = self.width()
-            # print(f"parent width: {width}")
             grid_layout = GridLayout(logger=self.logger, filter=filter_dict, width=self.dashboard_width)
 
             grid_section_layout.addWidget(grid_header_widget)
