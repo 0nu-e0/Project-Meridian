@@ -31,7 +31,8 @@ from resources.styles import AppStyles, AppColors, AppBorders, AppPixelSizes
 from PyQt5.QtWidgets import (QApplication, QDesktopWidget, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QSpacerItem, 
                              QSizePolicy, QGridLayout, QPushButton, QGraphicsDropShadowEffect, QStyle, QComboBox, QTextEdit,
                              QDateTimeEdit, QLineEdit, QCalendarWidget, QToolButton, QSpinBox, QListWidget, QTabWidget,
-                             QMessageBox, QInputDialog, QListWidgetItem, QScrollArea, QTreeWidget, QTreeWidgetItem, QCheckBox
+                             QMessageBox, QInputDialog, QListWidgetItem, QScrollArea, QTreeWidget, QTreeWidgetItem, QCheckBox,
+                             QListView
                              )
 from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot, QEvent, QSize, QDateTime
 from PyQt5.QtGui import QColor, QPainter, QBrush, QPen, QMovie, QTextCharFormat, QColor, QIcon, QPixmap, QFont
@@ -95,16 +96,7 @@ class CollapsibleSection(QWidget):
 
         # Header
         self.header = QWidget()
-        self.header.setStyleSheet(f"""
-            QWidget {{
-                background-color: {AppColors.main_background_color};
-                border: none;
-            }}
-            QWidget:hover {{
-                background-color: {AppColors.main_background_hover_color};
-                border: none;
-            }}
-        """)
+        self.header.setStyleSheet(AppStyles.header_widget())
         
         header_layout = QHBoxLayout(self.header)
         header_layout.setContentsMargins(8, 8, 8, 8)
@@ -112,20 +104,10 @@ class CollapsibleSection(QWidget):
         # Arrow and title
         self.arrow_button = QPushButton("▼")
         self.arrow_button.setFixedSize(20, 20)
-        self.arrow_button.setStyleSheet("""
-            QPushButton {
-                border: none;
-                color: #6B778C;
-                font-size: 14px;
-                text-align: left;
-                padding: 0;
-                background-color: transparent;
-            }
-
-        """)
+        self.arrow_button.setStyleSheet(AppStyles.arrow_button())
         
         title_label = QLabel(self.title)
-        title_label.setStyleSheet("color: white; background-color: transparent; font-weight: bold; border: none;")
+        title_label.setStyleSheet(AppStyles.label_trans_background())
         
         header_layout.addWidget(title_label)
         header_layout.addStretch(1)
@@ -165,28 +147,10 @@ class CollapsibleSection(QWidget):
 
         self.team_input = QLineEdit()
         self.team_input.setPlaceholderText("Add team member...")
-        self.team_input.setStyleSheet("""
-            QLineEdit {
-                border: 1px solid #ddd;
-                border-radius: 3px;
-                padding: 5px;
-            }
-        """)
+        self.team_input.setStyleSheet(AppStyles.line_edit_norm())
 
         add_button = QPushButton("Add")
-        add_button.setStyleSheet("""
-            QPushButton {
-                background-color: #0052CC;
-                color: white;
-                border: none;
-                padding: 5px 15px;
-                border-radius: 3px;
-            }
-            QPushButton:hover {
-                background-color: #0747A6;
-                border: none;
-            }
-        """)
+        add_button.setStyleSheet(AppStyles.add_button())
 
         input_layout.addWidget(self.team_input)
         input_layout.addWidget(add_button)
@@ -349,19 +313,10 @@ class CollapsibleSection(QWidget):
         self.task_combo = QComboBox()
         self.task_combo.setStyleSheet(AppStyles.combo_box_norm())
         self.task_combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)  # ADDED: prevent excessive width expansion
+        self.task_combo.setView(QListView())
         
         add_button = QPushButton("Add Dependency")
-        add_button.setStyleSheet("""
-            QPushButton {
-                background-color: #0052CC;
-                color: white;
-                border: none;
-                padding: 5px 15px;
-            }
-            QPushButton:hover {
-                background-color: #0747A6;
-            }
-        """)
+        add_button.setStyleSheet(AppStyles.add_button())
 
         select_layout.addWidget(self.task_combo)
         select_layout.addWidget(add_button)
@@ -536,18 +491,18 @@ class CollapsibleSection(QWidget):
     def add_attachment_item(self, attachment):
         """Add a single attachment item with link and remove button."""
         item_layout = QHBoxLayout()
-        item_layout.setContentsMargins(5, 2, 5, 2)  # Reduced margins
+        item_layout.setContentsMargins(5, 2, 5, 2) 
         
         # Set up folder icon
         folder_label = QLabel()
         folder_label.setAlignment(Qt.AlignCenter)
-        folder_label.setFixedSize(24, 24)  # Fixed size for icon container
+        folder_label.setFixedSize(24, 24)
         
         # Set the folder icon
-        folder_icon = QIcon.fromTheme("folder")  # Using system theme icon
+        folder_icon = QIcon.fromTheme("folder")  
         if folder_icon.isNull():
             folder_icon = self.style().standardIcon(self.style().SP_DirIcon)
-        folder_label.setPixmap(folder_icon.pixmap(16, 16))  # Smaller icon
+        folder_label.setPixmap(folder_icon.pixmap(16, 16)) 
         
         # Display filename from the path - with constraints for long names
         filename = os.path.basename(attachment.file_path)
@@ -559,8 +514,8 @@ class CollapsibleSection(QWidget):
         link.linkActivated.connect(lambda url: self.attachment_clicked.emit(url))
         
         # Important settings to handle long filenames
-        link.setWordWrap(True)  # Enable word wrapping
-        link.setMaximumWidth(200)  # Set a maximum width
+        link.setWordWrap(True) 
+        link.setMaximumWidth(200) 
         link.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
         
         # Create remove button
@@ -570,7 +525,7 @@ class CollapsibleSection(QWidget):
         
         # Add widgets to layout
         item_layout.addWidget(folder_label)
-        item_layout.addWidget(link, 1)  # Add stretch factor
+        item_layout.addWidget(link, 1)  
         item_layout.addWidget(remove_btn)
         
         # Create the container widget with size constraints
@@ -599,6 +554,7 @@ class CollapsibleSection(QWidget):
         # Create the title for the checklist
         checklist_label = QLabel(section_title)
         checklist_label.setStyleSheet(AppStyles.label_lgfnt_bold())
+        checklist_label.setContentsMargins(0, 5, 0, 0)
         self.content_layout.addWidget(checklist_label)
         
         # Create input and button in horizontal layout
@@ -619,24 +575,16 @@ class CollapsibleSection(QWidget):
         """)
         
         add_button = QPushButton("Add")
-        add_button.setStyleSheet("""
-            QPushButton {
-                background-color: #0052CC;
-                color: white;
-                border: none;
-                padding: 5px 15px;
-                border-radius: 3px;
-            }
-        """)
+        add_button.setStyleSheet(AppStyles.add_button())
         
         input_layout.addWidget(self.checklist_input)
         input_layout.addWidget(add_button)
         
         # Create a container for checklist items
         self.checklist_layout = QVBoxLayout()
-        self.checklist_layout.setAlignment(Qt.AlignTop)  # This is critical - align all items to the top
-        self.checklist_layout.setSpacing(2)  # Reduce spacing between items
-        self.checklist_layout.setContentsMargins(0, 0, 0, 0)  # Remove margins
+        self.checklist_layout.setAlignment(Qt.AlignTop)  
+        self.checklist_layout.setSpacing(2) 
+        self.checklist_layout.setContentsMargins(0, 0, 0, 0)
         
         self.checklist_widget = QWidget()
         self.checklist_widget.setStyleSheet("background: transparent; border: none")
@@ -690,7 +638,6 @@ class CollapsibleSection(QWidget):
                     }}
             """)
             label.setWordWrap(True)
-            # label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
             
             # Create remove button
             remove_button = QPushButton("✕")
@@ -714,7 +661,6 @@ class CollapsibleSection(QWidget):
             # Create container widget with fixed height
             item_widget = QWidget()
             item_widget.setStyleSheet("background: transparent")
-            # item_widget.setFixedHeight(30)  # Set explicit height
             item_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
             item_widget.setLayout(item_layout)
             
@@ -755,19 +701,9 @@ class CollapsibleSection(QWidget):
             label = self.checklist_data[idx].get('label')
             if label:
                 if checked:
-                    label.setStyleSheet("""
-                        border: none;
-                        background-color: transparent;
-                        padding-left: 5px;
-                        text-decoration: line-through;
-                        color: #888;
-                    """)
+                    label.setStyleSheet(AppStyles.label_checklist())
                 else:
-                    label.setStyleSheet("""
-                        border: none;
-                        background-color: transparent;
-                        padding-left: 5px;
-                    """)
+                    label.setStyleSheet(AppStyles.label_checklist_empty())
             
             # Get the item text so we can pass it to the signal
             item_text = self.checklist_data[idx].get('text', '')
