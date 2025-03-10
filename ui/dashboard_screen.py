@@ -179,7 +179,7 @@ class DashboardScreen(QWidget):
         self.task_layout_container.addWidget(manage_header_widget)
 
         for grid in self.saved_grid_layouts:
-            print("Adding Grids")
+            print(f"Adding Grids for:: {grid.name}")
             # Create section with title for this grid
             grid_section = QWidget()
             grid_section_layout = QVBoxLayout(grid_section)
@@ -244,7 +244,7 @@ class DashboardScreen(QWidget):
                 filter_dict['due'] = grid.filter.due
             
             # Create a grid layout with the filter
-            grid_layout = GridLayout(logger=self.logger, filter=filter_dict, width=self.dashboard_width)
+            grid_layout = GridLayout(logger=self.logger, width=self.dashboard_width, grid_title=grid.filter.category[0], filter=filter_dict)
 
             grid_section_layout.addWidget(grid_header_widget)
             grid_section_layout.addWidget(grid_layout)
@@ -252,7 +252,7 @@ class DashboardScreen(QWidget):
             grid_layout.taskDeleted.connect(self.propagateTaskDeletion)
             grid_layout.sendTaskInCardClicked.connect(self.addNewTask)
 
-            grid_layout.grid_title = grid.filter.category[0]
+            # grid_layout.grid_title = grid.filter.category[0]
             
             # Add the section to the container
             self.task_layout_container.addWidget(grid_section)

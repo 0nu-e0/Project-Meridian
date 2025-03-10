@@ -48,7 +48,9 @@ class CollapsibleSection(QWidget):
     dependency_removed = pyqtSignal(str)
 
     attachment_clicked = pyqtSignal(str)
-    add_attachment_clicked = pyqtSignal()
+    add_file_attachment_clicked = pyqtSignal()
+    add_directory_attachment_clicked = pyqtSignal()
+    add_link_attachment_clicked = pyqtSignal()
     attachment_removed = pyqtSignal(object)
 
     checklist_item_added = pyqtSignal(str)
@@ -314,6 +316,7 @@ class CollapsibleSection(QWidget):
         self.task_combo.setStyleSheet(AppStyles.combo_box_norm())
         self.task_combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)  # ADDED: prevent excessive width expansion
         self.task_combo.setView(QListView())
+        print(f"self.task_combo: {self.task_combo.objectName()} - Address: {hex(id(self.task_combo))}")
         
         add_button = QPushButton("Add Dependency")
         add_button.setStyleSheet(AppStyles.add_button())
@@ -448,7 +451,7 @@ class CollapsibleSection(QWidget):
             }
         """)
         add_button.setFixedSize(20, 20)
-        add_button.clicked.connect(self.add_attachment_clicked.emit)
+        add_button.clicked.connect(self.add_file_attachment_clicked.emit)
         
         header_layout.addWidget(header_label)
         header_layout.addStretch()
@@ -490,6 +493,7 @@ class CollapsibleSection(QWidget):
     
     def add_attachment_item(self, attachment):
         """Add a single attachment item with link and remove button."""
+        print(f"attachment type: {attachment.attachment_type}")
         item_layout = QHBoxLayout()
         item_layout.setContentsMargins(5, 2, 5, 2) 
         
@@ -499,17 +503,35 @@ class CollapsibleSection(QWidget):
         folder_label.setFixedSize(24, 24)
         
         # Set the folder icon
-        folder_icon = QIcon.fromTheme("folder")  
-        if folder_icon.isNull():
-            folder_icon = self.style().standardIcon(self.style().SP_DirIcon)
-        folder_label.setPixmap(folder_icon.pixmap(16, 16)) 
+        # Determine the correct icon based on the attachment type
+        if attachment.attachment_type == "file":
+            icon = QIcon.fromTheme("text-x-generic")  # Generic file icon
+        elif attachment.attachment_type == "directory":
+            icon = QIcon.fromTheme("folder")  # Folder icon
+        elif attachment.attachment_type == "hyperlink":
+            icon = QIcon.fromTheme("internet-web-browser")  # Web link icon
+        else:
+            icon = QIcon.fromTheme("unknown")  # Fallback icon
+
+        # Use a standard fallback if the theme icon is missing
+        if icon.isNull():
+            if attachment.attachment_type == "directory":
+                icon = self.style().standardIcon(self.style().SP_DirIcon)
+            elif attachment.attachment_type == "file":
+                icon = self.style().standardIcon(self.style().SP_FileIcon)
+            elif attachment.attachment_type == "hyperlink":
+                icon = self.style().standardIcon(self.style().SP_BrowserReload)  # Alternative web icon
+
+        # Set the icon for the QLabel
+        folder_label.setPixmap(icon.pixmap(16, 16))
+
         
         # Display filename from the path - with constraints for long names
-        filename = os.path.basename(attachment.file_path)
+        filename = os.path.basename(attachment.path_or_url)
         
         # Create link with text elision for long filenames
         link = QLabel()
-        link.setText(f"<a href='{attachment.file_path}' style='color: white;'>{filename}</a>")
+        link.setText(f"<a href='{attachment.path_or_url}' style='color: white;'>{filename}</a>")
         link.setTextInteractionFlags(Qt.TextBrowserInteraction)
         link.linkActivated.connect(lambda url: self.attachment_clicked.emit(url))
         

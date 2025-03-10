@@ -24,7 +24,7 @@
 # Description: Object used to define the functionality of tasks. 
 # Author: Jereme Shaver
 # -----------------------------------------------------------------------------
-
+import os, mimetypes, re
 from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Set, Tuple
 from enum import Enum
@@ -196,15 +196,74 @@ class TimeLog:
         self.description = description
         self.timestamp = datetime.now()
 
+class AttachmentType:
+    FILE = "file"
+    DIRECTORY = "directory"
+    HYPERLINK = "hyperlink"
+
 class Attachment:
-    def __init__(self, file_path: str, user_id: str, description: str = ""):
+    def __init__(self, path_or_url: str, user_id: str, description: str = ""):
         self.id = str(uuid4())
-        self.file_path = file_path
+        self.path_or_url = path_or_url  # Can be a file path, directory path, or URL
         self.user_id = user_id
         self.description = description
         self.upload_date = datetime.now()
-        self.file_size: Optional[int] = None 
+
+        # Determine attachment type
+        self.attachment_type = self._detect_type(path_or_url)
+
+        # File-specific attributes
+        self.file_size: Optional[int] = None
         self.file_type: Optional[str] = None
+        
+        # if self.attachment_type == AttachmentType.FILE:
+        #     self._process_file()
+        # elif self.attachment_type == AttachmentType.DIRECTORY:
+        #     self._process_directory()
+        # elif self.attachment_type == AttachmentType.HYPERLINK:
+        #     self._process_hyperlink()
+
+    def _detect_type(self, path_or_url: str) -> str:
+        """Classifies the attachment without checking validity."""
+
+        normalized_path = os.path.normpath(path_or_url)
+
+        # Assume hyperlinks if they start with "http" or "www"
+        if path_or_url.startswith(("http", "www")):
+            return AttachmentType.HYPERLINK
+
+        # If the path has a file extension, classify it as a file
+        if os.path.splitext(normalized_path)[1]:
+            return AttachmentType.FILE
+
+        # Otherwise, assume it's a directory
+        return AttachmentType.DIRECTORY
+
+    def _process_file(self):
+        """Retrieves file size and type for file attachments."""
+        self.file_size = os.path.getsize(self.path_or_url)  # File size in bytes
+        self.file_type = mimetypes.guess_type(self.path_or_url)[0]  # Detect MIME type
+
+    def _process_directory(self):
+        """Counts files in the directory and sets a relevant description."""
+        file_count = len([f for f in os.listdir(self.path_or_url) if os.path.isfile(os.path.join(self.path_or_url, f))])
+        self.description = f"Directory containing {file_count} files."
+
+    def _process_hyperlink(self):
+        """No file properties for hyperlinks, but can sanitize input."""
+        self.path_or_url = self.path_or_url.strip()  # Clean whitespace if needed
+
+    @staticmethod
+    def _is_valid_url(url: str) -> bool:
+        """Checks if a string is a valid URL."""
+        url_regex = re.compile(
+            r"^(https?|ftp)://"  # Protocol
+            r"([a-zA-Z0-9.-]+)"  # Domain
+            r"(:[0-9]+)?"  # Port (optional)
+            r"(/.*)?$",  # Path (optional)
+            re.IGNORECASE
+        )
+        return re.match(url_regex, url) is not None
 
 class Project:
     def __init__(self, name: str):

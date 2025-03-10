@@ -120,15 +120,12 @@ class TaskCardLite(QWidget):
 
     def setExpanded(self, expanded):
         if expanded:
-            self.setMinimumHeight(int(self.expanded_height))
-            self.setMaximumHeight(int(self.expanded_height))
+            self.setFixedHeight(int(self.expanded_height))  # Prevents layout shifting
         else:
-            self.setMinimumHeight(int(self.original_height))
-            self.setMaximumHeight(int(self.original_height))
+            self.setFixedHeight(int(self.original_height))
 
         self.updateContent(expanded)
         self.update()  # Force a repaint
-
 
     def task_routine(self, task_name, description, creation_date, due_date, status, assigned, catagory, priority):
         self.task_name = task_name
