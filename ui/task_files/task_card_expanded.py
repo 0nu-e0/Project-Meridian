@@ -38,7 +38,7 @@ from PyQt5.QtWidgets import (QApplication, QDesktopWidget, QWidget, QVBoxLayout,
                              QSizePolicy, QGridLayout, QPushButton, QGraphicsDropShadowEffect, QStyle, QComboBox, QTextEdit,
                              QDateTimeEdit, QLineEdit, QCalendarWidget, QToolButton, QSpinBox, QListWidget, QTabWidget,
                              QMessageBox, QInputDialog, QListWidgetItem, QScrollArea, QTreeWidget, QTreeWidgetItem, QFileDialog,
-                             QStyleFactory, 
+                             QStyleFactory, QListView, QLayout
                              )
 from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot, QEvent, QSize, QDateTime, QUrl, QTimer
 from PyQt5.QtGui import (QColor, QPainter, QBrush, QPen, QMovie, QTextCharFormat, QColor, QIcon, QPixmap, QDesktopServices,
@@ -118,8 +118,6 @@ class TaskCardExpanded(QWidget):
         }
         
     def initUI(self):
-        self.setObjectName("card_container") 
-        # self.setStyleSheet(AppStyles.background_color())
         self.initCentralWidget()
         self.initLeftPanelWidget()
         self.initRightPanelWidget()
@@ -139,18 +137,18 @@ class TaskCardExpanded(QWidget):
         main_widget = QWidget()
         main_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         left_layout = QVBoxLayout(main_widget)
-
+        left_layout.setContentsMargins(15, 15, 0 , 0)
         left_layout.addLayout(self.createTitleSection())
         left_layout.addLayout(self.createDescriptionSection())
         left_layout.addWidget(self.createActivitySection())
 
-        self.main_layout.addWidget(main_widget, stretch=2)
+        self.main_layout.addWidget(main_widget,stretch=3)
 
     def initRightPanelWidget(self):
         main_widget = QWidget()
         main_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         right_layout = QVBoxLayout(main_widget)
-        right_layout.setContentsMargins(0, 0, 10, 0)
+        right_layout.setContentsMargins(0, 15, 15, 0)
 
         right_layout.addLayout(self.createStatusPrioritySection())
         right_layout.addLayout(self.initCollapsableSections())
@@ -158,12 +156,13 @@ class TaskCardExpanded(QWidget):
         #right_layout.addStretch(1)
         right_layout.addLayout(self.createButtonSection())
         
-        self.main_layout.addWidget(main_widget, stretch=1)
+        self.main_layout.addWidget(main_widget, stretch=2)
 
     def createTitleSection(self):
         title_layout = QHBoxLayout()
         title_layout.setContentsMargins(0, 0, 5, 0)
         title_edit = QLineEdit(self.task.title if self.task is not None else "")
+        title_edit.setPlaceholderText("Set task name")
         title_edit.setStyleSheet(AppStyles.line_edit_norm())
 
         title_edit.editingFinished.connect(lambda: self.updateTaskTitle(title_edit.text()))
@@ -184,30 +183,39 @@ class TaskCardExpanded(QWidget):
         status_layout = QHBoxLayout(status_widget)
         priority_widget = QWidget()
         priority_layout = QHBoxLayout(priority_widget)
-    
+
         # Status combo box
         status_combo = QComboBox()
+        status_combo.setStyleSheet(AppStyles.combo_box_norm())
         status_combo.addItems([status.value for status in TaskStatus])
         status_combo.setCurrentText(self.task.status.value if self.task is not None else status_combo.itemText(0))
-        # Connect status change
         status_combo.currentTextChanged.connect(self.updateTaskStatus)
-        
+        status_combo.setView(QListView())
+
+        status_combo.setMinimumWidth(150)  # Ensure it has enough space
+        status_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+
         # Priority combo box
         priority_combo = QComboBox()
+        priority_combo.setStyleSheet(AppStyles.combo_box_norm())
         priority_combo.addItems([priority.name for priority in TaskPriority])
         priority_combo.setCurrentText(self.task.priority.name if self.task is not None else priority_combo.itemText(0))
-        # Connect priority change
         priority_combo.currentTextChanged.connect(self.updateTaskPriority)
-        
-        status_layout.addWidget(status_combo)
-        priority_layout.addWidget(priority_combo)
-        
+        priority_combo.setView(QListView())
+
+        priority_combo.setMinimumWidth(150)
+        priority_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+
+        # Ensure layouts expand properly
+        status_layout.addWidget(status_combo, 1)
+        priority_layout.addWidget(priority_combo, 1)
+
         status_layout.setAlignment(Qt.AlignLeft)
         priority_layout.setAlignment(Qt.AlignRight)
-        
-        status_priority_layout.addWidget(status_widget)
-        status_priority_layout.addWidget(priority_widget)
-        
+
+        status_priority_layout.addWidget(status_widget, 1)
+        status_priority_layout.addWidget(priority_widget, 1)
+
         return status_priority_layout
 
     def updateTaskStatus(self, new_status):
@@ -367,8 +375,11 @@ class TaskCardExpanded(QWidget):
     def createCategorySection(self):
         category_layout = QHBoxLayout()
         category_combo = QComboBox()
+        category_combo.setStyleSheet(AppStyles.combo_box_norm())
         category_combo.addItems([category.value for category in TaskCategory])
         category_combo.setCurrentText(self.task.category.value if self.task else category_combo.itemText(0))
+        category_combo.setView(QListView())
+        print(f"category_combo: {category_combo.objectName()} - Address: {hex(id(category_combo))}")
         
         # Connect the combo box change to the update method
         category_combo.currentTextChanged.connect(lambda text: self.updateTaskCategory(text))
@@ -388,8 +399,11 @@ class TaskCardExpanded(QWidget):
         button_layout = QHBoxLayout()
         button_layout.setContentsMargins(0, 0, 0, 15)
         save_button = QPushButton("Save")
+        save_button.setStyleSheet(AppStyles.save_button())
         cancel_button = QPushButton("Cancel")
+        cancel_button.setStyleSheet(AppStyles.save_button())
         delete_button = QPushButton("Delete")
+        delete_button.setStyleSheet(AppStyles.save_button())
         
         # Use lambda to properly connect functions that need to be called when clicked
         save_button.clicked.connect(lambda: save_task_to_json(self.task, self.logger))
@@ -433,6 +447,7 @@ class TaskCardExpanded(QWidget):
         button_layout = QHBoxLayout(button_container)
         button_layout.addStretch()  
         post_button = QPushButton("Post Comment")
+        post_button.setStyleSheet(AppStyles.post_button())
         button_layout.addWidget(post_button)
         
         comment_input_layout.addWidget(button_container)
@@ -501,63 +516,63 @@ class TaskCardExpanded(QWidget):
         
         return activity_widget
 
-    def post_comment(self, comment_input, comments_list, entry_type):
-        if entry_type == "comment":
-            comment_text = comment_input.toPlainText().strip()
-        elif entry_type == "work_log":
-            comment_text = comment_input.text().strip()
-        else:
-            return  # Handle invalid entry types
+    # def post_comment(self, comment_input, comments_list, entry_type):
+    #     if entry_type == "comment":
+    #         comment_text = comment_input.toPlainText().strip()
+    #     elif entry_type == "work_log":
+    #         comment_text = comment_input.text().strip()
+    #     else:
+    #         return  # Handle invalid entry types
 
-        if comment_text:
-            timestamp = QDateTime.currentDateTime().toString("MM / dd / yyyy hh:mm")
+    #     if comment_text:
+    #         timestamp = QDateTime.currentDateTime().toString("MM / dd / yyyy hh:mm")
 
-            comment_widget = QWidget()
-            comment_layout = QVBoxLayout(comment_widget)
+    #         comment_widget = QWidget()
+    #         comment_layout = QVBoxLayout(comment_widget)
 
-            comment_label = QLabel(comment_text)
-            timestamp_label = QLabel(timestamp)
-            timestamp_label.setStyleSheet("font-size: 10px; color: gray;")
+    #         comment_label = QLabel(comment_text)
+    #         timestamp_label = QLabel(timestamp)
+    #         timestamp_label.setStyleSheet("font-size: 10px; color: gray;")
 
-            actions_layout = QHBoxLayout()
-            actions_layout.setAlignment(Qt.AlignLeft)
+    #         actions_layout = QHBoxLayout()
+    #         actions_layout.setAlignment(Qt.AlignLeft)
 
-            edit_label = QLabel("Edit")
-            delete_label = QLabel("Delete")
+    #         edit_label = QLabel("Edit")
+    #         delete_label = QLabel("Delete")
 
-            for label in [edit_label, delete_label]:
-                label.setStyleSheet("color: #ffffff; padding-right: 10px; text-decoration: none;")
-                label.setCursor(Qt.PointingHandCursor)
-                label.setTextInteractionFlags(Qt.TextBrowserInteraction)
+    #         for label in [edit_label, delete_label]:
+    #             label.setStyleSheet("color: #ffffff; padding-right: 10px; text-decoration: none;")
+    #             label.setCursor(Qt.PointingHandCursor)
+    #             label.setTextInteractionFlags(Qt.TextBrowserInteraction)
 
-            def hover_enter(event, lbl):
-                lbl.setStyleSheet("color: #ffffff; padding-right: 10px; text-decoration: underline;")
+    #         # def hover_enter(event, lbl):
+    #         #     lbl.setStyleSheet("color: #ffffff; padding-right: 10px; text-decoration: underline;")
 
-            def hover_leave(event, lbl):
-                lbl.setStyleSheet("color: #ffffff; padding-right: 10px; text-decoration: none;")
+    #         # def hover_leave(event, lbl):
+    #         #     lbl.setStyleSheet("color: #ffffff; padding-right: 10px; text-decoration: none;")
 
-            edit_label.enterEvent = lambda event, lbl=edit_label: hover_enter(event, lbl)
-            edit_label.leaveEvent = lambda event, lbl=edit_label: hover_leave(event, lbl)
-            delete_label.enterEvent = lambda event, lbl=delete_label: hover_enter(event, lbl)
-            delete_label.leaveEvent = lambda event, lbl=delete_label: hover_leave(event, lbl)
+    #         # edit_label.enterEvent = lambda event, lbl=edit_label: hover_enter(event, lbl)
+    #         # edit_label.leaveEvent = lambda event, lbl=edit_label: hover_leave(event, lbl)
+    #         # delete_label.enterEvent = lambda event, lbl=delete_label: hover_enter(event, lbl)
+    #         # delete_label.leaveEvent = lambda event, lbl=delete_label: hover_leave(event, lbl)
 
-            edit_label.mousePressEvent = lambda event: self.edit_comment(item, comment_label)
-            delete_label.mousePressEvent = lambda event: self.delete_comment(item)
+    #         edit_label.mousePressEvent = lambda event: self.edit_comment(item, comment_label)
+    #         delete_label.mousePressEvent = lambda event: self.delete_comment(item)
 
-            actions_layout.addWidget(edit_label)
-            actions_layout.addWidget(delete_label)
+    #         actions_layout.addWidget(edit_label)
+    #         actions_layout.addWidget(delete_label)
 
-            comment_layout.addWidget(comment_label)
-            comment_layout.addWidget(timestamp_label)
-            comment_layout.addLayout(actions_layout)
+    #         comment_layout.addWidget(comment_label)
+    #         comment_layout.addWidget(timestamp_label)
+    #         comment_layout.addLayout(actions_layout)
 
-            item = QListWidgetItem()
-            item.setSizeHint(comment_widget.sizeHint())
-            comments_list.addItem(item)
-            comments_list.setItemWidget(item, comment_widget)
+    #         item = QListWidgetItem()
+    #         item.setSizeHint(comment_widget.sizeHint())
+    #         comments_list.addItem(item)
+    #         comments_list.setItemWidget(item, comment_widget)
 
-            comment_input.clear()
-            self.saveActivity(comment_text, timestamp, "comment")
+    #         comment_input.clear()
+    #         self.saveActivity(comment_text, timestamp, "comment")
 
 
     def edit_comment(self, item, comment_label):
@@ -594,7 +609,7 @@ class TaskCardExpanded(QWidget):
         
         # Create content widget for the scroll area
         scroll_content = QWidget()
-        scroll_content.setStyleSheet("background: transparent; border: none;")
+        scroll_content.setStyleSheet(AppStyles.widget_trans())
         scroll_layout = QVBoxLayout(scroll_content)
         
         # Add sections to the scroll content
@@ -768,7 +783,7 @@ class TaskCardExpanded(QWidget):
             
         # Connect signals
         attachments_section.attachment_clicked.connect(self.open_attachment)
-        attachments_section.add_attachment_clicked.connect(self.add_attachment_to_task)
+        attachments_section.add_file_attachment_clicked.connect(self.add_file_attachment_to_task)
         attachments_section.attachment_removed.connect(self.remove_attachment_from_task)
         
         # Store reference to the section widget
@@ -785,7 +800,7 @@ class TaskCardExpanded(QWidget):
         url = QUrl.fromLocalFile(file_path)
         QDesktopServices.openUrl(url)
     
-    def add_attachment_to_task(self):
+    def add_file_attachment_to_task(self):
         """Show dialog to add a new attachment."""
         file_path, _ = QFileDialog.getOpenFileName(
             self, "Select Attachment", "", "All Files (*)"
@@ -801,6 +816,7 @@ class TaskCardExpanded(QWidget):
             
             # Add to task's attachments
             self.task.attachments.append(attachment)
+            print(f"attachment type: {self.task.attachments.attachment_type}")
             
             # Refresh the attachments section
             self.attachments_section.add_attachments(self.task.attachments)
@@ -870,7 +886,7 @@ class TaskCardExpanded(QWidget):
         comment_label = QLabel(entry.content)
         comment_label.setWordWrap(True)
         timestamp_label = QLabel(entry.timestamp.strftime("%m/%d/%Y %H:%M"))
-        timestamp_label.setStyleSheet("font-size: 10px; color: gray;")
+        timestamp_label.setStyleSheet(AppStyles.time_stamp_label())
     
         actions_layout = QHBoxLayout()
         actions_layout.setAlignment(Qt.AlignLeft)
@@ -879,7 +895,7 @@ class TaskCardExpanded(QWidget):
         delete_label = QLabel("Delete")
         
         for label in [edit_label, delete_label]:
-            label.setStyleSheet("color: #ffffff; padding-right: 10px; text-decoration: none;")
+            label.setStyleSheet(AppStyles.label_edit_delete())
             label.setCursor(Qt.PointingHandCursor)
             label.setTextInteractionFlags(Qt.TextBrowserInteraction)
         
@@ -916,7 +932,7 @@ class TaskCardExpanded(QWidget):
         
         # Timestamp
         timestamp_label = QLabel(entry.timestamp.strftime("%m/%d/%Y %H:%M"))
-        timestamp_label.setStyleSheet("font-size: 10px; color: gray;")
+        timestamp_label.setStyleSheet(AppStyles.time_stamp_label())
         
         # Action buttons
         actions_layout = QHBoxLayout()
@@ -926,7 +942,7 @@ class TaskCardExpanded(QWidget):
         delete_label = QLabel("Delete")
         
         for label in [edit_label, delete_label]:
-            label.setStyleSheet("color: #ffffff; padding-right: 10px; text-decoration: none;")
+            label.setStyleSheet(AppStyles.label_edit_delete())
             label.setCursor(Qt.PointingHandCursor)
             label.setTextInteractionFlags(Qt.TextBrowserInteraction)
         
@@ -946,7 +962,7 @@ class TaskCardExpanded(QWidget):
         list_widget.setItemWidget(item, entry_widget)
         
         # Store reference to the entry
-        item.setData(Qt.UserRole, entry)
+        #item.setData(Qt.UserRole, entry)
         
         # Connect action signals
         edit_label.mousePressEvent = lambda event, item=item: self.edit_activity(item)
@@ -1115,8 +1131,6 @@ class TaskCardExpanded(QWidget):
         
         # Hide overlay and close
         self.cancelTask.emit()
-
-    
 
     def restore_task_state(self):
         """Restore the task to its original state"""

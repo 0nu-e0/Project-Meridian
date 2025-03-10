@@ -161,7 +161,7 @@ def load_tasks_from_json(logger):
             if 'attachments' in task_info:
                 for attachment_data in task_info['attachments']:
                     attachment = Attachment(
-                        file_path=attachment_data['file_path'],
+                        path_or_url=attachment_data['file_path'],
                         user_id=attachment_data.get('added_by', 'System'),
                         description=attachment_data.get('file_name', '')
                     )
