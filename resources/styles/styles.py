@@ -709,7 +709,6 @@ class AppStyles:
             QComboBox {{
                 border: {AppBorders.combo_box_norm};
                 border-radius: {AppPixelSizes.border_radius_xsml};
-                padding: {AppPixelSizes.border_radius_xsml};
                 background-color: transparent;
                 color: {AppColors.label_font_color_light};
                 font-size: {AppPixelSizes.font_norm};
@@ -718,46 +717,47 @@ class AppStyles:
             QComboBox::drop-down {{
                 subcontrol-origin: padding;
                 subcontrol-position: top right;
-                width: 10px;
+
                 border-radius: {AppPixelSizes.border_radius_xsml};
                 border-left-width: 1px;
                 border-left-style: solid;
                 border-top-right-radius: {AppPixelSizes.border_radius_xsml};
                 border-bottom-right-radius: {AppPixelSizes.border_radius_xsml};
             }}
-            QComboBox::down-arrow {{
-                image: url(data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'><path fill='{AppColors.label_font_color_light}' d='M0 2l4 4 4-4z'/></svg>);
-                width: 8px;
-                height: 8px;
-            }}
-            /* Style the dropdown list for QComboBox (most common) */
-            QComboBox QAbstractItemView {{
+
+            /* Style the dropdown list for QComboBox */
+            QComboBox QAbstractItemView, QComboBox QListView {{
                 background-color: {AppColors.accent_background_color_dark};
                 border: 1px solid {AppColors.border_light};
-                border-radius: {AppPixelSizes.border_radius_xsml};
+                border-radius: {AppPixelSizes.border_radius_xsml}; /* Ensure entire dropdown has rounded corners */
                 color: {AppColors.label_font_color_light};
                 selection-background-color: {AppColors.list_selected};
                 selection-color: {AppColors.label_font_color_light};
                 outline: none;
                 padding: 0px;
             }}
-            /* Also target QListView in case it’s used for the dropdown */
-            QComboBox QListView {{
-                background-color: {AppColors.accent_background_color_dark};
-                border: 1px solid {AppColors.border_light};
-                border-radius: {AppPixelSizes.border_radius_xsml};
-                color: {AppColors.label_font_color_light};
-                selection-background-color: {AppColors.list_selected};
-                selection-color: {AppColors.label_font_color_light};
-                outline: none;
-                padding: 0px;
-            }}
-            /* Adjust padding and height for items in the list */
+
+            /* Ensure each item in the list has rounded corners */
             QComboBox QAbstractItemView::item, QComboBox QListView::item {{
                 padding: 4px 8px;
                 height: 24px;
+                border-radius: {AppPixelSizes.border_radius_xsml}; /* Round individual items */
+            }}
+
+            /* Ensure hover and selected items respect the border radius */
+            QComboBox QAbstractItemView::item:hover, QComboBox QListView::item:hover {{
+                background-color: {AppColors.list_selected};
+                border-radius: {AppPixelSizes.border_radius_xsml}; /* Ensure hover effect stays within borders */
+            }}
+
+            QComboBox QAbstractItemView::item:selected, QComboBox QListView::item:selected {{
+                background-color: {AppColors.list_selected};
+                color: {AppColors.label_font_color_light};
+                border-radius: {AppPixelSizes.border_radius_xsml}; /* Ensure selection does not extend outside */
             }}
         """
+
+
 
     @staticmethod
     def combo_box_norm_warn():

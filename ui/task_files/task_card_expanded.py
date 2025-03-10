@@ -38,7 +38,7 @@ from PyQt5.QtWidgets import (QApplication, QDesktopWidget, QWidget, QVBoxLayout,
                              QSizePolicy, QGridLayout, QPushButton, QGraphicsDropShadowEffect, QStyle, QComboBox, QTextEdit,
                              QDateTimeEdit, QLineEdit, QCalendarWidget, QToolButton, QSpinBox, QListWidget, QTabWidget,
                              QMessageBox, QInputDialog, QListWidgetItem, QScrollArea, QTreeWidget, QTreeWidgetItem, QFileDialog,
-                             QStyleFactory, QListView
+                             QStyleFactory, QListView, QLayout
                              )
 from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot, QEvent, QSize, QDateTime, QUrl, QTimer
 from PyQt5.QtGui import (QColor, QPainter, QBrush, QPen, QMovie, QTextCharFormat, QColor, QIcon, QPixmap, QDesktopServices,
@@ -165,35 +165,39 @@ class TaskCardExpanded(QWidget):
         status_layout = QHBoxLayout(status_widget)
         priority_widget = QWidget()
         priority_layout = QHBoxLayout(priority_widget)
-    
+
         # Status combo box
         status_combo = QComboBox()
         status_combo.setStyleSheet(AppStyles.combo_box_norm())
         status_combo.addItems([status.value for status in TaskStatus])
         status_combo.setCurrentText(self.task.status.value if self.task is not None else status_combo.itemText(0))
-        # Connect status change
         status_combo.currentTextChanged.connect(self.updateTaskStatus)
         status_combo.setView(QListView())
 
-        
+        status_combo.setMinimumWidth(150)  # Ensure it has enough space
+        status_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+
         # Priority combo box
         priority_combo = QComboBox()
         priority_combo.setStyleSheet(AppStyles.combo_box_norm())
         priority_combo.addItems([priority.name for priority in TaskPriority])
         priority_combo.setCurrentText(self.task.priority.name if self.task is not None else priority_combo.itemText(0))
-        # Connect priority change
         priority_combo.currentTextChanged.connect(self.updateTaskPriority)
         priority_combo.setView(QListView())
-        
-        status_layout.addWidget(status_combo)
-        priority_layout.addWidget(priority_combo)
-        
+
+        priority_combo.setMinimumWidth(150)
+        priority_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+
+        # Ensure layouts expand properly
+        status_layout.addWidget(status_combo, 1)
+        priority_layout.addWidget(priority_combo, 1)
+
         status_layout.setAlignment(Qt.AlignLeft)
         priority_layout.setAlignment(Qt.AlignRight)
-        
-        status_priority_layout.addWidget(status_widget)
-        status_priority_layout.addWidget(priority_widget)
-        
+
+        status_priority_layout.addWidget(status_widget, 1)
+        status_priority_layout.addWidget(priority_widget, 1)
+
         return status_priority_layout
 
     def updateTaskStatus(self, new_status):
@@ -357,6 +361,7 @@ class TaskCardExpanded(QWidget):
         category_combo.addItems([category.value for category in TaskCategory])
         category_combo.setCurrentText(self.task.category.value if self.task else category_combo.itemText(0))
         category_combo.setView(QListView())
+        print(f"category_combo: {category_combo.objectName()} - Address: {hex(id(category_combo))}")
         
         # Connect the combo box change to the update method
         category_combo.currentTextChanged.connect(lambda text: self.updateTaskCategory(text))
@@ -760,7 +765,7 @@ class TaskCardExpanded(QWidget):
             
         # Connect signals
         attachments_section.attachment_clicked.connect(self.open_attachment)
-        attachments_section.add_attachment_clicked.connect(self.add_attachment_to_task)
+        attachments_section.add_file_attachment_clicked.connect(self.add_file_attachment_to_task)
         attachments_section.attachment_removed.connect(self.remove_attachment_from_task)
         
         # Store reference to the section widget
@@ -777,7 +782,7 @@ class TaskCardExpanded(QWidget):
         url = QUrl.fromLocalFile(file_path)
         QDesktopServices.openUrl(url)
     
-    def add_attachment_to_task(self):
+    def add_file_attachment_to_task(self):
         """Show dialog to add a new attachment."""
         file_path, _ = QFileDialog.getOpenFileName(
             self, "Select Attachment", "", "All Files (*)"
@@ -793,6 +798,7 @@ class TaskCardExpanded(QWidget):
             
             # Add to task's attachments
             self.task.attachments.append(attachment)
+            print(f"attachment type: {self.task.attachments.attachment_type}")
             
             # Refresh the attachments section
             self.attachments_section.add_attachments(self.task.attachments)

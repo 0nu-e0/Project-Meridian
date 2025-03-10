@@ -49,12 +49,14 @@ class GridLayout(QWidget):
     taskDeleted = pyqtSignal(str)
 
 
-    def __init__(self, logger, width, filter=None):
+    def __init__(self, logger, width, grid_title, filter=None):
         super().__init__()
+        
         self.logger = logger
         self.filter = filter
         self.grid_width = width
-        self.grid_title = ""
+        self.grid_title = grid_title
+        print(f"Initializing {self.grid_title}")
         self.taskCards = []
         self.visibleCards = [] 
         self.num_columns = 1
@@ -68,23 +70,28 @@ class GridLayout(QWidget):
         # If no filter provided, show all cards by default
         if self.filter is not None:
             # print("filter is not none")
-            self.onFilterChanged(self.filter)
+            self.onFilterChanged(self.filter, "init")
         else:
             # Make all cards visible by default if no filter
             # print("filter is none")
             self.visibleCards = self.taskCards.copy()
         
         # Force a rearrangement of the layout with the visible cards
-        self.rearrangeGridLayout
+        # self.rearrangeGridLayout
 
     def load_known_tasks(self):
         self.tasks = load_tasks_from_json(self.logger)
 
-    def resizeEvent(self, event: QResizeEvent):
-        super().resizeEvent(event)
+    # def resizeEvent(self, event: QResizeEvent):
+    #     super().resizeEvent(event)
+        
+    #     if not self.initComplete:  # Prevent updates before UI is ready
+    #         return
 
-        # self.updateGeometry()
-        self.rearrangeGridLayout()
+    #     if event.oldSize().width() == event.size().width():  # Ignore height-only changes
+    #         return
+    #     print(f"Resize event calling reaarange in {self.grid_title}")
+    #     self.rearrangeGridLayout()
 
     def initUI(self):
         self.initCentralWidget()
@@ -120,6 +127,7 @@ class GridLayout(QWidget):
             filter_button.updateButtonState()
 
         filter_combo = QComboBox()
+        filter_combo.setProperty("source", "Filter Combo")
         filter_combo.setStyleSheet(AppStyles.combo_box_norm())
         filter_combo.addItems([status.value for status in TaskStatus])
         filter_combo.addItems([category.value for category in TaskCategory])
@@ -184,6 +192,7 @@ class GridLayout(QWidget):
             task_card_lite.screen_width = self.grid_width
             self.card_width, self.card_height = TaskCardLite.calculate_optimal_card_size()
             total_card_space = self.card_width + self.min_spacing
+            print(f"Grid Title: {self.grid_title}")
             print(self.grid_width)
             print(total_card_space)
             
@@ -197,8 +206,6 @@ class GridLayout(QWidget):
             # Reset position counters
             self.current_row = 0
             self.current_column = 0
-            
-            # print(f"Total cards: {len(self.taskCards)}, Visible cards: {len(self.visibleCards)}")
             
             # Add only visible cards to the layout
             for card in self.visibleCards:
@@ -232,6 +239,7 @@ class GridLayout(QWidget):
 
     def addTaskCard(self):
         self.setProperty("source", "add card")
+        print(f"Adding card in {self.grid_title}")
         for task_name, task in self.tasks.items():
             # Create card with Task object
             card = TaskCardLite(logger=self.logger, task=task)
@@ -258,7 +266,8 @@ class GridLayout(QWidget):
                 self.current_column = 0
                 self.current_row += 1
         
-        self.rearrangeGridLayout()
+        print(f"addTaskCard calling reaarange in {self.grid_title}")
+        # self.rearrangeGridLayout()
     
 
     def handleCardHover(self, is_hovering, row):
@@ -291,6 +300,7 @@ class GridLayout(QWidget):
                     card.deleteLater()
                     
                     # Rearrange remaining cards
+                    print(f"Remove task card calling reaarange in {self.grid_title}")
                     self.rearrangeGridLayout()
                     
                     break  # Break after finding the card
@@ -309,7 +319,8 @@ class GridLayout(QWidget):
         except Exception as e:
             print(f"Error in clearGridLayout: {e}")
 
-    def onFilterChanged(self, active_filters):
+    def onFilterChanged(self, active_filters, sender=None):
+
         """Handle filter changes and update the visible cards list"""
         # Clear the visible cards list
         self.visibleCards = []
@@ -354,7 +365,12 @@ class GridLayout(QWidget):
             card.setVisible(show_card)
             if show_card:
                 self.visibleCards.append(card)
+
+            self.taskCards = []
+
+        print(f"{self.grid_title} has these card: {self.taskCards}")
                 
         # Rearrange the layout with the updated visibleCards
+        print(f"On filter changed calling reaarange in {self.grid_title} from sender: {sender}")
         self.rearrangeGridLayout()
         
