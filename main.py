@@ -34,6 +34,7 @@ from utils.dashboard_config import DashboardConfigManager
 from utils.directory_migragtion import migrate_data_if_needed
 from ui.welcome_screen import WelcomeScreen
 from ui.dashboard_screen import DashboardScreen
+from ui.notes_screen import NotesScreen
 from resources.styles import AppStyles, AnimatedButton
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QPushButton, 
                              QVBoxLayout, QWidget, QFrame, QDesktopWidget, QSpacerItem,
@@ -69,7 +70,8 @@ class MainWindow(QMainWindow):
 
         self.screen_mapping = {
             "Dashboard": "dashboard_screen",
-            "Projects": "projects_screen"
+            "Projects": "projects_screen",
+            "Notes": "notes_screen"
         }
 
         self.screen_size = QDesktopWidget().screenGeometry(-1)
@@ -179,8 +181,11 @@ class MainWindow(QMainWindow):
         self.dashboard_screen.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.dashboard_screen.setObjectName("Dashboard")
 
+        self.notes_screen = NotesScreen(logger=self.logger)
+
         self.stacked_widget.addWidget(self.dashboard_screen)
         self.stacked_widget.addWidget(self.welcome_screen)
+        self.stacked_widget.addWidget(self.notes_screen)
         self.stacked_widget.setCurrentWidget(self.welcome_screen)
 
     def initBanner(self):
@@ -297,7 +302,8 @@ class MainWindow(QMainWindow):
         source = sender.property("source")
 
         screen_to_widget_mapping = {
-            "dashboard_screen": self.dashboard_screen
+            "dashboard_screen": self.dashboard_screen,
+            "notes_screen": self.notes_screen
         }
 
         targetWidget = screen_to_widget_mapping.get(screen)
