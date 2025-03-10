@@ -794,22 +794,22 @@ class TaskCardExpanded(QWidget):
         
         return section_layout
 
-    def open_attachment(self, file_path):
+    def open_attachment(self, path_or_url):
         self.closeWindow()
         """Open the attachment in its native application."""
-        url = QUrl.fromLocalFile(file_path)
+        url = QUrl.fromLocalFile(path_or_url)
         QDesktopServices.openUrl(url)
     
     def add_file_attachment_to_task(self):
         """Show dialog to add a new attachment."""
-        file_path, _ = QFileDialog.getOpenFileName(
+        path_or_url, _ = QFileDialog.getOpenFileName(
             self, "Select Attachment", "", "All Files (*)"
         )
         
-        if file_path:
+        if path_or_url:
             # Create proper Attachment object
             attachment = Attachment(
-                file_path=file_path, 
+                path_or_url=path_or_url, 
                 user_id="Current User",
                 description=""
             )
@@ -826,9 +826,9 @@ class TaskCardExpanded(QWidget):
         # Handle both object and dictionary attachments for backward compatibility
         if isinstance(attachment, dict):
             # Remove by matching file path
-            file_path = attachment.get('file_path')
+            path_or_url = attachment.get('path_or_url')
             self.task.attachments = [a for a in self.task.attachments 
-                                    if getattr(a, 'file_path', '') != file_path]
+                                    if getattr(a, 'path_or_url', '') != path_or_url]
         else:
             # Remove the attachment object
             if attachment in self.task.attachments:

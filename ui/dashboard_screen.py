@@ -319,6 +319,7 @@ class DashboardScreen(QWidget):
             parent_view=self,
             parent=self.dialog_container
         )
+        self.expanded_card.saveCompleted.connect(self.closeExpandedCard)
         # Set the object name so the style sheet applies.
         self.expanded_card.setObjectName("card_container")
         # Enable styled backgrounds so that the style sheet paints the background.
@@ -338,11 +339,11 @@ class DashboardScreen(QWidget):
         self.dialog_container.show()
     
     def eventFilter(self, source, event):
-        # If the overlay is clicked, close the container.
-        if source == self.overlay and event.type() == QEvent.MouseButtonPress:
+        if hasattr(self, 'overlay') and source == self.overlay and event.type() == QEvent.MouseButtonPress:
             self.dialog_container.close()
             return True
         return super().eventFilter(source, event)
+
 
     def addGroupTask(self):
         self.overlay_grid_dialog = QWidget(self)
@@ -414,12 +415,17 @@ class DashboardScreen(QWidget):
             else:
                 self.clear_layout(item.layout()) 
 
-    def closeExpandedCard(self, event=None):  # Add event parameter with default value
+    def closeExpandedCard(self, event=None):
         if hasattr(self, 'expanded_card'):
             self.expanded_card.close()
             self.expanded_card.deleteLater()
-            delattr(self, 'expanded_card')  # Remove the attribute
+            delattr(self, 'expanded_card')
         if hasattr(self, 'overlay'):
+            self.overlay.removeEventFilter(self)  # Remove event filter if added
             self.overlay.close()
             self.overlay.deleteLater()
-            delattr(self, 'overlay')  # Remove the attribute
+            delattr(self, 'overlay')
+        if hasattr(self, 'dialog_container'):
+            self.dialog_container.close()
+            self.dialog_container.deleteLater()
+            delattr(self, 'dialog_container')

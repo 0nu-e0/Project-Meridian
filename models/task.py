@@ -173,9 +173,9 @@ class Task(QObject):
         self.modified_date = datetime.now()
         self.modified_by = user_id
 
-    def add_attachment(self, file_path: str, user_id: str, description: str = ""):
+    def add_attachment(self, path_or_url: str, user_id: str, description: str = ""):
         """Add an attachment to the task."""
-        attachment = Attachment(file_path, user_id, description)
+        attachment = Attachment(path_or_url, user_id, description)
         self.attachments.append(attachment)
         self.modified_date = datetime.now()
         self.modified_by = user_id
@@ -310,8 +310,6 @@ class TaskEntry:
     def add_attachment(self, attachment: Attachment):
         """Add an attachment to the entry."""
         self.attachments.append(attachment)
-
-    
     
     def __str__(self):
         edited_str = " (edited)" if self.edited else ""
