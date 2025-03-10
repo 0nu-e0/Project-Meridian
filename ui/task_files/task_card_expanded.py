@@ -80,6 +80,21 @@ class TaskCardExpanded(QWidget):
                 title=""
             )
 
+        self.setWindowFlags(Qt.FramelessWindowHint)
+        self.setWindowModality(Qt.ApplicationModal)
+        self.setObjectName("card_container")
+        
+        # Apply the stylesheet directly
+        # full_style = f"""
+        #     QWidget#card_container {{
+        #         background-color: {AppColors.main_background_color};
+        #         border-radius: 8px;
+        #         padding: 15px;
+        #         border: 1px solid {AppColors.accent_background_color_dark};
+        #     }}
+        # """
+        # self.setStyleSheet(full_style)
+
         self.initUI()
 
     def store_initial_task_state(self):
@@ -111,8 +126,11 @@ class TaskCardExpanded(QWidget):
 
     def initCentralWidget(self):
         central_widget = QWidget()
+        central_widget.setObjectName("card_container")
+        self.setObjectName("card_container")
         central_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.main_layout = QHBoxLayout(central_widget)
+        self.main_layout = QHBoxLayout(self)
+        # central_widget.setStyleSheet(AppStyles.expanded_task_card())
         self.main_layout.setContentsMargins(0, 0, 0, 0)
         self.main_layout.setSpacing(0)
         self.setLayout(self.main_layout)

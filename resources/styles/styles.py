@@ -888,6 +888,7 @@ class AppStyles:
                 border: 1px solid {AppColors.accent_background_color_dark};
             }}
         """
+    
 class AnimatedDrawerButton(QPushButton):
     def __init__(self, text=None, parent=None):
         super().__init__(text, parent)

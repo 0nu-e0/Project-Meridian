@@ -308,7 +308,7 @@ class DashboardScreen(QWidget):
         
         # Create expanded card with the main window as parent
         self.expanded_card = TaskCardExpanded(logger=self.logger, task=task, parent_view=self, parent=window)
-        self.expanded_card.setStyleSheet(AppStyles.expanded_task_card())
+        # self.expanded_card.setStyleSheet(AppStyles.expanded_task_card())
         
         # Set up connections
         self.expanded_card.taskDeleted.connect(self.propagateTaskDeletion)
