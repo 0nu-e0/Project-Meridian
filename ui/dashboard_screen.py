@@ -37,7 +37,7 @@ from .dashboard_child_view.add_task_group import AddGridDialog
 from ui.task_files.task_card_expanded import TaskCardExpanded
 from PyQt5.QtWidgets import (QDesktopWidget, QApplication, QWidget, QVBoxLayout, QHBoxLayout, QFrame, QScrollArea,
                              QSpacerItem, QLabel, QSizePolicy, QStackedWidget, QGridLayout, QPushButton, QMessageBox)
-from PyQt5.QtCore import Qt, pyqtSignal, QPropertyAnimation, QEasingCurve, QRect, QTimer, pyqtSlot, QSize
+from PyQt5.QtCore import Qt, pyqtSignal, QPropertyAnimation, QEasingCurve, QRect, QTimer, pyqtSlot, QSize, QEvent
 from PyQt5.QtGui import QResizeEvent, QPixmap, QIcon
 
 class DashboardScreen(QWidget):
@@ -179,7 +179,7 @@ class DashboardScreen(QWidget):
         self.task_layout_container.addWidget(manage_header_widget)
 
         for grid in self.saved_grid_layouts:
-            print("Adding Grids")
+            print(f"Adding Grids for:: {grid.name}")
             # Create section with title for this grid
             grid_section = QWidget()
             grid_section_layout = QVBoxLayout(grid_section)
@@ -244,7 +244,7 @@ class DashboardScreen(QWidget):
                 filter_dict['due'] = grid.filter.due
             
             # Create a grid layout with the filter
-            grid_layout = GridLayout(logger=self.logger, filter=filter_dict, width=self.dashboard_width)
+            grid_layout = GridLayout(logger=self.logger, width=self.dashboard_width, grid_title=grid.filter.category[0], filter=filter_dict)
 
             grid_section_layout.addWidget(grid_header_widget)
             grid_section_layout.addWidget(grid_layout)
@@ -252,7 +252,7 @@ class DashboardScreen(QWidget):
             grid_layout.taskDeleted.connect(self.propagateTaskDeletion)
             grid_layout.sendTaskInCardClicked.connect(self.addNewTask)
 
-            grid_layout.grid_title = grid.filter.category[0]
+            # grid_layout.grid_title = grid.filter.category[0]
             
             # Add the section to the container
             self.task_layout_container.addWidget(grid_section)
@@ -294,49 +294,55 @@ class DashboardScreen(QWidget):
             self.completeSaveActions()
 
     def addNewTask(self, task=None):
-        # Create overlay shadow effect
-        self.overlay = QWidget(self)
-        self.overlay.setStyleSheet("""
-        QWidget {
-        background-color: rgba(0, 0, 0, 0.5);
-        }
-        """)
-        self.overlay.setGeometry(self.rect())
-        
-        # Get the main window to use as parent
+        # Get the main window as parent
         window = self.window()
         
-        # Create expanded card with the main window as parent
-        self.expanded_card = TaskCardExpanded(logger=self.logger, task=task, parent_view=self, parent=window)
-        # self.expanded_card.setStyleSheet(AppStyles.expanded_task_card())
+        # Create a container widget that covers the entire main window.
+        self.dialog_container = QWidget(window)
+        # Make the container completely transparent so it doesn't override child styling.
+        self.dialog_container.setAttribute(Qt.WA_StyledBackground, True)
+        self.dialog_container.setAttribute(Qt.WA_TranslucentBackground, True)
+        self.dialog_container.setStyleSheet("background-color: transparent;")
+        self.dialog_container.setWindowFlags(Qt.FramelessWindowHint)
+        self.dialog_container.setGeometry(window.rect())
         
-        # Set up connections
-        self.expanded_card.taskDeleted.connect(self.propagateTaskDeletion)
-        self.expanded_card.saveCompleted.connect(self.completeSaveActions)
-        self.expanded_card.cancelTask.connect(self.closeExpandedCard)
+        # Create the semi-transparent overlay.
+        self.overlay = QWidget(self.dialog_container)
+        self.overlay.setStyleSheet("background-color: rgba(0, 0, 0, 0.5);")
+        self.overlay.setGeometry(self.dialog_container.rect())
+        self.overlay.installEventFilter(self)
         
-        # Calculate card dimensions
+        # Create the expanded card as a child of the container.
+        self.expanded_card = TaskCardExpanded(
+            logger=self.logger,
+            task=task,
+            parent_view=self,
+            parent=self.dialog_container
+        )
+        # Set the object name so the style sheet applies.
+        self.expanded_card.setObjectName("card_container")
+        # Enable styled backgrounds so that the style sheet paints the background.
+        self.expanded_card.setAttribute(Qt.WA_StyledBackground, True)
+        # Notice: We do NOT set WA_TranslucentBackground here, so that the style sheet's background color is visible.
+        self.expanded_card.setStyleSheet(AppStyles.expanded_task_card())
+        
+        # Calculate optimal dimensions and center the expanded card.
         card_width, card_height = self.expanded_card.calculate_optimal_card_size()
-        
-        # Calculate center position relative to the window
-        window_geometry = window.geometry()
-        center_x = (window_geometry.width() - card_width) // 2
-        center_y = (window_geometry.height() - card_height) // 2
-        
-        # Set position and window properties
+        center_x = (self.dialog_container.width() - card_width) // 2
+        center_y = (self.dialog_container.height() - card_height) // 2
         self.expanded_card.setGeometry(center_x, center_y, card_width, card_height)
         self.expanded_card.setWindowFlags(Qt.FramelessWindowHint)
+        self.expanded_card.raise_()
         
-        # Set the dialog to be application modal instead of using WindowStaysOnTopHint
-        self.expanded_card.setWindowModality(Qt.ApplicationModal)
-        
-        # Show overlay and card
-        self.overlay.show()
-        self.expanded_card.show()
-        
-        # Install event filter to handle clicks outside
-        self.overlay.installEventFilter(self)
-        self.overlay.mousePressEvent = self.closeExpandedCard
+        # Show the container (which holds both the overlay and the expanded card)
+        self.dialog_container.show()
+    
+    def eventFilter(self, source, event):
+        # If the overlay is clicked, close the container.
+        if source == self.overlay and event.type() == QEvent.MouseButtonPress:
+            self.dialog_container.close()
+            return True
+        return super().eventFilter(source, event)
 
     def addGroupTask(self):
         self.overlay_grid_dialog = QWidget(self)

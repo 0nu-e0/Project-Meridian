@@ -104,11 +104,6 @@ class MainWindow(QMainWindow):
     def resizeEvent(self, event: QResizeEvent):
         super().resizeEvent(event)
 
-        # self.window_width = self.width()
-        # self.dashboard_screen.dashboard_width = self.window_width
-        # print(f"main width: {self.window_width}")
-        # self.dashboard_screen.iterrateGridLayouts()
-
         new_width = max(0, self.width()) 
         new_height = max(0, self.height()) 
         drawer_width = self.drawer_width
