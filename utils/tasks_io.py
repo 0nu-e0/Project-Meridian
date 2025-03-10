@@ -59,7 +59,7 @@ def load_tasks_from_json(logger):
         with open(json_file_path, 'r') as file:
             tasks_data = json.load(file)
 
-        # logger.info(f"Successfully loaded {len(tasks_data)} tasks from {json_file_path}")
+        logger.info(f"Successfully loaded {len(tasks_data)} tasks from {json_file_path}")
 
         # Convert each task data to Task object
         for task_key, task_info in tasks_data.items():
@@ -160,8 +160,9 @@ def load_tasks_from_json(logger):
             # Add attachments
             if 'attachments' in task_info:
                 for attachment_data in task_info['attachments']:
+                    print(f"attachment data: {attachment_data}")
                     attachment = Attachment(
-                        path_or_url=attachment_data['file_path'],
+                        path_or_url=attachment_data['file_name'],
                         user_id=attachment_data.get('added_by', 'System'),
                         description=attachment_data.get('file_name', '')
                     )
@@ -331,8 +332,8 @@ def save_task_to_json(task, logger):
             'custom_fields': getattr(task, 'custom_fields', {}),
             'attachments': [
                 {
-                    'file_path': attachment.file_path,
-                    'file_name': os.path.basename(attachment.file_path),
+                    'path_or_url': attachment.path_or_url,
+                    'file_name': os.path.basename(attachment.path_or_url),
                     'added_date': attachment.upload_date.strftime('%m/%d/%Y %H:%M'),
                     'added_by': attachment.user_id,
                     'file_size': attachment.file_size,
