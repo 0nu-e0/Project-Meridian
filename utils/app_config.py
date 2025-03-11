@@ -67,6 +67,7 @@ class AppConfig:
         # Store paths for common data files
         self.tasks_file = os.path.join(self.data_dir, "saved_tasks.json")
         self.projects_file = os.path.join(self.data_dir, "projects.json")
+        self.notes_file = os.path.join(self.data_dir, "notes.json")
         self.settings_file = os.path.join(self.app_data_dir, "settings.json")
         
         # self.logger.info(f"AppConfig initialized for {self.system} system")

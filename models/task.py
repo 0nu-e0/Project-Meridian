@@ -60,6 +60,7 @@ class TaskCategory(Enum):
     CAPA = "CAPA"
     BUILD_FIXTURE = "Build Fixture"
     WORK_INSTRUCTION = "Work Instruction"
+    LAB_TESTING = "Lab Testing"
 
 class DueStatus(Enum):
    OVERDUE = "Overdue"

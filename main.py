@@ -182,6 +182,7 @@ class MainWindow(QMainWindow):
         self.dashboard_screen.setObjectName("Dashboard")
 
         self.notes_screen = NotesScreen(logger=self.logger)
+        self.notes_screen.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
         self.stacked_widget.addWidget(self.dashboard_screen)
         self.stacked_widget.addWidget(self.welcome_screen)
