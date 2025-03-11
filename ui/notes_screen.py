@@ -59,34 +59,61 @@ class NotesScreen(QWidget):
 
     def initUI(self):
         self.initCentralWidget()
-        self.initLeftNotePanel()
-        self.initRightNotePanel()
+        self.initBannerSpacer()
+        self.addSeparator()
+        self.initPanelHorizontalContainer()
 
     def initCentralWidget(self):
         central_widget = QWidget()
         central_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.main_layout = QHBoxLayout(self)
+        self.main_layout = QVBoxLayout(central_widget)
         self.main_layout.setContentsMargins(0, 0, 0, 0)
         self.main_layout.setSpacing(0)
         self.setLayout(self.main_layout)
 
+    def initBannerSpacer(self):
+        self.banner_widget = QWidget()
+        self.banner_layout = QVBoxLayout(self.banner_widget)
+        banner_height = int(self.height()*0.15) 
+        self.banner_spacer = QSpacerItem(1, banner_height, QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.banner_layout.addSpacerItem(self.banner_spacer)
+        self.main_layout.addWidget(self.banner_widget)
+
+    def addSeparator(self):
+        separator = QFrame()
+        separator.setFrameShape(QFrame.HLine)
+        separator.setFixedHeight(2)
+        self.main_layout.addWidget(separator)
+
+    def initPanelHorizontalContainer(self):
+        panel_widget = QWidget()
+        panel_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        panel_layout = QHBoxLayout(panel_widget)
+        panel_layout.setContentsMargins(0, 0, 0, 0)
+        panel_layout.addLayout(self.initLeftNotePanel(), 2)
+        panel_layout.addLayout(self.initRightNotePanel(), 7)
+
+        self.main_layout.addWidget(panel_widget)
+
     def initLeftNotePanel(self):
-        left_notes_panel_widget = QWidget()
-        left_notes_panel_layout = QVBoxLayout(left_notes_panel_widget)
+        left_notes_panel_layout = QVBoxLayout()
         left_notes_panel_layout.setContentsMargins(5, 0, 5, 0)
         left_notes_panel_layout.addLayout(self.initNotesPanelHeader())
 
-        self.main_layout.addWidget(left_notes_panel_widget, 1)
+        return left_notes_panel_layout
 
     def initNotesPanelHeader(self):
         header_panel_layout = QVBoxLayout()
+        header_panel_layout.setAlignment(Qt.AlignTop)
 
         header_title_label = QLabel("Notes")
+        header_title_label.setStyleSheet(AppStyles.label_normal())
 
         add_note_widget = QWidget()
         add_note_layout = QHBoxLayout(add_note_widget)
 
         add_note_label = QLabel("Add New Note")
+        add_note_label.setStyleSheet(AppStyles.label_normal())
 
         add_note_button = QPushButton("+")
         add_note_button.setStyleSheet("""
@@ -116,12 +143,11 @@ class NotesScreen(QWidget):
 
 
     def initRightNotePanel(self):
-        right_notes_panel_widget = QWidget()
-        right_notes_panel_layout = QVBoxLayout(right_notes_panel_widget)
+        right_notes_panel_layout = QVBoxLayout()
         right_notes_panel_layout.setContentsMargins(5, 0, 5, 0)
         right_notes_panel_layout.addLayout(self.initNotesDisplayPanel())
 
-        self.main_layout.addWidget(right_notes_panel_widget, 5)
+        return right_notes_panel_layout
 
     def initNotesDisplayPanel(self):
         notes_display_layout = QVBoxLayout()

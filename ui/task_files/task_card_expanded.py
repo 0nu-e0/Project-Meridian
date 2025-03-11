@@ -816,7 +816,9 @@ class TaskCardExpanded(QWidget):
             
             # Add to task's attachments
             self.task.attachments.append(attachment)
-            print(f"attachment type: {self.task.attachments.attachment_type}")
+            
+            # Print the attachment type of the newly added attachment
+            print(f"attachment type: {attachment.attachment_type}")
             
             # Refresh the attachments section
             self.attachments_section.add_attachments(self.task.attachments)
