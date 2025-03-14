@@ -51,6 +51,7 @@ class TaskCardExpanded(QWidget):
     saveCompleted = pyqtSignal() 
     updatedCompleted = pyqtSignal()
     cancelTask = pyqtSignal()
+    newTaskUpdate = pyqtSignal()
     
     @classmethod
     def calculate_optimal_card_size(cls):
@@ -73,12 +74,14 @@ class TaskCardExpanded(QWidget):
         self.task = task
         self.parent_view = parent_view
         self.initial_state = None
+        self.isNewTask = False
         if self.task is not None:
             self.store_initial_task_state()
         else: 
             self.task = Task(
                 title=""
             )
+            self.isNewTask = True
 
         self.setWindowFlags(Qt.FramelessWindowHint)
         self.setWindowModality(Qt.ApplicationModal)
@@ -407,8 +410,9 @@ class TaskCardExpanded(QWidget):
         
         # Use lambda to properly connect functions that need to be called when clicked
         save_button.clicked.connect(lambda: save_task_to_json(self.task, self.logger))
-        save_button.clicked.connect(self.updatedCompleted.emit)
         save_button.clicked.connect(self.saveCompleted.emit)
+        if self.isNewTask:
+            save_button.clicked.connect(self.newTaskUpdate.emit)
 
         cancel_button.clicked.connect(self.cancelTaskChanges)
         delete_button.clicked.connect(self.deleteTask)
@@ -795,9 +799,13 @@ class TaskCardExpanded(QWidget):
         return section_layout
 
     def open_attachment(self, path_or_url):
-        self.closeWindow()
-        """Open the attachment in its native application."""
+        self.saveCompleted.emit()
+        # Convert to an absolute path if needed
+        if not os.path.isabs(path_or_url):
+            path_or_url = os.path.abspath(path_or_url)
+        
         url = QUrl.fromLocalFile(path_or_url)
+        print(f"Opening url: {url}")
         QDesktopServices.openUrl(url)
     
     def add_file_attachment_to_task(self):
@@ -807,18 +815,14 @@ class TaskCardExpanded(QWidget):
         )
         
         if path_or_url:
-            # Create proper Attachment object
-            attachment = Attachment(
-                path_or_url=path_or_url, 
-                user_id="Current User",
-                description=""
-            )
-            
-            # Add to task's attachments
+            path_or_url = os.path.abspath(path_or_url)
+            attachment = Attachment(path_or_url, user_id="Current User", description="")
             self.task.attachments.append(attachment)
+            # print(f"attachment type: {attachment.attachment_type}")
+            self.attachments_section.add_attachments(self.task.attachments)
             
             # Print the attachment type of the newly added attachment
-            print(f"attachment type: {attachment.attachment_type}")
+            # print(f"attachment type: {attachment.attachment_type}")
             
             # Refresh the attachments section
             self.attachments_section.add_attachments(self.task.attachments)
@@ -878,47 +882,49 @@ class TaskCardExpanded(QWidget):
                 elif entry.entry_type == "work_log":
                     self.add_entry_to_list(entry, self.work_logs_list)
 
-    def add_activity_to_list(self, entry):
-        """Add a TaskEntry to the comments list with proper formatting"""
+    # def add_activity_to_list(self, entry):
+    #     """Add a TaskEntry to the comments list with proper formatting"""
 
-        """Need to impliment if necessary"""
-        comment_widget = QWidget()
-        comment_layout = QVBoxLayout(comment_widget)
+    #     """Need to impliment if necessary"""
+    #     comment_widget = QWidget()
+    #     comment_layout = QVBoxLayout(comment_widget)
         
-        comment_label = QLabel(entry.content)
-        comment_label.setWordWrap(True)
-        timestamp_label = QLabel(entry.timestamp.strftime("%m/%d/%Y %H:%M"))
-        timestamp_label.setStyleSheet(AppStyles.time_stamp_label())
+    #     comment_label = QLabel(entry.content)
+    #     comment_label.setWordWrap(True)
+    #     timestamp_label = QLabel(entry.timestamp.strftime("%m/%d/%Y %H:%M"))
+    #     timestamp_label.setStyleSheet(AppStyles.time_stamp_label())
     
-        actions_layout = QHBoxLayout()
-        actions_layout.setAlignment(Qt.AlignLeft)
+    #     actions_layout = QHBoxLayout()
+    #     actions_layout.setAlignment(Qt.AlignLeft)
         
-        edit_label = QLabel("Edit")
-        delete_label = QLabel("Delete")
+    #     edit_label = QPushButton("Edit")
+    #     edit_label.clicked.connect(lambda: self.edit_comment(entry))
+    #     delete_label = QPushButton("Delete")
+    #     delete_label.clicked.connect(lambda: self.delete_comment(entry))
         
-        for label in [edit_label, delete_label]:
-            label.setStyleSheet(AppStyles.label_edit_delete())
-            label.setCursor(Qt.PointingHandCursor)
-            label.setTextInteractionFlags(Qt.TextBrowserInteraction)
+    #     # for label in [edit_label, delete_label]:
+    #     #     label.setStyleSheet(AppStyles.label_edit_delete())
+    #     #     label.setCursor(Qt.PointingHandCursor)
+    #     #     label.setTextInteractionFlags(Qt.TextBrowserInteraction)
         
-        actions_layout.addWidget(edit_label)
-        actions_layout.addWidget(delete_label)
+    #     actions_layout.addWidget(edit_label)
+    #     actions_layout.addWidget(delete_label)
         
-        comment_layout.addWidget(comment_label)
-        comment_layout.addWidget(timestamp_label)
-        comment_layout.addLayout(actions_layout)
+    #     comment_layout.addWidget(comment_label)
+    #     comment_layout.addWidget(timestamp_label)
+    #     comment_layout.addLayout(actions_layout)
         
-        item = QListWidgetItem()
-        item.setSizeHint(comment_widget.sizeHint())
-        self.comments_list.addItem(item)
-        self.comments_list.setItemWidget(item, comment_widget)
+    #     item = QListWidgetItem()
+    #     item.setSizeHint(comment_widget.sizeHint())
+    #     self.comments_list.addItem(item)
+    #     self.comments_list.setItemWidget(item, comment_widget)
         
-        # Store reference to the entry in the item's data
-        item.setData(Qt.UserRole, entry)
+    #     # Store reference to the entry in the item's data
+    #     item.setData(Qt.UserRole, entry)
         
-        # Set up event handlers
-        edit_label.mousePressEvent = lambda event, item=item: self.edit_activity(item)
-        delete_label.mousePressEvent = lambda event, item=item: self.delete_activity(item)
+    #     # Set up event handlers
+    #     edit_label.mousePressEvent = lambda event, item=item: self.edit_activity(item)
+    #     delete_label.mousePressEvent = lambda event, item=item: self.delete_activity(item)
 
     def add_entry_to_list(self, entry, list_widget):
         """Add a TaskEntry to a list widget with proper formatting"""
@@ -964,7 +970,7 @@ class TaskCardExpanded(QWidget):
         list_widget.setItemWidget(item, entry_widget)
         
         # Store reference to the entry
-        #item.setData(Qt.UserRole, entry)
+        item.setData(Qt.UserRole, entry)
         
         # Connect action signals
         edit_label.mousePressEvent = lambda event, item=item: self.edit_activity(item)
@@ -1029,7 +1035,9 @@ class TaskCardExpanded(QWidget):
 
     def delete_activity(self, item):
         """Delete a TaskEntry"""
+        print(f"Attempting to delete item: {item}")
         entry = item.data(Qt.UserRole)
+        print(f"found entry: {entry}")
         if entry:
             confirm = QMessageBox.question(
                 self, "Confirm Delete", 
@@ -1044,6 +1052,8 @@ class TaskCardExpanded(QWidget):
                 
                 # Refresh the UI
                 self.display_activities()
+        else:
+            print("failed to delete")
 
     def edit_work_log(self, item):
         """Edit a TimeLog"""
