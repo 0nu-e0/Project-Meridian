@@ -36,7 +36,8 @@ from .dashboard_child_view.grid_layout import GridLayout
 from .dashboard_child_view.add_task_group import AddGridDialog
 from ui.task_files.task_card_expanded import TaskCardExpanded
 from PyQt5.QtWidgets import (QDesktopWidget, QApplication, QWidget, QVBoxLayout, QHBoxLayout, QFrame, QScrollArea,
-                             QSpacerItem, QLabel, QSizePolicy, QStackedWidget, QGridLayout, QPushButton, QMessageBox)
+                             QSpacerItem, QLabel, QSizePolicy, QStackedWidget, QGridLayout, QPushButton, QMessageBox,
+                             QLayout, )
 from PyQt5.QtCore import Qt, pyqtSignal, QPropertyAnimation, QEasingCurve, QRect, QTimer, pyqtSlot, QSize, QEvent
 from PyQt5.QtGui import QResizeEvent, QPixmap, QIcon
 
@@ -105,6 +106,8 @@ class DashboardScreen(QWidget):
         tasks_scroll_area.setWidgetResizable(True)
         tasks_scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         tasks_scroll_area.setWidget(task_layout_widget)
+        self.task_layout_container.setSizeConstraint(QLayout.SetNoConstraint)
+
 
         self.iterrateGridLayouts()
 
@@ -178,25 +181,26 @@ class DashboardScreen(QWidget):
         
         self.task_layout_container.addWidget(manage_header_widget)
 
-        for grid in self.saved_grid_layouts:
+        for idx, grid in enumerate(self.saved_grid_layouts):
             print(f"Adding Grids for:: {grid.name}")
+            
             # Create section with title for this grid
             grid_section = QWidget()
             grid_section_layout = QVBoxLayout(grid_section)
             grid_section_layout.setContentsMargins(20, 0, 0, 0)
-            
+
             # Create header with hover capability
-            grid_header_widget = QWidget() 
+            grid_header_widget = QWidget()
             grid_header_widget.setMouseTracking(True)
             grid_header_layout = QHBoxLayout(grid_header_widget)
-            
+
             # Add title for this grid
             grid_title = QLabel(grid.name)
             grid_title.setStyleSheet("font-weight: bold; font-size: 16px;")
             grid_header_layout.addWidget(grid_title)
-            
-            # Create but initially hide the remove button
-            remove_grid_button = QPushButton() 
+
+            # Create remove button (hidden initially)
+            remove_grid_button = QPushButton()
             image_path = resource_path('resources/images/delete_button.png')
             pixmap = QPixmap(image_path)
             remove_icon = QIcon(pixmap)
@@ -208,59 +212,58 @@ class DashboardScreen(QWidget):
             remove_grid_button.clicked.connect(lambda checked, g_id=grid.id: self.removeGridSection(g_id))
             grid_header_layout.addWidget(remove_grid_button)
             grid_header_layout.addStretch(1)
-            
-            # Create local event handler functions
+
+            # Event handlers for hover effects
             def make_enter_event(button, widget):
                 def custom_enter_event(event):
                     button.setVisible(True)
                     QWidget.enterEvent(widget, event)
                 return custom_enter_event
-            
+
             def make_leave_event(button, widget):
                 def custom_leave_event(event):
                     button.setVisible(False)
                     QWidget.leaveEvent(widget, event)
                 return custom_leave_event
-            
-            # Attach event handlers to this specific grid header
+
             grid_header_widget.enterEvent = make_enter_event(remove_grid_button, grid_header_widget)
             grid_header_widget.leaveEvent = make_leave_event(remove_grid_button, grid_header_widget)
-            
-            # Create filter dictionary for GridLayout
-            filter_dict = {
-                'status': [],
-                'category': [],
-                'due': []
-            }
-            
-            # Direct mapping - the YAML file now uses the exact enum values
-            if hasattr(grid.filter, 'status') and grid.filter.status:
-                filter_dict['status'] = grid.filter.status
-            
-            if hasattr(grid.filter, 'category') and grid.filter.category:
-                filter_dict['category'] = grid.filter.category
-                
-            if hasattr(grid.filter, 'due') and grid.filter.due:
-                filter_dict['due'] = grid.filter.due
-            
-            # Create a grid layout with the filter
-            grid_layout = GridLayout(logger=self.logger, width=self.dashboard_width, grid_title=grid.filter.category[0], filter=filter_dict)
 
+            # --- Restore `filter_dict` ---
+            filter_dict = {
+                'status': grid.filter.status if hasattr(grid.filter, 'status') and grid.filter.status else [],
+                'category': grid.filter.category if hasattr(grid.filter, 'category') and grid.filter.category else [],
+                'due': grid.filter.due if hasattr(grid.filter, 'due') and grid.filter.due else []
+            }
+
+            # Create grid layout with correct filter
+            grid_layout = GridLayout(logger=self.logger, width=self.dashboard_width, grid_title=grid.filter.category[0], filter=filter_dict)
+            
+            # --- Fix Resizing Issues ---
+            if idx == 0:  # First grid (top one) should never resize
+                grid_section.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+            else:  # Allow lower grids to expand downward
+                grid_section.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
+
+            # Ensure grid resizes only when needed
+            grid_layout.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+            grid_layout.setMinimumHeight(grid_layout.sizeHint().height())
+
+            # Add components to layout
             grid_section_layout.addWidget(grid_header_widget)
             grid_section_layout.addWidget(grid_layout)
+
             self.grid_layouts.append(grid_layout)
             grid_layout.taskDeleted.connect(self.propagateTaskDeletion)
             grid_layout.sendTaskInCardClicked.connect(self.addNewTask)
 
-            # grid_layout.grid_title = grid.filter.category[0]
-            
-            # Add the section to the container
             self.task_layout_container.addWidget(grid_section)
-            
+
             # Add a small spacer between grids
             spacer = QWidget()
             spacer.setFixedHeight(10)
             self.task_layout_container.addWidget(spacer)
+
 
     def removeGridSection(self, grid_id):
         """Remove the grid section with the specified ID"""
@@ -320,6 +323,7 @@ class DashboardScreen(QWidget):
             parent=self.dialog_container
         )
         self.expanded_card.saveCompleted.connect(self.closeExpandedCard)
+        self.expanded_card.newTaskUpdate.connect(self.completeSaveActions)
         # Set the object name so the style sheet applies.
         self.expanded_card.setObjectName("card_container")
         # Enable styled backgrounds so that the style sheet paints the background.
@@ -421,7 +425,7 @@ class DashboardScreen(QWidget):
             self.expanded_card.deleteLater()
             delattr(self, 'expanded_card')
         if hasattr(self, 'overlay'):
-            self.overlay.removeEventFilter(self)  # Remove event filter if added
+            self.overlay.removeEventFilter(self) 
             self.overlay.close()
             self.overlay.deleteLater()
             delattr(self, 'overlay')
@@ -429,3 +433,4 @@ class DashboardScreen(QWidget):
             self.dialog_container.close()
             self.dialog_container.deleteLater()
             delattr(self, 'dialog_container')
+        print("Done")
