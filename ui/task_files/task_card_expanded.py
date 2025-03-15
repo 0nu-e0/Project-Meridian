@@ -86,17 +86,6 @@ class TaskCardExpanded(QWidget):
         self.setWindowFlags(Qt.FramelessWindowHint)
         self.setWindowModality(Qt.ApplicationModal)
         self.setObjectName("card_container")
-        
-        # Apply the stylesheet directly
-        # full_style = f"""
-        #     QWidget#card_container {{
-        #         background-color: {AppColors.main_background_color};
-        #         border-radius: 8px;
-        #         padding: 15px;
-        #         border: 1px solid {AppColors.accent_background_color_dark};
-        #     }}
-        # """
-        # self.setStyleSheet(full_style)
 
         self.initUI()
 

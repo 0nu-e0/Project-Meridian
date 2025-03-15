@@ -36,6 +36,7 @@ class AppColors:
     # Keep all original names but update values
     none = "transparent"
     main_background_color = "#3b3b3b"  # Near-black background
+    main_background_color_dark = "#2f2f2f"
     main_background_hover_color = "#333333"
     white = "#FFFFFF"
     border_light = "#C0C0C0"
