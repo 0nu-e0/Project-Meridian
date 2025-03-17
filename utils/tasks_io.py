@@ -88,6 +88,9 @@ def load_tasks_from_json(logger):
 
             if 'category' in task_info:
                 category_value = task_info['category'].replace(" ", "_").upper()
+                # print(f"category values: {category_value}")
+                # if task.title == "Argon Cylinder Changing Procedure":
+                #     category_value = "ARCHIVED"
                 task.category = TaskCategory[category_value]
 
             # Set numeric values
@@ -257,6 +260,8 @@ def load_tasks_from_json(logger):
 
     except Exception as e:
         logger.error(f"Error loading tasks from JSON: {e}")
+
+
         return {}
 
 def save_task_to_json(task, logger):
@@ -295,7 +300,12 @@ def save_task_to_json(task, logger):
         if os.path.exists(json_file_path):
             with open(json_file_path, 'r') as file:
                 tasks_data = json.load(file)
-        
+
+        task_status = task.status.name
+        print(f"task: {task.title} and status: {task_status}, type: {type(task_status)}")
+        if task_status == "COMPLETED":
+            task.category = TaskCategory.Archived.name
+
         # Convert Task object to dictionary, handling potential None values
         task_data = {
             'id': getattr(task, 'id', str(uuid4())),  # Generate new ID if none exists
@@ -372,6 +382,8 @@ def save_task_to_json(task, logger):
             ]
         }
         
+        print(f"Saving update: {task_data["category"]}")
+
         # Clean up None values for cleaner JSON
         task_data = {k: v for k, v in task_data.items() if v is not None}
         
@@ -391,3 +403,4 @@ def save_task_to_json(task, logger):
     except Exception as e:
         logger.error(f"Error saving task to JSON: {e}")
         return False
+    

@@ -61,6 +61,7 @@ class TaskCategory(Enum):
     BUILD_FIXTURE = "Build Fixture"
     WORK_INSTRUCTION = "Work Instruction"
     LAB_TESTING = "Lab Testing"
+    ARCHIVED = "Archived"
 
 class DueStatus(Enum):
    OVERDUE = "Overdue"
@@ -101,6 +102,7 @@ class Task(QObject):
         self.status = TaskStatus.NOT_STARTED
         self.priority = TaskPriority.MEDIUM
         self.percentage_complete: int = 0
+        self.archived: bool = False
         
         # Dependencies and relationships
         self.parent_task_id: Optional[str] = None
@@ -138,6 +140,15 @@ class Task(QObject):
 
         # Checklist items
         self.checklist: List[Dict[str, any]] = [] 
+
+        self.check_archived()
+
+    def check_archived(self):
+        print(f"checking for archived for {self.title}, with category: {self.status}")
+        
+        if self.status == TaskStatus.COMPLETED:
+            self.archived = True
+            self.category = TaskCategory.Archived
 
     def add_checklist_item(self, text: str, checked: bool = False):
         self.checklist.append({
