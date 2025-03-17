@@ -1,6 +1,6 @@
-from PyQt5.QtWidgets import QWidget, QToolBar, QAction, QComboBox, QHBoxLayout
+from PyQt5.QtWidgets import QWidget, QToolBar, QAction, QComboBox, QHBoxLayout, QInputDialog
 from PyQt5.QtCore import QSize
-from PyQt5.QtGui import QTextListFormat, QFont
+from PyQt5.QtGui import QTextListFormat, QFont, QTextTableFormat
 
 class TextEditToolbar(QWidget):
 
@@ -102,6 +102,11 @@ class TextEditToolbar(QWidget):
         numbered_action.triggered.connect(self.insertNumberedList)
         toolbar.addAction(numbered_action)
         
+        # Insert Table action
+        table_action = QAction("Table", self)
+        table_action.triggered.connect(self.insertTable)
+        toolbar.addAction(table_action)
+        
         return toolbar
 
     def toggleBold(self, checked):
@@ -143,3 +148,27 @@ class TextEditToolbar(QWidget):
         cursor.beginEditBlock()
         cursor.createList(list_format)
         cursor.endEditBlock()
+
+    def insertTable(self):
+        # Prompt for the number of rows
+        rows, ok = QInputDialog.getInt(self, "Insert Table", "Number of rows:", 2, 1, 100, 1)
+        if not ok:
+            return
+        
+        # Prompt for the number of columns
+        columns, ok = QInputDialog.getInt(self, "Insert Table", "Number of columns:", 2, 1, 100, 1)
+        if not ok:
+            return
+        
+        # Get the current text cursor from the editor
+        cursor = self.editor.textCursor()
+        
+        # Optionally set up a table format with borders, padding, etc.
+        table_format = QTextTableFormat()
+        table_format.setBorder(1)
+        table_format.setBorderStyle(QTextTableFormat.BorderStyle_Solid)
+        table_format.setCellPadding(4)
+        table_format.setCellSpacing(2)
+        
+        # Insert the table at the current cursor position
+        cursor.insertTable(rows, columns, table_format)
