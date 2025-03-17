@@ -130,9 +130,9 @@ class TaskCardExpanded(QWidget):
         main_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         left_layout = QVBoxLayout(main_widget)
         left_layout.setContentsMargins(15, 15, 0 , 0)
-        left_layout.addLayout(self.createTitleSection())
-        left_layout.addLayout(self.createDescriptionSection())
-        left_layout.addWidget(self.createActivitySection())
+        left_layout.addLayout(self.createTitleSection(), 1)
+        left_layout.addLayout(self.createDescriptionSection(), 2)
+        left_layout.addWidget(self.createActivitySection(), 5)
 
         self.main_layout.addWidget(main_widget,stretch=3)
 
@@ -227,7 +227,7 @@ class TaskCardExpanded(QWidget):
         
         desc_edit = QTextEdit(self.task.description if self.task is not None else "")
         desc_edit.setStyleSheet(AppStyles.text_edit_norm())
-        desc_edit.setMinimumHeight(100)
+        desc_edit.setMinimumHeight(50)
         
         # Connect the text changed signal to update description
         desc_edit.textChanged.connect(lambda: self.updateTaskDescription(desc_edit.toPlainText()))
@@ -400,8 +400,8 @@ class TaskCardExpanded(QWidget):
         # Use lambda to properly connect functions that need to be called when clicked
         save_button.clicked.connect(lambda: save_task_to_json(self.task, self.logger))
         save_button.clicked.connect(self.saveCompleted.emit)
-        if self.isNewTask:
-            save_button.clicked.connect(self.newTaskUpdate.emit)
+        # if self.isNewTask:
+        save_button.clicked.connect(self.newTaskUpdate.emit)
 
         cancel_button.clicked.connect(self.cancelTaskChanges)
         delete_button.clicked.connect(self.deleteTask)
