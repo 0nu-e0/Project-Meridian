@@ -40,10 +40,10 @@ class AppConfig:
     _instance = None
     
     path = os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~\\AppData\\Local")), "MeridianTasks")
-    print(f"Expected directory: {path}")
-    print(f"Exists: {os.path.exists(path)}")
-    print(f"Real Path: {os.path.realpath(path)}")
-    print(f"Dir Contents: {os.listdir(path) if os.path.exists(path) else 'Not Found'}")
+    # print(f"Expected directory: {path}")
+    # print(f"Exists: {os.path.exists(path)}")
+    # print(f"Real Path: {os.path.realpath(path)}")
+    # print(f"Dir Contents: {os.listdir(path) if os.path.exists(path) else 'Not Found'}")
 
     def __new__(cls):
         """Implement singleton pattern"""

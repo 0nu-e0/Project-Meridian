@@ -182,7 +182,7 @@ class DashboardScreen(QWidget):
         self.task_layout_container.addWidget(manage_header_widget)
 
         for idx, grid in enumerate(self.saved_grid_layouts):
-            print(f"Adding Grids for:: {grid.name}")
+            # print(f"Adding Grids for:: {grid.name}")
             
             # Create section with title for this grid
             grid_section = QWidget()

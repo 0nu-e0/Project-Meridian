@@ -144,7 +144,7 @@ class Task(QObject):
         self.check_archived()
 
     def check_archived(self):
-        print(f"checking for archived for {self.title}, with category: {self.status}")
+        # print(f"checking for archived for {self.title}, with category: {self.status}")
         
         if self.status == TaskStatus.COMPLETED:
             self.archived = True
@@ -216,7 +216,7 @@ class AttachmentType:
 class Attachment:
     def __init__(self, path_or_url: str, user_id: str, description: str = ""):
         self.id = str(uuid4())
-        self.path_or_url = path_or_url  # Can be a file path, directory path, or URL
+        self.path_or_url = path_or_url  
         self.user_id = user_id
         self.description = description
         self.upload_date = datetime.now()
@@ -225,7 +225,7 @@ class Attachment:
         self.attachment_type = self._detect_type(path_or_url)
 
         # File-specific attributes
-        self.file_size: Optional[int] = None
+        # self.file_size: Optional[int] = None
         self.file_type: Optional[str] = None
         
         # if self.attachment_type == AttachmentType.FILE:
@@ -253,7 +253,7 @@ class Attachment:
 
     def _process_file(self):
         """Retrieves file size and type for file attachments."""
-        self.file_size = os.path.getsize(self.path_or_url)  # File size in bytes
+        # self.file_size = os.path.getsize(self.path_or_url)  # File size in bytes
         self.file_type = mimetypes.guess_type(self.path_or_url)[0]  # Detect MIME type
 
     def _process_directory(self):
