@@ -108,6 +108,7 @@ class DashboardScreen(QWidget):
         tasks_scroll_area.setWidget(task_layout_widget)
         self.task_layout_container.setSizeConstraint(QLayout.SetNoConstraint)
 
+
         self.iterrateGridLayouts()
 
         # If no grid layouts, create at least one grid
