@@ -559,6 +559,7 @@ class CollapsibleSection(QWidget):
 
     def openAllAttachments(self, attachments):
         for attachment in attachments:
+            # print(f"Attechment URL: {attachment.path_or_url}")
             self.attachment_clicked.emit(attachment.path_or_url)
 
 #################################################################################################################################

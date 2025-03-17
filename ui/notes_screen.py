@@ -241,7 +241,7 @@ class NotesScreen(QWidget):
 
     def initRightNotePanel(self):
         right_notes_panel_layout = QVBoxLayout()
-        right_notes_panel_layout.setContentsMargins(5, 15, 5, 0)
+        right_notes_panel_layout.setContentsMargins(5, 15, 15, 15)
         right_notes_panel_layout.addLayout(self.initNotesDisplayPanel())
 
         return right_notes_panel_layout

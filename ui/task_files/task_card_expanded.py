@@ -794,7 +794,7 @@ class TaskCardExpanded(QWidget):
             path_or_url = os.path.abspath(path_or_url)
         
         url = QUrl.fromLocalFile(path_or_url)
-        print(f"Opening url: {url}")
+        # print(f"Opening url: {url}")
         QDesktopServices.openUrl(url)
     
     def add_file_attachment_to_task(self):
