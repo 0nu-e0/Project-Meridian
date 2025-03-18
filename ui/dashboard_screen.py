@@ -130,7 +130,12 @@ class DashboardScreen(QWidget):
         buttons_container.setSpacing(10)
         buttons_container.setContentsMargins(0, 0, 10, 0)
 
-        card_count_widget = QLabel(f"Current Task Count: {len(self.tasks)}")
+        archived_tasks = 0
+        for task, archived in self.tasks.items():
+            if archived.category == TaskCategory.ARCHIVED:
+                archived_tasks += 1
+
+        card_count_widget = QLabel(f"Current Task Count: {len(self.tasks) - archived_tasks}")
         
         button_size = QSize(30, 30)
         

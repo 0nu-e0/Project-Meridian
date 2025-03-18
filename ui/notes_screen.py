@@ -228,7 +228,7 @@ class NotesScreen(QWidget):
     def updateNotesList(self):
         """Refresh the notes list with the latest notes from storage."""
         notes = self.loadNotes()
-        print(f"Adding notes: {notes}")
+        # print(f"Adding notes: {notes}")
         self.notes_list.clear()
         for note_id, note in notes.items():
             item = QListWidgetItem(note.get("title", "Untitled"))

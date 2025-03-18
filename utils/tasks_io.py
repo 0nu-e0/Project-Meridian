@@ -346,7 +346,6 @@ def save_task_to_json(task, logger):
                     'file_name': os.path.basename(attachment.path_or_url),
                     'added_date': attachment.upload_date.strftime('%m/%d/%Y %H:%M'),
                     'added_by': attachment.user_id,
-                    'file_size': attachment.file_size,
                     'file_type': attachment.file_type
                 }
                 for attachment in getattr(task, 'attachments', [])
