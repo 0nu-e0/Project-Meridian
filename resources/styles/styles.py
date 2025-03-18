@@ -54,6 +54,7 @@ class AppColors:
     button_toggle = "#00FFB2"
     button_toggle_hover = "#33FFC4"
     list = "#1C1F26"
+    notes_list = "#B0B0B0"
     list_selected = "#2E2F73"
     scroll_bar_main = "#2B2B2B"
     slider_groove_background = "#2E2F73"
@@ -542,6 +543,16 @@ class AppStyles:
         """
     
     @staticmethod
+    def list_notes():
+        return f"""
+            QListWidget {{ border: {AppBorders.none}; outline: {AppBorders.none}; background-color: {AppColors.main_background_color}; color: {AppColors.notes_list}; border-radius: {AppPixelSizes.border_radius_sml}; margin-right: 10px; margin-left: 10px; font-size: {AppPixelSizes.font_xlrg}; }}
+            QListWidget::item {{ border: {AppBorders.none}; outline: {AppBorders.none}; color: {AppColors.notes_list}; border-radius: {AppPixelSizes.border_radius_sml}; }}
+            
+            
+            QScrollArea {AppStyles.scroll_area()}
+        """
+    
+    @staticmethod
     def list_style_step_running():
         return f"""
             QListWidget {{ border: {AppBorders.none}; outline: {AppBorders.none}; background-color: {AppColors.main_background_color}; color: {AppColors.list}; border-radius: {AppPixelSizes.border_radius_sml}; margin-right: 10px; margin-left: 10px;  }}
@@ -757,8 +768,99 @@ class AppStyles:
                 border-radius: {AppPixelSizes.border_radius_xsml}; /* Ensure selection does not extend outside */
             }}
         """
+    
+    @staticmethod
+    def combo_box_text_size():
+        return f"""
+            QComboBox {{
+                border: {AppBorders.combo_box_norm};
+                border-radius: {AppPixelSizes.border_radius_xsml};
+                background-color: transparent;
+                color: {AppColors.label_font_color_light};
+                font-size: {AppPixelSizes.font_norm};
+                font-style: {AppFontStyle.norm};
+                padding: 4px 10px;  /* Ensure text isn't pushed too far left */
+                min-width: 20px;  /* Ensure space for bigger numbers */
+                min-height: 24px;
+            }}
 
+            /* Ensure text inside the editable area is visible */
+            QComboBox QLineEdit {{
+                padding: 2px;
+                font-size: {AppPixelSizes.font_norm};
+                color: {AppColors.label_font_color_light};
+            }}
 
+            QComboBox QAbstractItemView, QComboBox QListView {{
+                background-color: {AppColors.accent_background_color_dark};
+                border: 1px solid {AppColors.border_light};
+                border-radius: {AppPixelSizes.border_radius_xsml};
+                color: {AppColors.label_font_color_light};  /* Ensure text is visible */
+                selection-background-color: {AppColors.list_selected};
+                selection-color: {AppColors.label_font_color_light};
+                outline: none;
+                padding: 2px;  /* Ensure content inside dropdown is not clipped */
+            }}
+
+            /* Ensure each item is readable */
+            QComboBox QAbstractItemView::item, QComboBox QListView::item {{
+                padding: 4px 8px;
+                height: 24px;
+                border-radius: {AppPixelSizes.border_radius_xsml}; 
+                font-size: {AppPixelSizes.font_norm};  /* Ensure proper font size */
+            }}
+
+            /* Scrollbar Styling (Vertical & Horizontal) */
+            QComboBox QAbstractScrollArea::corner {{
+                background: transparent;
+            }}
+
+            QComboBox QScrollBar:vertical {{
+                border: {AppBorders.none};
+                background: transparent;
+                width: {AppPixelSizes.scroll_bar_width};
+            }}
+            
+            QComboBox QScrollBar:horizontal {{
+                border: {AppBorders.none};
+                background: transparent;
+                height: {AppPixelSizes.scroll_bar_width};
+            }}
+
+            QComboBox QScrollBar::handle:vertical {{
+                background: {AppColors.scroll_bar_main};
+                min-height: {AppPixelSizes.scroll_bar_min_height};
+                border-radius: {AppPixelSizes.border_radius_xsml};
+            }}
+
+            QComboBox QScrollBar::add-line:vertical, 
+            QComboBox QScrollBar::sub-line:vertical {{
+                border: {AppBorders.none};
+                background: {AppColors.none};
+            }}
+
+            QComboBox QScrollBar::add-page:vertical, 
+            QComboBox QScrollBar::sub-page:vertical {{
+                background: {AppColors.none};
+            }}
+
+            QComboBox QScrollBar::handle:horizontal {{
+                background: {AppColors.scroll_bar_main};
+                min-width: {AppPixelSizes.scroll_bar_min_height};
+                border-radius: {AppPixelSizes.border_radius_xxsml};
+            }}
+
+            QComboBox QScrollBar::add-line:horizontal, 
+            QComboBox QScrollBar::sub-line:horizontal {{
+                border: {AppBorders.none};
+                background: {AppColors.none};
+            }}
+
+            QComboBox QScrollBar::add-page:horizontal, 
+            QComboBox QScrollBar::sub-page:horizontal {{
+                background: {AppColors.none};
+            }}
+        """
 
     @staticmethod
     def combo_box_norm_warn():
@@ -924,6 +1026,27 @@ class AppStyles:
             }}
             QTabBar::tab:!selected {{
                 margin-top: 2px; 
+            }}
+        """
+    
+    ### Toolbar Action Styles ###
+    @staticmethod
+    def toolbar_action_norm():
+        return f"""
+            QToolButton {{
+                background-color: #444;  /* Dark background */
+                color: white;  /* White text */
+                font-weight: bold;  /* Make text bold */
+                border-radius: 5px;
+                padding: 5px;
+            }}
+            
+            QToolButton:hover {{
+                background-color: #666;  /* Lighter gray when hovered */
+            }}
+            
+            QToolButton:checked {{
+                background-color: #888;  /* Even lighter when toggled */
             }}
         """
     

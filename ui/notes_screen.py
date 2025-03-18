@@ -115,7 +115,7 @@ class NotesScreen(QWidget):
         header_panel_layout.setAlignment(Qt.AlignTop)
 
         header_title_label = QLabel("Notes")
-        header_title_label.setStyleSheet("font-weight: normal;")
+        header_title_label.setStyleSheet(AppStyles.label_normal())
         header_title_label.setAlignment(Qt.AlignCenter)
 
         add_note_button = QPushButton("+")
@@ -219,6 +219,7 @@ class NotesScreen(QWidget):
         # Create the list widget that displays note titles.
         notes_list_layout = QVBoxLayout()
         self.notes_list = QListWidget(self)
+        self.notes_list.setStyleSheet(AppStyles.list_notes())
         self.notes_list.itemClicked.connect(self.loadSelectedNote)
 
         notes_list_layout.addWidget(self.notes_list)
