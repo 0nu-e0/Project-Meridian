@@ -4,6 +4,7 @@ Project_Manager/data/app_config.yaml
 data/saved_tasks.json
 data/app_config.yaml
 Project_Manager/app.log
+Project_Manager/app_notes.json
 __pychache__/
 *.py[cod]
 *$py.class
