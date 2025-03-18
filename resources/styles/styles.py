@@ -545,7 +545,7 @@ class AppStyles:
     @staticmethod
     def list_notes():
         return f"""
-            QListWidget {{ border: {AppBorders.none}; outline: {AppBorders.none}; background-color: {AppColors.main_background_color}; color: {AppColors.notes_list}; border-radius: {AppPixelSizes.border_radius_sml}; margin-right: 10px; margin-left: 10px; font-size: {AppPixelSizes.font_xlrg}; }}
+            QListWidget {{ border: {AppBorders.none}; outline: {AppBorders.none}; background-color: {AppColors.main_background_color}; color: {AppColors.notes_list}; border-radius: {AppPixelSizes.border_radius_sml}; margin-right: 10px; margin-left: 10px; font-size: {AppPixelSizes.font_lrg}; }}
             QListWidget::item {{ border: {AppBorders.none}; outline: {AppBorders.none}; color: {AppColors.notes_list}; border-radius: {AppPixelSizes.border_radius_sml}; }}
             
             
