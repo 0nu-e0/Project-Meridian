@@ -1,0 +1,38 @@
+Notes:
+Need to have check for saving existing notes, overwrite rather than make new note 
+Update left side layout sheet style
+Update toolbar sheet style
+
+
+Grid Groups:
+Need to update layout with new grid when creating new group
+Impliment Group minimize
+Impliment Group deletion
+
+
+Tasks:
+Make sure new task is loaded into view without restarting
+
+
+App_Config
+Windows is storing config files in python directory, need to fix that
+
+
+App Icon
+Window doesnt use Icon in task bar
+
+
+Dashboard
+All grids refresh on hover of card
+Sort out all tasks into separate list, lists are assigned to each grid group. 
+
+
+Card
+Card content should be updated.
+
+
+Mind Maps
+Update layouts for left panel
+Impliment line connection between nodes
+Impliment new line class
+Impliment Line addjustment feature and logic
