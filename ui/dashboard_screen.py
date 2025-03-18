@@ -374,7 +374,7 @@ class DashboardScreen(QWidget):
         
         self.add_group_dialog.setGeometry(center_x, center_y, card_width, card_height)
 
-        self.overlay_grid_dialog.show()
+        #self.overlay_grid_dialog.show()
         self.add_group_dialog.show()
 
         self.overlay_grid_dialog.installEventFilter(self)
