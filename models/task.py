@@ -55,6 +55,7 @@ class TaskCategory(Enum):
     RESEARCH = "Research"
     MEETING = "Meeting"
     ECO = "ECO"
+    ERP_CHANGE = "ERP Change"
     BORIDE_SHAPING = "Boride Shaping"
     DRAWING_UPDATE = "Drawing Update"
     CAPA = "CAPA"
