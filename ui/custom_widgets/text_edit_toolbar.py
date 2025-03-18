@@ -73,7 +73,7 @@ class TextEditToolbar(QWidget):
         bold_action.setCheckable(True)
         bold_action.triggered.connect(self.toggleBold)
         bold_font = QFont()
-        bold_font.setPointSize(14)  # Increase size
+        bold_font.setPointSize(10)  # Increase size
         bold_action.setFont(bold_font)
         toolbar.addAction(bold_action)
         
@@ -84,7 +84,7 @@ class TextEditToolbar(QWidget):
         italic_action.setCheckable(True)
         italic_action.triggered.connect(self.toggleItalic)
         italic_font = QFont()
-        italic_font.setPointSize(14)
+        italic_font.setPointSize(10)
         italic_action.setFont(italic_font)
         toolbar.addAction(italic_action)
         
@@ -94,7 +94,7 @@ class TextEditToolbar(QWidget):
         underline_action.setCheckable(True)
         underline_action.triggered.connect(self.toggleUnderline)
         underline_font = QFont()
-        underline_font.setPointSize(14)
+        underline_font.setPointSize(10)
         underline_action.setFont(underline_font)
         toolbar.addAction(underline_action)
         
@@ -112,7 +112,7 @@ class TextEditToolbar(QWidget):
         bullet_action = QAction("Bullet", self)
         bullet_action.triggered.connect(self.insertBulletList)
         bullet_font = QFont()
-        bullet_font.setPointSize(14)
+        bullet_font.setPointSize(10)
         bullet_action.setFont(bullet_font)
         toolbar.addAction(bullet_action)
         
@@ -120,7 +120,7 @@ class TextEditToolbar(QWidget):
         numbered_action = QAction("Numbered", self)
         numbered_action.triggered.connect(self.insertNumberedList)
         numbered_font = QFont()
-        numbered_font.setPointSize(14)
+        numbered_font.setPointSize(10)
         numbered_action.setFont(numbered_font)
         toolbar.addAction(numbered_action)
         
@@ -128,7 +128,7 @@ class TextEditToolbar(QWidget):
         table_action = QAction("Table", self)
         table_action.triggered.connect(self.insertTable)
         table_font = QFont()
-        table_font.setPointSize(14)
+        table_font.setPointSize(10)
         table_action.setFont(table_font)
         toolbar.addAction(table_action)
         
