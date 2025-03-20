@@ -149,7 +149,7 @@ class Task(QObject):
         
         if self.status == TaskStatus.COMPLETED:
             self.archived = True
-            self.category = TaskCategory.Archived
+            self.category = TaskCategory.ARCHIVED
 
     def add_checklist_item(self, text: str, checked: bool = False):
         self.checklist.append({

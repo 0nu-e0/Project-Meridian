@@ -51,6 +51,12 @@ class DashboardScreen(QWidget):
         self.logger = logger
         self.dashboard_width = width
         self.tasks = load_tasks_from_json(self.logger)
+
+        # first_key = next(iter(self.tasks))
+        # print(f"Task Loaded Types: {type(self.tasks[first_key])}")
+
+
+
         self.saved_grid_layouts = self.loadGridLayouts() or []
         # for grid in self.saved_grid_layouts:
             # print(f"Grid: {grid.id} - {grid.name}")
@@ -62,6 +68,8 @@ class DashboardScreen(QWidget):
 
     def loadGridLayouts(self):
         return DashboardConfigManager.get_all_grid_layouts()
+    
+    
     
     def initUI(self):
         self.initCentralWidget()
@@ -119,6 +127,21 @@ class DashboardScreen(QWidget):
         self.main_layout.addWidget(tasks_scroll_area)
 
     def iterrateGridLayouts(self):
+        # filtered_tasks = {}
+        # for idx, grid in enumerate(self.saved_grid_layouts):
+        #     filtered_tasks[grid.filter.category if hasattr(grid.filter, 'category') and grid.filter.category else []] = []
+
+        task_categories_dict = {}
+
+        for task in self.tasks.values():
+            if task.category not in task_categories_dict:
+                task_categories_dict[task.category.value] = []  # Use .value instead of .name
+
+        for task in self.tasks.values():
+            task_categories_dict[task.category.value].append(task)
+
+        print(f"Task Category Dict: {task_categories_dict}")
+
         # Main container widget
         manage_header_widget = QWidget()
         manage_header_layout = QHBoxLayout(manage_header_widget)
@@ -187,8 +210,16 @@ class DashboardScreen(QWidget):
         self.task_layout_container.addWidget(manage_header_widget)
 
         for idx, grid in enumerate(self.saved_grid_layouts):
-            # print(f"Adding Grids for:: {grid.name}")
             
+
+            print(f"Adding Grids for:: {grid.name}")
+            print(f"Grid Total: {grid}, type: {type(grid)}")
+            print(f"This thing: {grid.filter.category[0]}, type: {type(grid.filter.category[0])}")
+            
+
+            if grid.filter.category[0] not in task_categories_dict:
+                continue
+
             # Create section with title for this grid
             grid_section = QWidget()
             grid_section_layout = QVBoxLayout(grid_section)
@@ -240,6 +271,10 @@ class DashboardScreen(QWidget):
                 'category': grid.filter.category if hasattr(grid.filter, 'category') and grid.filter.category else [],
                 'due': grid.filter.due if hasattr(grid.filter, 'due') and grid.filter.due else []
             }
+
+            print(f"filter dict: {filter_dict}")
+
+
 
             # Create grid layout with correct filter
             grid_layout = GridLayout(logger=self.logger, width=self.dashboard_width, grid_title=grid.filter.category[0], filter=filter_dict)
