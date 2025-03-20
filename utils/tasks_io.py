@@ -281,6 +281,8 @@ def save_task_to_json(task, logger):
             category=TaskCategory.FEATURE
         )
 
+    print(f"Task status type: {type(task.status)}")
+    print(f"Task category type: {type(task.category)}")
     # Get the path from AppConfig
     app_config = AppConfig()
     json_file_path = app_config.tasks_file
@@ -304,8 +306,9 @@ def save_task_to_json(task, logger):
         task_status = task.status.name
         print(f"task: {task.title} and status: {task_status}, type: {type(task_status)}")
         if task_status == "COMPLETED":
-            task.category = TaskCategory.Archived.name
+            task.category = TaskCategory.ARCHIVED
 
+        print("Completed")
         # Convert Task object to dictionary, handling potential None values
         task_data = {
             'id': getattr(task, 'id', str(uuid4())),  # Generate new ID if none exists

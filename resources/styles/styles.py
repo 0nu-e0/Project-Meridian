@@ -541,7 +541,7 @@ class AppStyles:
             
             QScrollArea {AppStyles.scroll_area()}
         """
-    
+
     @staticmethod
     def list_notes():
         return f"""
