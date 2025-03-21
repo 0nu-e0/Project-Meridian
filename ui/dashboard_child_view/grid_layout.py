@@ -49,7 +49,7 @@ class GridLayout(QWidget):
     taskDeleted = pyqtSignal(str)
 
 
-    def __init__(self, logger, width, grid_title, filter=None):
+    def __init__(self, logger, width, grid_title, tasks=None, filter=None):
         super().__init__()
         
         self.logger = logger
@@ -62,7 +62,9 @@ class GridLayout(QWidget):
         self.num_columns = 1
         self.setAcceptDrops(True)
         self.currentlyDraggedCard = None
-        self.load_known_tasks()
+        #self.load_known_tasks()
+        self.tasks = tasks
+        print(f"tasks {self.tasks}")
         self.initComplete = False
         self.initUI()
         
@@ -240,7 +242,7 @@ class GridLayout(QWidget):
     def addTaskCard(self):
         self.setProperty("source", "add card")
         # print(f"Adding card in {self.grid_title}")
-        for task_name, task in self.tasks.items():
+        for task in self.tasks:
             # Create card with Task object
             card = TaskCardLite(logger=self.logger, task=task)
             card.setStyleSheet(AppStyles.task_card())

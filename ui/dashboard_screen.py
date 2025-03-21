@@ -209,12 +209,22 @@ class DashboardScreen(QWidget):
         
         self.task_layout_container.addWidget(manage_header_widget)
 
+        grid_layout_grid_tasks = {}
+
+        for idx, grid in enumerate(self.saved_grid_layouts):
+            if grid.filter.category[0] in task_categories_dict:
+                grid_layout_grid_tasks[grid] = task_categories_dict[grid.filter.category[0]]
+            else:
+                print("False")
+
+        print(grid_layout_grid_tasks)
+
         for idx, grid in enumerate(self.saved_grid_layouts):
             
 
-            print(f"Adding Grids for:: {grid.name}")
-            print(f"Grid Total: {grid}, type: {type(grid)}")
-            print(f"This thing: {grid.filter.category[0]}, type: {type(grid.filter.category[0])}")
+            # print(f"Adding Grids for:: {grid.name}")
+            # print(f"Grid Total: {grid}, type: {type(grid)}")
+            # print(f"This thing: {grid.filter.category[0]}, type: {type(grid.filter.category[0])}")
             
 
             if grid.filter.category[0] not in task_categories_dict:
@@ -272,12 +282,12 @@ class DashboardScreen(QWidget):
                 'due': grid.filter.due if hasattr(grid.filter, 'due') and grid.filter.due else []
             }
 
-            print(f"filter dict: {filter_dict}")
+            # print(f"filter dict: {filter_dict}")
 
 
 
             # Create grid layout with correct filter
-            grid_layout = GridLayout(logger=self.logger, width=self.dashboard_width, grid_title=grid.filter.category[0], filter=filter_dict)
+            grid_layout = GridLayout(logger=self.logger, width=self.dashboard_width, grid_title=grid.filter.category[0], tasks=task_categories_dict[grid.filter.category[0]], filter=filter_dict)
             
             # --- Fix Resizing Issues ---
             if idx == 0:  # First grid (top one) should never resize
