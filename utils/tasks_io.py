@@ -304,7 +304,7 @@ def save_task_to_json(task, logger):
         task_status = task.status.name
         print(f"task: {task.title} and status: {task_status}, type: {type(task_status)}")
         if task_status == "COMPLETED":
-            task.category = TaskCategory.Archived.name
+            task.category = TaskCategory.ARCHIVED
 
         # Convert Task object to dictionary, handling potential None values
         task_data = {
