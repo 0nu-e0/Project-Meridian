@@ -2,13 +2,16 @@ Notes:
 Need to have check for saving existing notes, overwrite rather than make new note 
 Update left side layout sheet style
 Update toolbar sheet style
+Scrollbar isnt right
+Maybe make each note a tab, allow users to open more than 1 tab
+Add feature to link link to copy stored value to clipboard
 
 
 Grid Groups:
 Need to update layout with new grid when creating new group
 Impliment Group minimize
 Impliment Group deletion
-
+Impliment way to organize cards in a group other than default priority order
 
 Tasks:
 Make sure new task is loaded into view without restarting
@@ -25,7 +28,8 @@ Window doesnt use Icon in task bar
 Dashboard
 All grids refresh on hover of card
 Sort out all tasks into separate list, lists are assigned to each grid group. 
-
+Grid cards not fitting correctly in rows
+scrollbar margin is too far to the left
 
 Card
 Card content should be updated.
@@ -36,3 +40,29 @@ Update layouts for left panel
 Impliment line connection between nodes
 Impliment new line class
 Impliment Line addjustment feature and logic
+
+
+Add Ons:
+Would be nice to see a list of tasks and choose what needs to be done today. Can include checklists and comments in the daily task.
+
+
+Drawer
+Drawer is too wide
+
+
+Task card Expanded:
+Weird issue in lists, for some reason when adding new items when items exist, cannot delete all of the items that previously exist.
+When attempting to, it starts deleting new items when only 1 old one exists. restarting fixes the issue. Indexing issue?
+Want new list setup, multiple lists with titles and items
+Possible add a way to add you own sections on the right
+Checklist virtical space is not expanding, also sitting too low when there are only a few
+Space between the activities panel and input is too great
+
+
+General:
+Weird sizing issues when switching between laptop and monitor 
+Allow the user to switch projects
+
+
+Saved data:
+Move Task Category to user data, allow for user to add categories
