@@ -28,6 +28,7 @@
 
 import sys
 from pathlib import Path
+from utils.app_config import AppConfig
 from resources.styles import AppColors
 from resources.styles import AppStyles, AnimatedButton
 from PyQt5.QtWidgets import (QApplication, QDesktopWidget, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QSpacerItem, 
@@ -82,6 +83,9 @@ class TaskCardLite(QWidget):
         self.row_position = 0
         self.original_height = self.card_height
         self.expanded_height = self.original_height * 1.5
+
+        app_config = AppConfig()
+        self.settings_file = app_config.settings_file
         
         # Add shadow effect
         self.shadow = QGraphicsDropShadowEffect(self)
@@ -140,7 +144,7 @@ class TaskCardLite(QWidget):
         # Generate initial collapsed view
         self.generateUI()
         # Cache expanded view dimensions for transitions
-        self.card_width, self.card_height = self.calculate_optimal_card_size()
+        # self.card_width, self.card_height = self.calculate_optimal_card_size()
         self.original_height = int(self.card_height)
         self.expanded_height = int(self.card_height * 2)  # Double height when expanded
 

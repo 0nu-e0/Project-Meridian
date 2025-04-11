@@ -140,7 +140,7 @@ class DashboardScreen(QWidget):
         for task in self.tasks.values():
             task_categories_dict[task.category.value].append(task)
 
-        print(f"Task Category Dict: {task_categories_dict}")
+        # print(f"Task Category Dict: {task_categories_dict}")
 
         # Main container widget
         manage_header_widget = QWidget()
@@ -217,7 +217,7 @@ class DashboardScreen(QWidget):
             else:
                 print("False")
 
-        print(grid_layout_grid_tasks)
+        # print(grid_layout_grid_tasks)
 
         for idx, grid in enumerate(self.saved_grid_layouts):
             
@@ -283,7 +283,7 @@ class DashboardScreen(QWidget):
             }
 
             # print(f"filter dict: {filter_dict}")
-
+        
 
 
             # Create grid layout with correct filter

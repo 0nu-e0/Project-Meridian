@@ -46,6 +46,13 @@ from PyQt5.QtGui import QResizeEvent, QPixmap, QIcon
 from pathlib import Path
 import shutil
 
+print("========== ENV CHECK ==========")
+print("Python Executable:", sys.executable)
+print("LOCALAPPDATA:", os.environ.get("LOCALAPPDATA"))
+print("Expanded ~:", os.path.expanduser("~"))
+print("Real App Path:", os.path.realpath(os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser('~\\AppData\\Local')), "MeridianTasks")))
+print("================================")
+
 def setup_logging():
     log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     logging.basicConfig(filename='app.log', filemode='a', format=log_format, level=logging.INFO)
@@ -381,8 +388,11 @@ def ensure_required_files():
     # Ensure the directory exists
     os.makedirs(base_dir, exist_ok=True)
 
+    path = os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~\\AppData\\Local")), "MeridianTasks")
+
     # File paths
     saved_tasks_path = os.path.join(base_dir, 'saved_tasks.json')
+    user_settings_path = os.path.join(path, "data", 'user_settings.json')
     app_config_path = os.path.join(base_dir, 'app_config.yaml')
 
     # Check and create saved_tasks.json if it doesn't exist
@@ -391,6 +401,15 @@ def ensure_required_files():
         with open(saved_tasks_path, 'w') as f:
             json.dump(default_tasks, f, indent=4)
         # print(f"Created missing file: {saved_tasks_path}")
+
+    # Check and create user_settings.json if it doesn't exist
+    if not os.path.exists(user_settings_path):
+        default_settings = {"user_settings": []}
+        with open(user_settings_path, 'w') as f:
+            json.dump(default_settings, f, indent=4)
+        print(f"Created missing file: {saved_tasks_path}")
+    else:
+        print(f"Exists: {user_settings_path}")
 
     # Check and create app_config.yaml if it doesn't exist
     if not os.path.exists(app_config_path):

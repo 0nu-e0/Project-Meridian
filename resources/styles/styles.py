@@ -25,7 +25,7 @@
 # Author: Jereme Shaver
 # -----------------------------------------------------------------------------
 
-from datetime import datetime
+from datetime import datetime, date
 from typing import Optional
 from models.task import TaskPriority, TaskStatus, TaskCategory, DueStatus
 from PyQt5.QtWidgets import QGraphicsDropShadowEffect, QPushButton, QWidget, QHBoxLayout, QVBoxLayout, QLabel, QSplitter
@@ -144,22 +144,29 @@ class AppColors:
                 return color
         return AppColors.accent_background_color  # Default color if outside ranges
 
+
+
     @staticmethod
     def get_due_date_status(due_date: Optional[datetime]) -> DueStatus:
         if not due_date:
             return DueStatus.NO_DUE_DATE
-            
-        now = datetime.now()
-        days_until_due = (due_date - now).days
-        
+
+        # Normalize: convert to date if it's a datetime
+        if isinstance(due_date, datetime):
+            due_date = due_date.date()
+
+        today = date.today()
+        days_until_due = (due_date - today).days
+
         if days_until_due < 0:
             return DueStatus.OVERDUE
-        elif days_until_due <= 2:  # 48 hours or less
+        elif days_until_due <= 2:
             return DueStatus.DUE_SOON
-        elif days_until_due <= 7:  # Within a week
+        elif days_until_due <= 7:
             return DueStatus.UPCOMING
         else:
             return DueStatus.FAR_FUTURE
+
 
     @staticmethod
     def get_due_date_color(due_date: Optional[datetime]):

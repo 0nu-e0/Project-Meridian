@@ -27,7 +27,7 @@
 
 import os, json
 from utils.tasks_io import load_tasks_from_json, save_task_to_json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from ui.custom_widgets.filter_image import FilterButton
 from models.task import Task, TaskStatus, TaskPriority, TaskCategory, TaskEntry, Attachment, DueStatus
 from resources.styles import AppStyles, AnimatedButton
@@ -60,13 +60,13 @@ class GridLayout(QWidget):
         self.taskCards = []
         self.visibleCards = [] 
         self.num_columns = 1
-        self.setAcceptDrops(True)
+        # self.setAcceptDrops(True)
         self.currentlyDraggedCard = None
         #self.load_known_tasks()
         self.tasks = tasks
-        print(f"tasks {self.tasks}")
         self.initComplete = False
         self.initUI()
+
         
         # Set initial card visibility based on filters
         # If no filter provided, show all cards by default
@@ -81,8 +81,8 @@ class GridLayout(QWidget):
         # Force a rearrangement of the layout with the visible cards
         # self.rearrangeGridLayout
 
-    def load_known_tasks(self):
-        self.tasks = load_tasks_from_json(self.logger)
+    # def load_known_tasks(self):
+    #     self.tasks = load_tasks_from_json(self.logger)
 
     # def resizeEvent(self, event: QResizeEvent):
     #     super().resizeEvent(event)
@@ -357,7 +357,7 @@ class GridLayout(QWidget):
                 if not task.due_date:
                     due_status = DueStatus.NO_DUE_DATE.value
                 else:
-                    today = datetime.now().date()
+                    today = date.today()
                     due_date = task.due_date.date() if isinstance(task.due_date, datetime) else task.due_date
                     days_until_due = (due_date - today).days
                     if days_until_due < 0:
