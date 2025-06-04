@@ -138,6 +138,7 @@ class TaskCardLite(QWidget):
         # Allow hover events to pass through the overlay so the card still
         # receives them even when covered
         self.hoverOverlay.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+
         layout = QVBoxLayout(self.hoverOverlay)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
