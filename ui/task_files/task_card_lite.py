@@ -135,9 +135,10 @@ class TaskCardLite(QWidget):
         self.hoverOverlay = QWidget(self.parentWidget())
         self.hoverOverlay.setObjectName("card_container")
         self.hoverOverlay.setStyleSheet(self.styleSheet())
-        # Ensure the overlay matches the card's dimensions
-        self.hoverOverlay.setFixedWidth(self.width())
-        self.hoverOverlay.setFixedHeight(self.expanded_height)
+        # Allow hover events to pass through the overlay so the card still
+        # receives them even when covered
+        self.hoverOverlay.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+
         layout = QVBoxLayout(self.hoverOverlay)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
