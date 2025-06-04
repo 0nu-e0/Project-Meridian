@@ -155,7 +155,7 @@ class MindMapScreen(QWidget):
 
     def add_node(self):
         # Create a new node and add it to the scene.
-        node = NodeItem(0, 0, text="New Node")
+        node = NodeItem(0, 0, text="New Node", logger=self.logger)
         self.scene.addItem(node)
 
     def save_mind_map(self):
@@ -174,7 +174,7 @@ class MindMapScreen(QWidget):
                 nodes_data = json.load(f)
             self.clear_map()  # Clear existing items in the scene.
             for node_data in nodes_data:
-                node = NodeItem(0, 0)
+                node = NodeItem(0, 0, logger=self.logger)
                 node.deserialize(node_data)
                 self.scene.addItem(node)
 
