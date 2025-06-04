@@ -11,7 +11,7 @@ from models.task import Task, TaskCategory, TaskPriority, TaskStatus, Attachment
 from ui.custom_widgets.collapsable_section import CollapsibleSection
 from resources.styles import AppColors
 from resources.styles import AppStyles, AnimatedButton
-from PyQt5.QtWidgets import (QApplication, QDesktopWidget, QGraphicsLineItem, QGraphicsEllipseItem, QGraphicsItem, QGraphicsTextItem, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QSpacerItem, 
+from PyQt5.QtWidgets import (QApplication, QDesktopWidget, QGraphicsLineItem, QGraphicsEllipseItem, QGraphicsPathItem, QGraphicsItem, QGraphicsTextItem, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QSpacerItem,
                              QSizePolicy, QGridLayout, QPushButton, QGraphicsDropShadowEffect, QStyle, QComboBox, QTextEdit,
                              QDateTimeEdit, QLineEdit, QCalendarWidget, QToolButton, QSpinBox, QListWidget, QTabWidget, QGraphicsRectItem,
                              QMessageBox, QInputDialog, QListWidgetItem, QScrollArea, QTreeWidget, QTreeWidgetItem, QFileDialog,
@@ -21,9 +21,125 @@ from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot, QEvent, QSize, QDateTime, QUr
 from PyQt5.QtGui import (QColor, QPainter, QBrush, QPen, QMovie, QTextCharFormat, QColor, QIcon, QPixmap, QDesktopServices, 
                         
                         )
+
 from PyQt5.QtSvg import QSvgWidget
 
 logger = logging.getLogger(__name__)
+
+
+
+class ConnectionItem(QGraphicsLineItem):
+    """Line connecting two nodes via specific link handles."""
+
+    def __init__(self, start_node, start_handle, end_node, end_handle):
+        super().__init__()
+        self.start_node = start_node
+        self.start_handle = start_handle
+        self.end_node = end_node
+        self.end_handle = end_handle
+
+        pen = QPen(QColor("blue"))
+        pen.setWidth(2)
+        self.setPen(pen)
+        self.setZValue(-1)
+
+        self.dragging_start = False
+        self.dragging_end = False
+
+        if self.start_node:
+            self.start_node.add_connection(self)
+        if self.end_node:
+            self.end_node.add_connection(self)
+
+        self.update_position()
+
+    # -- utility helpers -------------------------------------------------
+    def _handle_pos(self, node, flag):
+        handle = getattr(node, f"link_handle_{flag}", None)
+        if handle:
+            return handle.mapToScene(handle.rect().center())
+        return node.mapToScene(node.rect().center())
+
+    def update_position(self):
+        if not (self.start_node and self.end_node):
+            return
+        start = self._handle_pos(self.start_node, self.start_handle)
+        end = self._handle_pos(self.end_node, self.end_handle)
+        self.setLine(QLineF(start, end))
+
+    def detach(self):
+        if self.start_node:
+            self.start_node.remove_connection(self)
+        if self.end_node:
+            self.end_node.remove_connection(self)
+
+    # -- mouse interaction -----------------------------------------------
+    def find_node_item(self, item):
+        while item is not None:
+            if hasattr(item, 'setLinkHandlesVisible'):
+                return item
+            item = item.parentItem()
+        return None
+
+    def _target_handle_at(self, scene_pos):
+        if not self.scene() or not self.scene().views():
+            return None, None
+        view = self.scene().views()[0]
+        item_at_pos = self.scene().itemAt(scene_pos, view.transform())
+        node = self.find_node_item(item_at_pos)
+        if not node:
+            return None, None
+        for handle in (node.link_handle_top, node.link_handle_bottom,
+                       node.link_handle_left, node.link_handle_right):
+            pos_in_handle = handle.mapFromScene(scene_pos)
+            if handle.contains(pos_in_handle):
+                return node, handle.handle_position_flag
+        return None, None
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            start = self._handle_pos(self.start_node, self.start_handle)
+            end = self._handle_pos(self.end_node, self.end_handle)
+            if (start - event.scenePos()).manhattanLength() < 8:
+                self.dragging_start = True
+                event.accept()
+                return
+            if (end - event.scenePos()).manhattanLength() < 8:
+                self.dragging_end = True
+                event.accept()
+                return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if self.dragging_start:
+            self.setLine(QLineF(event.scenePos(), self._handle_pos(self.end_node, self.end_handle)))
+            event.accept()
+            return
+        if self.dragging_end:
+            self.setLine(QLineF(self._handle_pos(self.start_node, self.start_handle), event.scenePos()))
+            event.accept()
+            return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if (self.dragging_start or self.dragging_end) and event.button() == Qt.LeftButton:
+            node, flag = self._target_handle_at(event.scenePos())
+            if node and flag:
+                if self.dragging_start:
+                    self.start_node.remove_connection(self)
+                    self.start_node = node
+                    self.start_handle = flag
+                    node.add_connection(self)
+                else:
+                    self.end_node.remove_connection(self)
+                    self.end_node = node
+                    self.end_handle = flag
+                    node.add_connection(self)
+            self.dragging_start = self.dragging_end = False
+            self.update_position()
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
 
 class LinkHandle(QGraphicsEllipseItem):
     def __init__(self, parent_node, handle_position_flag, radius=6, logger=None):
@@ -159,10 +275,19 @@ class LinkHandle(QGraphicsEllipseItem):
                 view = self.scene().views()[0]
                 item_at_pos = self.scene().itemAt(release_pos, view.transform())
             target_node = self.find_node_item(item_at_pos)
-            if target_node and hasattr(target_node, 'is_node_item') and target_node != self.parent_node:
-                # Finalize the link between self.parent_node and target_node.
-                # e.g. self.scene().create_link(self.parent_node, target_node)
-                pass
+            target_flag = None
+            if target_node and target_node != self.parent_node:
+                for handle in (target_node.link_handle_top, target_node.link_handle_bottom,
+                               target_node.link_handle_left, target_node.link_handle_right):
+                    pos_in_handle = handle.mapFromScene(release_pos)
+                    if handle.contains(pos_in_handle):
+                        target_flag = handle.handle_position_flag
+                        break
+            if target_node and target_flag:
+                connection = ConnectionItem(self.parent_node, self.handle_position_flag,
+                                            target_node, target_flag)
+                if self.scene():
+                    self.scene().addItem(connection)
 
             event.accept()
         else:
@@ -255,6 +380,8 @@ class NodeItem(QGraphicsEllipseItem):
         self.logger.debug("Dropping node id: %s", self.id)
         self.width = width
         self.height = height
+        self.connections = set()
+        self.pending_connections = []
 
         # Make the ellipse easy to see:
         self.setPen(QPen(QColor("black"), 2))   # black outline, 2 px thick
@@ -341,24 +468,6 @@ class NodeItem(QGraphicsEllipseItem):
         new_pos = snapped_center - QPointF(self.width / 2, self.height / 2)
         self.setPos(new_pos)
 
-    def itemChange(self, change, value):
-
-        if change == QGraphicsItem.ItemSelectedHasChanged:
-            self.setHandlesVisible(bool(value))
-        elif change == QGraphicsItem.ItemPositionChange:
-            grid_size = 25  # grid spacing in pixels
-            # 'value' is the proposed new top-left position.
-            # Compute the center:
-            center = value + QPointF(self.width / 2, self.height / 2)
-            # Snap the center to the nearest grid intersection.
-            snapped_center_x = round(center.x() / grid_size) * grid_size
-            snapped_center_y = round(center.y() / grid_size) * grid_size
-            snapped_center = QPointF(snapped_center_x, snapped_center_y)
-            # Compute new top-left so that the node's center is at the snapped point.
-            new_pos = snapped_center - QPointF(self.width / 2, self.height / 2)
-            return new_pos
-        return super().itemChange(change, value)
-
     def setHandlesVisible(self, visible):
         """Hide or show the 4 corner handles."""
         self.handle_top_left.setVisible(visible)
@@ -372,18 +481,6 @@ class NodeItem(QGraphicsEllipseItem):
         self.link_handle_bottom.setVisible(visible)
         self.link_handle_right.setVisible(visible)
         self.link_handle_left.setVisible(visible)
-
-    def setSizeKeepCenter(self, new_w, new_h):
-        """
-        Resize around the node's center in scene coords.
-        """
-        old_center = self.mapToScene(self.width / 2, self.height / 2)
-        self.width = new_w
-        self.height = new_h
-        self.setRect(0, 0, new_w, new_h)
-        new_center = self.mapToScene(self.width / 2, self.height / 2)
-        offset = old_center - new_center
-        self.setPos(self.pos() + offset)
 
     def update_node_layout(self):
         """
@@ -410,6 +507,8 @@ class NodeItem(QGraphicsEllipseItem):
         # Re-center the text
         self.center_text_item()
 
+        self.notify_connections()
+
     def center_text_item(self):
         """
         Position the text in the middle of the ellipse.
@@ -421,3 +520,74 @@ class NodeItem(QGraphicsEllipseItem):
         new_x = (self.width - txt_bounds.width()) / 2
         new_y = (self.height - txt_bounds.height()) / 2
         self.text_item.setPos(new_x, new_y)
+
+    # ------------------------------------------------------------------
+    # Connection management
+    def add_connection(self, connection):
+        if not hasattr(self, 'connections'):
+            self.connections = set()
+        self.connections.add(connection)
+
+    def remove_connection(self, connection):
+        if hasattr(self, 'connections'):
+            self.connections.discard(connection)
+
+    def notify_connections(self):
+        if hasattr(self, 'connections'):
+            for conn in list(self.connections):
+                conn.update_position()
+
+    def itemChange(self, change, value):
+        if change == QGraphicsItem.ItemSelectedHasChanged:
+            self.setHandlesVisible(bool(value))
+        elif change == QGraphicsItem.ItemPositionChange:
+            grid_size = 25
+            center = value + QPointF(self.width / 2, self.height / 2)
+            snapped_center_x = round(center.x() / grid_size) * grid_size
+            snapped_center_y = round(center.y() / grid_size) * grid_size
+            snapped_center = QPointF(snapped_center_x, snapped_center_y)
+            new_pos = snapped_center - QPointF(self.width / 2, self.height / 2)
+            return new_pos
+        elif change == QGraphicsItem.ItemPositionHasChanged:
+            self.notify_connections()
+        return super().itemChange(change, value)
+
+    def setSizeKeepCenter(self, new_w, new_h):
+        old_center = self.mapToScene(self.width / 2, self.height / 2)
+        self.width = new_w
+        self.height = new_h
+        self.setRect(0, 0, new_w, new_h)
+        new_center = self.mapToScene(self.width / 2, self.height / 2)
+        offset = old_center - new_center
+        self.setPos(self.pos() + offset)
+        self.notify_connections()
+
+    # ------------------------------------------------------------------
+    # Serialization helpers
+    def serialize(self):
+        return {
+            "id": self.id,
+            "pos": [self.pos().x(), self.pos().y()],
+            "width": self.width,
+            "height": self.height,
+            "text": self.text_item.toPlainText(),
+            "connections": [
+                {
+                    "target": c.end_node.id,
+                    "start_handle": c.start_handle,
+                    "end_handle": c.end_handle,
+                }
+                for c in getattr(self, 'connections', []) if c.start_node is self
+            ],
+        }
+
+    def deserialize(self, data):
+        self.id = data.get("id", self.id)
+        self.width = data.get("width", self.width)
+        self.height = data.get("height", self.height)
+        self.text_item.setPlainText(data.get("text", self.text_item.toPlainText()))
+        self.update_node_layout()
+        pos = data.get("pos", [0, 0])
+        self.setPos(QPointF(pos[0], pos[1]))
+        self.pending_connections = data.get("connections", [])
+
