@@ -181,11 +181,22 @@ class MindMapScreen(QWidget):
         if fileName:
             with open(fileName, 'r') as f:
                 nodes_data = json.load(f)
-            self.clear_map()  # Clear existing items in the scene.
+            self.clear_map()
+            node_map = {}
             for node_data in nodes_data:
                 node = NodeItem(0, 0, logger=self.logger)
                 node.deserialize(node_data)
+                node_map[node.id] = node
                 self.scene.addItem(node)
+
+            # Create connections after all nodes are present
+            for node_data in nodes_data:
+                source = node_map.get(node_data.get("id"))
+                for conn in node_data.get("connections", []):
+                    target = node_map.get(conn.get("target"))
+                    if source and target:
+                        citem = ConnectionItem(source, conn.get("start_handle"), target, conn.get("end_handle"))
+                        self.scene.addItem(citem)
 
     def clear_map(self):
         # Remove all items from the scene.
