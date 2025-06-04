@@ -69,29 +69,13 @@ class GridLayout(QWidget):
         # Set initial card visibility based on filters
         # If no filter provided, show all cards by default
         if self.filter is not None:
-            # print("filter is not none")
             self.onFilterChanged(self.filter, "init")
         else:
             # Make all cards visible by default if no filter
-            # print("filter is none")
             self.visibleCards = self.taskCards.copy()
-        
-        # Force a rearrangement of the layout with the visible cards
-        # self.rearrangeGridLayout
 
     def load_known_tasks(self):
         self.tasks = load_tasks_from_json(self.logger)
-
-    # def resizeEvent(self, event: QResizeEvent):
-    #     super().resizeEvent(event)
-        
-    #     if not self.initComplete:  # Prevent updates before UI is ready
-    #         return
-
-    #     if event.oldSize().width() == event.size().width():  # Ignore height-only changes
-    #         return
-    #     print(f"Resize event calling reaarange in {self.grid_title}")
-    #     self.rearrangeGridLayout()
 
     def initUI(self):
         self.initCentralWidget()
@@ -110,9 +94,6 @@ class GridLayout(QWidget):
         self.manage_tasks_widget = QWidget()
         self.manage_tasks_layout = QHBoxLayout(self.manage_tasks_widget)  
         self.manage_tasks_layout.setContentsMargins(0, 5, 15, 5)
-        # task_header = QLabel("Current Tasks")
-        # # print("in grid layout")
-        # task_header.setStyleSheet(AppStyles.label_lgfnt())
 
         filter_button = FilterButton()
 
@@ -136,7 +117,6 @@ class GridLayout(QWidget):
         filter_button.filtersChanged.connect(self.onFilterChanged)
 
         self.manage_tasks_layout.addSpacerItem(QSpacerItem(20, 20, QSizePolicy.Expanding, QSizePolicy.Minimum))
-        # self.manage_tasks_layout.addWidget(task_header)
         self.manage_tasks_layout.addWidget(filter_button)
         self.manage_tasks_layout.addStretch(1)
 
@@ -157,11 +137,8 @@ class GridLayout(QWidget):
             parent = parent.parent()
         
         # Now parent should be the top-level window
-        # print("self.screen_width")
         self.min_spacing = 20
         self.num_columns = int(max(1, self.grid_width / (self.card_width + self.min_spacing)))
-        # print(f"size calc: {self.screen_width} // {self.card_width + self.min_spacing}")
-        # print(f"Num of columns {self.grid_title}: {self.num_columns}")
         self.grid_layout = QGridLayout()
         self.grid_layout.setContentsMargins(0, 0, 0, 0)
         self.grid_layout.setAlignment(Qt.AlignTop)  # Set top alignment for entire grid
@@ -178,8 +155,7 @@ class GridLayout(QWidget):
 
     def rearrangeGridLayout(self):
         """Rearrange the grid layout using the visibleCards list"""
-        # print(f"rearrangement called")
-        
+
         try:
             # Clear the current layout
             while self.grid_layout.count():
@@ -192,15 +168,10 @@ class GridLayout(QWidget):
             task_card_lite.screen_width = self.grid_width
             self.card_width, self.card_height = TaskCardLite.calculate_optimal_card_size()
             total_card_space = self.card_width + self.min_spacing
-            # print(f"Grid Title: {self.grid_title}")
-            # print(self.grid_width)
-            # print(total_card_space)
             
             # Calculate optimal number of columns
             num_cards_fit = int(self.grid_width / total_card_space)
-            # print(num_cards_fit)
             new_num_columns = max(1, num_cards_fit)
-            # print(f"num_col: {new_num_columns}")
             self.num_columns = new_num_columns
             
             # Reset position counters
@@ -209,7 +180,6 @@ class GridLayout(QWidget):
             
             # Add only visible cards to the layout
             for card in self.visibleCards:
-                # print(f"Setting visible card at: {self.current_row}, {self.current_column}")
                 self.grid_layout.addWidget(
                     card,
                     self.current_row,
@@ -229,9 +199,6 @@ class GridLayout(QWidget):
             # Mark as initialized
             self.initComplete = True
             
-            # Update the layout
-            # self.grid_layout.update()
-            
         except Exception as e:
             print(f"Error in rearrangeGridLayout: {e}")
             import traceback
@@ -239,7 +206,6 @@ class GridLayout(QWidget):
 
     def addTaskCard(self):
         self.setProperty("source", "add card")
-        # print(f"Adding card in {self.grid_title}")
         for task_name, task in self.tasks.items():
             # Create card with Task object
             card = TaskCardLite(logger=self.logger, task=task)
@@ -265,10 +231,6 @@ class GridLayout(QWidget):
             if self.current_column >= self.num_columns:
                 self.current_column = 0
                 self.current_row += 1
-        
-        # print(f"addTaskCard calling reaarange in {self.grid_title}")
-        # self.rearrangeGridLayout()
-    
 
     def handleCardHover(self, is_hovering, row):
         self.setProperty("source", "hover")
@@ -300,7 +262,6 @@ class GridLayout(QWidget):
                     card.deleteLater()
                     
                     # Rearrange remaining cards
-                    # print(f"Remove task card calling reaarange in {self.grid_title}")
                     self.rearrangeGridLayout()
                     
                     break  # Break after finding the card
@@ -367,10 +328,6 @@ class GridLayout(QWidget):
                 self.visibleCards.append(card)
 
             self.taskCards = []
-
-        # print(f"{self.grid_title} has these card: {self.taskCards}")
-                
-        # Rearrange the layout with the updated visibleCards
-        # print(f"On filter changed calling reaarange in {self.grid_title} from sender: {sender}")
+            
         self.rearrangeGridLayout()
         
