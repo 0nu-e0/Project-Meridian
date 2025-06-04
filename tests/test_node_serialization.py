@@ -100,7 +100,7 @@ for name in [
     'QLineEdit','QCalendarWidget','QToolButton','QSpinBox','QListWidget',
     'QTabWidget','QGraphicsRectItem','QMessageBox','QInputDialog','QListWidgetItem',
     'QScrollArea','QTreeWidget','QTreeWidgetItem','QFileDialog','QStyleFactory',
-    'QListView','QLayout','QSplitter']:
+    'QListView','QLayout','QSplitter','QGraphicsPathItem']:
     setattr(qtwidgets, name, type(name, (), {}))
 
 sys.modules["PyQt5.QtWidgets"] = qtwidgets
