@@ -89,8 +89,9 @@ class AppConfig:
         """
         if self.system == "Windows":
             # Windows: AppData\Local\{app_name}
-            print(f"Path name: {os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~\\AppData\\Local")), self.app_name)}")
-            return os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~\\AppData\\Local")), self.app_name)
+            win_base = os.environ.get('LOCALAPPDATA', os.path.expanduser(r'~\\AppData\\Local'))
+            print(f"Path name: {os.path.join(win_base, self.app_name)}")
+            return os.path.join(win_base, self.app_name)
         elif self.system == "Darwin":
             # macOS: ~/Library/Application Support/{app_name}
             return os.path.join(os.path.expanduser("~"), "Library", "Application Support", self.app_name)
