@@ -130,57 +130,97 @@ class TaskCardLite(QWidget):
         self.row_position = row
 
     def createHoverOverlay(self):
-        """Create the overlay widget containing the expanded card UI."""
+        """Create a standalone overlay (top‐level) so it isn’t clipped by parent layouts."""
         if self.hoverOverlay is not None:
             return
 
-        self.hoverOverlay = QWidget(self.parentWidget())
+        # 1) Make it a child of the main window (so it’s “above” all grid cells)
+        main_window = self.window()
+        self.hoverOverlay = QWidget(main_window)
         self.hoverOverlay.setObjectName("card_container")
         self.hoverOverlay.setStyleSheet(self.styleSheet())
 
-        # Allow the overlay to receive mouse events so we can detect when the
-        # cursor leaves it
+        # 2) Remove window decorations and make it act like a popup
+        self.hoverOverlay.setWindowFlags(
+            Qt.FramelessWindowHint | Qt.ToolTip
+        )
+        self.hoverOverlay.setAttribute(Qt.WA_TranslucentBackground, True)
+        # We want the overlay to receive mouse events (to detect leave)
         self.hoverOverlay.setAttribute(Qt.WA_TransparentForMouseEvents, False)
-        # Listen for events on the overlay
         self.hoverOverlay.installEventFilter(self)
 
-
+        # 3) Build its internal layout exactly as before
         layout = QVBoxLayout(self.hoverOverlay)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        # Temporarily use the overlay layout to build the expanded UI
         original_layout = self.main_layout
         self.main_layout = layout
         self.generateExpandedUI()
         self.main_layout = original_layout
-        self.hoverOverlay.adjustSize()
+
+        # 4) Fix the overlay’s width to match the collapsed card’s width
+        self.hoverOverlay.setFixedWidth(self.card_width)
+
+        # 5) Let Qt compute needed height (it will only grow vertically because width is fixed)
+        self.hoverOverlay.setFixedHeight(int(self.card_height * 1.75))
+
+        # 6) Ensure text labels wrap inside that fixed width
+        for label in self.hoverOverlay.findChildren(QLabel):
+            label.setWordWrap(True)
+            # subtract any layout margins/padding (e.g. total 16px)
+            label.setMaximumWidth(self.card_width - 16)
+
+        # Initially hidden; we’ll show() when hovering
         self.hoverOverlay.hide()
 
     def showHoverOverlay(self):
+        # If not created yet, do so
         self.createHoverOverlay()
-        if self.hoverOverlay:
-            pos = self.mapToParent(QPoint(0, 0))
-            self.hoverOverlay.move(pos)
-            self.hoverOverlay.raise_()
-            self.hoverOverlay.show()
+
+        # 1) Compute global position of the top‐left corner of this card
+        #    (so the overlay sits exactly on top)
+        global_pos = self.mapToGlobal(QPoint(0, 0))
+
+        # 2) Move the overlay to that position
+        self.hoverOverlay.move(global_pos)
+
+        # 3) Raise it above everything and show
+        self.hoverOverlay.raise_()
+        self.hoverOverlay.show()
 
     def hideHoverOverlay(self):
-        if self.hoverOverlay:
-            # Store a reference and clear attribute first to avoid reentrancy
-            overlay = self.hoverOverlay
-            self.hoverOverlay = None
-            # Hiding the widget can trigger additional leave events, so we
-            # release our reference before performing any actions
-            overlay.hide()
-            overlay.deleteLater()
+        if not self.hoverOverlay:
+            return
+
+        overlay = self.hoverOverlay
+        self.hoverOverlay = None
+        overlay.hide()
+        overlay.deleteLater()
+
+    def enterEvent(self, event):
+        self.expanded = True
+        self.shadow.setBlurRadius(25)
+        self.showHoverOverlay()
+        self.cardHovered.emit(True, self.row_position)
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        # If the mouse is still inside the overlay itself, don’t hide yet
+        if self.hoverOverlay and self.hoverOverlay.underMouse():
+            return
+
+        self.expanded = False
+        self.shadow.setBlurRadius(15)
+        self.cardHovered.emit(False, self.row_position)
+        self.hideHoverOverlay()
+        super().leaveEvent(event)
 
     def eventFilter(self, watched, event):
-        """Handle events from the hover overlay."""
-        if watched is self.hoverOverlay:
-            if event.type() == QEvent.Leave:
-                self.hideHoverOverlay()
-                return True
+        # Catch leave‐events from the overlay and close it
+        if watched is self.hoverOverlay and event.type() == QEvent.Leave:
+            self.hideHoverOverlay()
+            return True
         return super().eventFilter(watched, event)
 
     def setExpanded(self, expanded):
@@ -380,6 +420,8 @@ class TaskCardLite(QWidget):
                 padding: 8px;
             }
         """)
+        desc_label.setWordWrap(True)
+        desc_label.setMaximumWidth(self.card_width - (int(self.card_width * 0.75)))
         desc_label.setMinimumHeight(60)
         card_layout.addWidget(desc_label, 2, 0, 1, 2)
 

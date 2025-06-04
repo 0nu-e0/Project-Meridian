@@ -15,9 +15,9 @@ from PyQt5.QtWidgets import (QApplication, QDesktopWidget, QGraphicsLineItem, QG
                              QSizePolicy, QGridLayout, QPushButton, QGraphicsDropShadowEffect, QStyle, QComboBox, QTextEdit,
                              QDateTimeEdit, QLineEdit, QCalendarWidget, QToolButton, QSpinBox, QListWidget, QTabWidget, QGraphicsRectItem,
                              QMessageBox, QInputDialog, QListWidgetItem, QScrollArea, QTreeWidget, QTreeWidgetItem, QFileDialog,
-                             QStyleFactory, QListView, QLayout
+                             QStyleFactory, QListView, QLayout, 
                              )
-from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot, QEvent, QSize, QDateTime, QUrl, QTimer, QPointF
+from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot, QEvent, QSize, QDateTime, QUrl, QTimer, QPointF, QLineF
 from PyQt5.QtGui import (QColor, QPainter, QBrush, QPen, QMovie, QTextCharFormat, QColor, QIcon, QPixmap, QDesktopServices, 
                         
                         )
