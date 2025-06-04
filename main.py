@@ -31,7 +31,7 @@
 import os, yaml, logging, sys, asyncio, json, qasync, ctypes
 from utils.directory_finder import resource_path
 from utils.dashboard_config import DashboardConfigManager
-from utils.directory_migragtion import migrate_data_if_needed
+from utils.directory_migration import migrate_data_if_needed
 from ui.welcome_screen import WelcomeScreen
 from ui.dashboard_screen import DashboardScreen
 from ui.notes_screen import NotesScreen
