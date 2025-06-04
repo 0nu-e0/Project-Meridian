@@ -384,7 +384,7 @@ def save_task_to_json(task, logger):
             ]
         }
         
-        print(f"Saving update: {task_data["category"]}")
+        print(f"Saving update: {task_data['category']}")
 
         # Clean up None values for cleaner JSON
         task_data = {k: v for k, v in task_data.items() if v is not None}
