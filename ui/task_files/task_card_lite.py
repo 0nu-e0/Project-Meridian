@@ -33,7 +33,7 @@ from resources.styles import AppStyles, AnimatedButton
 from PyQt5.QtWidgets import (QApplication, QDesktopWidget, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QSpacerItem, 
                              QSizePolicy, QGridLayout, QPushButton, QGraphicsDropShadowEffect, QStyle
                              )
-from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot
+from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot, QPoint
 from PyQt5.QtGui import QColor, QPainter, QBrush, QPen, QMovie
 from PyQt5.QtSvg import QSvgWidget
 
@@ -82,6 +82,9 @@ class TaskCardLite(QWidget):
         self.row_position = 0
         self.original_height = self.card_height
         self.expanded_height = self.original_height * 1.5
+
+        # Overlay widget for hover expansion
+        self.hoverOverlay = None
         
         # Add shadow effect
         self.shadow = QGraphicsDropShadowEffect(self)
@@ -101,6 +104,11 @@ class TaskCardLite(QWidget):
     def enterEvent(self, event):
         self.expanded = True
         self.shadow.setBlurRadius(25)
+        # Prepare overlay and position it
+        self.createHoverOverlay()
+        if self.hoverOverlay:
+            pos = self.mapToParent(QPoint(0, 0))
+            self.hoverOverlay.move(pos)
         self.cardHovered.emit(True, self.row_position)
         super().enterEvent(event)
 
@@ -108,6 +116,7 @@ class TaskCardLite(QWidget):
         self.expanded = False
         self.shadow.setBlurRadius(15)
         self.cardHovered.emit(False, self.row_position)
+        self.hideHoverOverlay()
         super().leaveEvent(event)
 
     def mousePressEvent(self, event):
@@ -118,12 +127,41 @@ class TaskCardLite(QWidget):
     def setRowPosition(self, row):
         self.row_position = row
 
-    def setExpanded(self, expanded):
-        if expanded:
-            self.setFixedHeight(int(self.expanded_height))  # Prevents layout shifting
-        else:
-            self.setFixedHeight(int(self.original_height))
+    def createHoverOverlay(self):
+        """Create the overlay widget containing the expanded card UI."""
+        if self.hoverOverlay is not None:
+            return
 
+        self.hoverOverlay = QWidget(self.parentWidget())
+        self.hoverOverlay.setObjectName("card_container")
+        self.hoverOverlay.setStyleSheet(self.styleSheet())
+        layout = QVBoxLayout(self.hoverOverlay)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        # Temporarily use the overlay layout to build the expanded UI
+        original_layout = self.main_layout
+        self.main_layout = layout
+        self.generateExpandedUI()
+        self.main_layout = original_layout
+        self.hoverOverlay.adjustSize()
+        self.hoverOverlay.hide()
+
+    def showHoverOverlay(self):
+        self.createHoverOverlay()
+        if self.hoverOverlay:
+            pos = self.mapToParent(QPoint(0, 0))
+            self.hoverOverlay.move(pos)
+            self.hoverOverlay.raise_()
+            self.hoverOverlay.show()
+
+    def hideHoverOverlay(self):
+        if self.hoverOverlay:
+            self.hoverOverlay.hide()
+            self.hoverOverlay.deleteLater()
+            self.hoverOverlay = None
+
+    def setExpanded(self, expanded):
         self.updateContent(expanded)
         self.update()  # Force a repaint
 
