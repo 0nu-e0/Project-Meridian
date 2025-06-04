@@ -20,7 +20,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 # -----------------------------------------------------------------------------
-# File: app_confg.py
+# File: app_config.py
 # Description: Class to handle application configuration, including system detection
 # and data directory management.
 # Author: Jereme Shaver
