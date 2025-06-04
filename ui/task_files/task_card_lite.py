@@ -138,13 +138,6 @@ class TaskCardLite(QWidget):
         self.hoverOverlay.setObjectName("card_container")
         self.hoverOverlay.setStyleSheet(self.styleSheet())
 
-        # Allow the overlay to receive mouse events so we can detect when the
-        # cursor leaves it
-        self.hoverOverlay.setAttribute(Qt.WA_TransparentForMouseEvents, False)
-        # Listen for events on the overlay
-        self.hoverOverlay.installEventFilter(self)
-
-
         layout = QVBoxLayout(self.hoverOverlay)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
@@ -167,9 +160,21 @@ class TaskCardLite(QWidget):
 
     def hideHoverOverlay(self):
         if self.hoverOverlay:
-            self.hoverOverlay.hide()
-            self.hoverOverlay.deleteLater()
+            # Store a reference and clear attribute first to avoid reentrancy
+            overlay = self.hoverOverlay
             self.hoverOverlay = None
+            # Hiding the widget can trigger additional leave events, so we
+            # release our reference before performing any actions
+            overlay.hide()
+            overlay.deleteLater()
+
+    def eventFilter(self, watched, event):
+        """Handle events from the hover overlay."""
+        if watched is self.hoverOverlay:
+            if event.type() == QEvent.Leave:
+                self.hideHoverOverlay()
+                return True
+        return super().eventFilter(watched, event)
 
     def eventFilter(self, watched, event):
         """Handle events from the hover overlay."""
