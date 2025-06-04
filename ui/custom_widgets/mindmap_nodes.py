@@ -405,3 +405,33 @@ class NodeItem(QGraphicsEllipseItem):
         new_x = (self.width - txt_bounds.width()) / 2
         new_y = (self.height - txt_bounds.height()) / 2
         self.text_item.setPos(new_x, new_y)
+
+    def serialize(self):
+        """Return a JSON serializable representation of this node."""
+        pos = self.pos()
+        return {
+            "id": self.id,
+            "text": self.text_item.toPlainText(),
+            "width": self.width,
+            "height": self.height,
+            "position": {"x": pos.x(), "y": pos.y()},
+        }
+
+    def deserialize(self, data: dict):
+        """Restore the node state from ``data`` produced by :meth:`serialize`."""
+        self.id = data.get("id", self.id)
+        self.width = data.get("width", self.width)
+        self.height = data.get("height", self.height)
+        self.text_item.setPlainText(data.get("text", ""))
+
+        # Update geometry and layout
+        if hasattr(self, "setRect"):
+            self.setRect(0, 0, self.width, self.height)
+        if hasattr(self, "update_node_layout"):
+            self.update_node_layout()
+
+        pos = data.get("position", {})
+        x = pos.get("x", 0)
+        y = pos.get("y", 0)
+        if hasattr(self, "setPos"):
+            self.setPos(x, y)
