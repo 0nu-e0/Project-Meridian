@@ -41,8 +41,8 @@ from PyQt5.QtWidgets import (QApplication, QDesktopWidget, QGraphicsScene, QGrap
                              QStyleFactory, QListView, QLayout, 
                              )
 from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot, QEvent, QSize, QDateTime, QUrl, QTimer, QLineF
-from PyQt5.QtGui import (QColor, QPainter, QBrush, QPen, QMovie, QTextCharFormat, QColor, QIcon, QPixmap, QDesktopServices, QTransform
-                        
+from PyQt5.QtGui import (QColor, QPainter, QBrush, QPen, QMovie, QTextCharFormat, QColor, QIcon, QPixmap, QDesktopServices
+
                         )
 from PyQt5.QtSvg import QSvgWidget
 
@@ -78,18 +78,27 @@ class MindMapScreen(QWidget):
         # We filter mouse move events
         if event.type() == QEvent.GraphicsSceneMouseMove:
             pos = event.scenePos()
-            # Find the top-most item under the mouse.
-            item = self.itemAt(pos, QTransform())
-            # If the item is a NodeItem, show its link handles.
-            # If not, iterate over all NodeItems to hide their link handles.
-            if item and hasattr(item, 'setLinkHandlesVisible'):
-                item.setLinkHandlesVisible(True)
+            # Query the scene directly for the item under the mouse using the
+            # view's current transform.
+            item = self.scene.itemAt(pos, self.view.transform())
+
+            # Walk up the parent chain to find a node item (has
+            # setLinkHandlesVisible) if the immediate item isn't a node itself.
+            node = item
+            while node and not hasattr(node, 'setLinkHandlesVisible'):
+                node = node.parentItem()
+
+            if node and hasattr(node, 'setLinkHandlesVisible'):
+                node.setLinkHandlesVisible(True)
+                # Hide link handles for all other nodes
+                for other in self.scene.items():
+                    if other is not node and hasattr(other, 'setLinkHandlesVisible'):
+                        other.setLinkHandlesVisible(False)
             else:
-                # Hide link handles for all nodes that are not under the mouse.
-                # (You could maintain a list of nodes or traverse the scene items.)
-                for node in self.items():
-                    if hasattr(node, 'setLinkHandlesVisible'):
-                        node.setLinkHandlesVisible(False)
+                # Hide link handles for all nodes when nothing relevant is hovered
+                for other in self.scene.items():
+                    if hasattr(other, 'setLinkHandlesVisible'):
+                        other.setLinkHandlesVisible(False)
         return super().eventFilter(watched, event)
 
     def initUI(self):
@@ -155,7 +164,7 @@ class MindMapScreen(QWidget):
 
     def add_node(self):
         # Create a new node and add it to the scene.
-        node = NodeItem(0, 0, text="New Node")
+        node = NodeItem(0, 0, text="New Node", logger=self.logger)
         self.scene.addItem(node)
 
     def save_mind_map(self):
@@ -175,7 +184,7 @@ class MindMapScreen(QWidget):
             self.clear_map()
             node_map = {}
             for node_data in nodes_data:
-                node = NodeItem(0, 0)
+                node = NodeItem(0, 0, logger=self.logger)
                 node.deserialize(node_data)
                 node_map[node.id] = node
                 self.scene.addItem(node)

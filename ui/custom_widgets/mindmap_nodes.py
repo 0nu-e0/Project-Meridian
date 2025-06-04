@@ -1,6 +1,7 @@
 
 
 import sys, os, json, copy
+import logging
 from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
@@ -22,6 +23,9 @@ from PyQt5.QtGui import (QColor, QPainter, QBrush, QPen, QMovie, QTextCharFormat
                         )
 
 from PyQt5.QtSvg import QSvgWidget
+
+logger = logging.getLogger(__name__)
+
 
 
 class ConnectionItem(QGraphicsLineItem):
@@ -137,12 +141,12 @@ class ConnectionItem(QGraphicsLineItem):
             return
         super().mouseReleaseEvent(event)
 
-
 class LinkHandle(QGraphicsEllipseItem):
-    def __init__(self, parent_node, handle_position_flag, radius=6):
+    def __init__(self, parent_node, handle_position_flag, radius=6, logger=None):
         super().__init__(0, 0, radius * 2, radius * 2, parent_node)
         self.parent_node = parent_node
         self.handle_position_flag = handle_position_flag
+        self.logger = logger or logging.getLogger(__name__)
 
         # Style: gray fill, no outline
         self.setBrush(QBrush(QColor(150, 150, 150)))
@@ -203,8 +207,12 @@ class LinkHandle(QGraphicsEllipseItem):
                 current_pos.x(), current_pos.y()
             )
             
-            # Print the source (originating) node's info.
-            print(f"Source node id: {self.parent_node.id}, handle: {self.handle_position_flag}")
+            # Log the source (originating) node's info.
+            self.logger.debug(
+                "Source node id: %s, handle: %s",
+                self.parent_node.id,
+                self.handle_position_flag,
+            )
 
             # Iterate through all NodeItems in the scene.
             for item in self.scene().items():
@@ -226,9 +234,16 @@ class LinkHandle(QGraphicsEllipseItem):
                                 hovered_handle = handle
                                 break
                         if hovered_handle:
-                            print(f"Hovered node id: {item.id}, handle: {hovered_handle.handle_position_flag}")
+                            self.logger.debug(
+                                "Hovered node id: %s, handle: %s",
+                                item.id,
+                                hovered_handle.handle_position_flag,
+                            )
                         else:
-                            print(f"Hovered node id: {item.id}, but no specific handle hovered")
+                            self.logger.debug(
+                                "Hovered node id: %s, but no specific handle hovered",
+                                item.id,
+                            )
                         # Ensure the node shows its link handles.
                         item.setLinkHandlesVisible(True)
                     else:
@@ -358,10 +373,11 @@ class NodeItem(QGraphicsEllipseItem):
       - Grows if text is bigger than default
       - Movable, selectable, and snaps its center to grid intersections
     """
-    def __init__(self, width=120, height=80, text="Node", parent=None):
+    def __init__(self, width=120, height=80, text="Node", parent=None, logger=None):
         super().__init__(0, 0, width, height, parent)
+        self.logger = logger or logging.getLogger(__name__)
         self.id = str(uuid4())
-        print(f"Dropping node id: {self.id}")
+        self.logger.debug("Dropping node id: %s", self.id)
         self.width = width
         self.height = height
         self.connections = set()
@@ -402,10 +418,10 @@ class NodeItem(QGraphicsEllipseItem):
         self.handle_bottom_left = ResizeHandle(self, "bottom_left")
         self.handle_bottom_right = ResizeHandle(self, "bottom_right")
 
-        self.link_handle_top = LinkHandle(self, "top")
-        self.link_handle_bottom = LinkHandle(self, "bottom")
-        self.link_handle_right = LinkHandle(self, "right")
-        self.link_handle_left = LinkHandle(self, "left")
+        self.link_handle_top = LinkHandle(self, "top", logger=self.logger)
+        self.link_handle_bottom = LinkHandle(self, "bottom", logger=self.logger)
+        self.link_handle_right = LinkHandle(self, "right", logger=self.logger)
+        self.link_handle_left = LinkHandle(self, "left", logger=self.logger)
 
         # Hide the handles initially
         self.setHandlesVisible(False)
