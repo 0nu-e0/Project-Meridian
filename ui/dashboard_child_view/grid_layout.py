@@ -275,19 +275,10 @@ class GridLayout(QWidget):
         sender_card = self.sender()
 
         if sender_card and self.grid_title == sender_card.task.category.value:
-            sender_card.setExpanded(is_hovering)
-
-            parent_grid_section = self.parentWidget()  # Get the QWidget that holds this grid
-
-            if parent_grid_section:
-                parent_grid_section.setUpdatesEnabled(False)  # Prevent layout updates
-            
             if is_hovering:
-                sender_card.updateGeometry()  # Update only this card
-                self.setMinimumHeight(self.sizeHint().height())  # Only adjust this grid's height
-            
-            if parent_grid_section:
-                parent_grid_section.setUpdatesEnabled(True)  # Re-enable updates
+                sender_card.showHoverOverlay()
+            else:
+                sender_card.hideHoverOverlay()
 
 
     def handleCardClicked(self, task):
