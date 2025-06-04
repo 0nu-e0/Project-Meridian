@@ -170,33 +170,43 @@ class MindMapScreen(QWidget):
     def save_mind_map(self):
         # Serialize and save all NodeItems in the scene.
         nodes = [item.serialize() for item in self.scene.items() if isinstance(item, NodeItem)]
+        connections = getattr(self.scene, "connections", [])
+
+        data = {"nodes": nodes}
+        if connections:
+            data["connections"] = connections
+
         fileName, _ = QFileDialog.getSaveFileName(self, "Save Mind Map", "", "JSON Files (*.json)")
         if fileName:
             with open(fileName, 'w') as f:
-                json.dump(nodes, f, indent=4)
+                json.dump(data, f, indent=4)
 
     def load_mind_map(self):
         # Load and deserialize nodes from a JSON file.
         fileName, _ = QFileDialog.getOpenFileName(self, "Load Mind Map", "", "JSON Files (*.json)")
         if fileName:
             with open(fileName, 'r') as f:
-                nodes_data = json.load(f)
-            self.clear_map()
-            node_map = {}
+
+                data = json.load(f)
+
+            if isinstance(data, list):
+                nodes_data = data
+                connections_data = []
+            else:
+                nodes_data = data.get("nodes", [])
+                connections_data = data.get("connections", [])
+
+            self.clear_map()  # Clear existing items in the scene.
+
             for node_data in nodes_data:
                 node = NodeItem(0, 0, logger=self.logger)
                 node.deserialize(node_data)
                 node_map[node.id] = node
                 self.scene.addItem(node)
 
-            # Create connections after all nodes are present
-            for node_data in nodes_data:
-                source = node_map.get(node_data.get("id"))
-                for conn in node_data.get("connections", []):
-                    target = node_map.get(conn.get("target"))
-                    if source and target:
-                        citem = ConnectionItem(source, conn.get("start_handle"), target, conn.get("end_handle"))
-                        self.scene.addItem(citem)
+            # Placeholder for future connection handling
+            if connections_data and hasattr(self.scene, "connections"):
+                self.scene.connections = connections_data
 
     def clear_map(self):
         # Remove all items from the scene.

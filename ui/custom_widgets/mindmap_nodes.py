@@ -521,6 +521,35 @@ class NodeItem(QGraphicsEllipseItem):
         new_y = (self.height - txt_bounds.height()) / 2
         self.text_item.setPos(new_x, new_y)
 
+    def serialize(self):
+        """Return a JSON serializable representation of this node."""
+        pos = self.pos()
+        return {
+            "id": self.id,
+            "text": self.text_item.toPlainText(),
+            "width": self.width,
+            "height": self.height,
+            "position": {"x": pos.x(), "y": pos.y()},
+        }
+
+    def deserialize(self, data: dict):
+        """Restore the node state from ``data`` produced by :meth:`serialize`."""
+        self.id = data.get("id", self.id)
+        self.width = data.get("width", self.width)
+        self.height = data.get("height", self.height)
+        self.text_item.setPlainText(data.get("text", ""))
+
+        # Update geometry and layout
+        if hasattr(self, "setRect"):
+            self.setRect(0, 0, self.width, self.height)
+        if hasattr(self, "update_node_layout"):
+            self.update_node_layout()
+
+        pos = data.get("position", {})
+        x = pos.get("x", 0)
+        y = pos.get("y", 0)
+        if hasattr(self, "setPos"):
+            self.setPos(x, y)
     # ------------------------------------------------------------------
     # Connection management
     def add_connection(self, connection):
@@ -562,32 +591,4 @@ class NodeItem(QGraphicsEllipseItem):
         self.setPos(self.pos() + offset)
         self.notify_connections()
 
-    # ------------------------------------------------------------------
-    # Serialization helpers
-    def serialize(self):
-        return {
-            "id": self.id,
-            "pos": [self.pos().x(), self.pos().y()],
-            "width": self.width,
-            "height": self.height,
-            "text": self.text_item.toPlainText(),
-            "connections": [
-                {
-                    "target": c.end_node.id,
-                    "start_handle": c.start_handle,
-                    "end_handle": c.end_handle,
-                }
-                for c in getattr(self, 'connections', []) if c.start_node is self
-            ],
-        }
-
-    def deserialize(self, data):
-        self.id = data.get("id", self.id)
-        self.width = data.get("width", self.width)
-        self.height = data.get("height", self.height)
-        self.text_item.setPlainText(data.get("text", self.text_item.toPlainText()))
-        self.update_node_layout()
-        pos = data.get("pos", [0, 0])
-        self.setPos(QPointF(pos[0], pos[1]))
-        self.pending_connections = data.get("connections", [])
-
+  
