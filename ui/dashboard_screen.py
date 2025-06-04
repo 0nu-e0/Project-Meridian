@@ -140,7 +140,7 @@ class DashboardScreen(QWidget):
         for task in self.tasks.values():
             task_categories_dict[task.category.value].append(task)
 
-        print(f"Task Category Dict: {task_categories_dict}")
+        self.logger.debug(f"Task Category Dict: {task_categories_dict}")
 
         # Main container widget
         manage_header_widget = QWidget()
@@ -212,9 +212,11 @@ class DashboardScreen(QWidget):
         for idx, grid in enumerate(self.saved_grid_layouts):
             
 
-            print(f"Adding Grids for:: {grid.name}")
-            print(f"Grid Total: {grid}, type: {type(grid)}")
-            print(f"This thing: {grid.filter.category[0]}, type: {type(grid.filter.category[0])}")
+            self.logger.debug(f"Adding Grids for:: {grid.name}")
+            self.logger.debug(f"Grid Total: {grid}, type: {type(grid)}")
+            self.logger.debug(
+                f"This thing: {grid.filter.category[0]}, type: {type(grid.filter.category[0])}"
+            )
             
 
             if grid.filter.category[0] not in task_categories_dict:
@@ -272,7 +274,7 @@ class DashboardScreen(QWidget):
                 'due': grid.filter.due if hasattr(grid.filter, 'due') and grid.filter.due else []
             }
 
-            print(f"filter dict: {filter_dict}")
+            self.logger.debug(f"filter dict: {filter_dict}")
 
 
 
@@ -444,7 +446,7 @@ class DashboardScreen(QWidget):
         self.closeExpandedCard()
 
     def completeSaveActions(self):
-        print("closing layouts")
+        self.logger.debug("closing layouts")
         self.loadGridLayouts()
         self.clear_layout(self.task_layout_container)
         self.iterrateGridLayouts()
@@ -473,4 +475,4 @@ class DashboardScreen(QWidget):
             self.dialog_container.close()
             self.dialog_container.deleteLater()
             delattr(self, 'dialog_container')
-        print("Done")
+        self.logger.debug("Done")

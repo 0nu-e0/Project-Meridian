@@ -39,6 +39,7 @@ qtcore.QEvent = type('QEvent', (), {})
 qtcore.QDateTime = type('QDateTime', (), {})
 qtcore.QUrl = type('QUrl', (), {})
 qtcore.QTimer = type('QTimer', (), {})
+qtcore.QLineF = type('QLineF', (), {})
 qtcore.pyqtSignal = lambda *a, **k: None
 qtcore.pyqtSlot = lambda *a, **k: None
 sys.modules["PyQt5.QtCore"] = qtcore
