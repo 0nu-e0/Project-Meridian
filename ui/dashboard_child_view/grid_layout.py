@@ -200,9 +200,9 @@ class GridLayout(QWidget):
             self.initComplete = True
             
         except Exception as e:
-            print(f"Error in rearrangeGridLayout: {e}")
+            self.logger.error(f"Error in rearrangeGridLayout: {e}")
             import traceback
-            traceback.print_exc()
+            self.logger.error(traceback.format_exc())
 
     def addTaskCard(self):
         self.setProperty("source", "add card")
@@ -266,10 +266,9 @@ class GridLayout(QWidget):
                     
                     break  # Break after finding the card
             except Exception as e:
-                print(f"Error removing task card: {e}")
+                self.logger.error(f"Error removing task card: {e}")
 
-    @staticmethod
-    def clearGridLayout(layout):
+    def clearGridLayout(self, layout):
         try:
             # Remove all widgets from the given grid layout
             while layout.count():
@@ -278,7 +277,9 @@ class GridLayout(QWidget):
                 if widget is not None:
                     widget.deleteLater()
         except Exception as e:
-            print(f"Error in clearGridLayout: {e}")
+            self.logger.error(f"Error in clearGridLayout: {e}")
+            import traceback
+            self.logger.error(traceback.format_exc())
 
     def onFilterChanged(self, active_filters, sender=None):
 
