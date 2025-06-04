@@ -286,7 +286,10 @@ class GridLayout(QWidget):
         # Clear the visible cards list
         self.visibleCards = []
         
-        for card in self.taskCards:
+        # Preserve the existing cards so filtering only affects visibility
+        existing_cards = list(self.taskCards)
+
+        for card in existing_cards:
             # Default visibility
             show_card = True
             task = card.task
@@ -328,6 +331,7 @@ class GridLayout(QWidget):
                 self.visibleCards.append(card)
 
             self.taskCards = []
-            
+
+  
         self.rearrangeGridLayout()
         
