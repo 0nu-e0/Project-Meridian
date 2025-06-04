@@ -33,7 +33,7 @@ from resources.styles import AppStyles, AnimatedButton
 from PyQt5.QtWidgets import (QApplication, QDesktopWidget, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QSpacerItem, 
                              QSizePolicy, QGridLayout, QPushButton, QGraphicsDropShadowEffect, QStyle
                              )
-from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot, QPoint
+from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot, QPoint, QEvent
 from PyQt5.QtGui import QColor, QPainter, QBrush, QPen, QMovie
 from PyQt5.QtSvg import QSvgWidget
 
@@ -113,6 +113,8 @@ class TaskCardLite(QWidget):
         super().enterEvent(event)
 
     def leaveEvent(self, event):
+        if self.hoverOverlay and self.hoverOverlay.underMouse():
+            return
         self.expanded = False
         self.shadow.setBlurRadius(15)
         self.cardHovered.emit(False, self.row_position)
@@ -135,9 +137,11 @@ class TaskCardLite(QWidget):
         self.hoverOverlay = QWidget(self.parentWidget())
         self.hoverOverlay.setObjectName("card_container")
         self.hoverOverlay.setStyleSheet(self.styleSheet())
-        # Allow hover events to pass through the overlay so the card still
-        # receives them even when covered
-        self.hoverOverlay.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        # Allow the overlay to receive mouse events so we can detect when the
+        # cursor leaves it
+        self.hoverOverlay.setAttribute(Qt.WA_TransparentForMouseEvents, False)
+        # Listen for events on the overlay
+        self.hoverOverlay.installEventFilter(self)
 
         layout = QVBoxLayout(self.hoverOverlay)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -161,9 +165,21 @@ class TaskCardLite(QWidget):
 
     def hideHoverOverlay(self):
         if self.hoverOverlay:
-            self.hoverOverlay.hide()
-            self.hoverOverlay.deleteLater()
+            # Store a reference and clear attribute first to avoid reentrancy
+            overlay = self.hoverOverlay
             self.hoverOverlay = None
+            # Hiding the widget can trigger additional leave events, so we
+            # release our reference before performing any actions
+            overlay.hide()
+            overlay.deleteLater()
+
+    def eventFilter(self, watched, event):
+        """Handle events from the hover overlay."""
+        if watched is self.hoverOverlay:
+            if event.type() == QEvent.Leave:
+                self.hideHoverOverlay()
+                return True
+        return super().eventFilter(watched, event)
 
     def setExpanded(self, expanded):
         self.updateContent(expanded)
