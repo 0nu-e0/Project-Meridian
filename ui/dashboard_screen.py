@@ -480,3 +480,4 @@ class DashboardScreen(QWidget):
         super().resizeEvent(event)
         for grid in getattr(self, 'grid_layouts', []):
             grid.rearrangeGridLayout()
+            print("resizing card layout")
