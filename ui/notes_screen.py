@@ -60,6 +60,7 @@ class NotesScreen(QWidget):
 
         self.title_editor = None
         self.editor = None
+        self.current_note_id = None
 
         self.initUI()
         self.updateNotesList()
@@ -164,12 +165,15 @@ class NotesScreen(QWidget):
         If no note is selected, create a new note."""
         selected_item = self.notes_list.currentItem()
         notes_data = self.loadNotes()
-        
-        # If no note is selected, create a new note ID
+
+        # Determine the note ID to use when saving
         if selected_item:
             note_id = selected_item.data(Qt.UserRole)
+        elif self.current_note_id:
+            note_id = self.current_note_id
         else:
             note_id = str(uuid4())
+        self.current_note_id = note_id
         
         # Create or update a Note object using the current editor contents.
         # Use toHtml() to preserve formatting.
@@ -212,6 +216,7 @@ class NotesScreen(QWidget):
         note_id = item.data(Qt.UserRole)
         notes = self.loadNotes()
         if note_id in notes:
+            self.current_note_id = note_id
             self.title_editor.setText(notes[note_id]["title"])
             # Restore rich text formatting
             self.editor.setHtml(notes[note_id]["content"])
@@ -230,12 +235,17 @@ class NotesScreen(QWidget):
     def updateNotesList(self):
         """Refresh the notes list with the latest notes from storage."""
         notes = self.loadNotes()
-        # print(f"Adding notes: {notes}")
+        current_id = self.current_note_id
         self.notes_list.clear()
-        for note_id, note in notes.items():
+        selected_row = None
+        for idx, (note_id, note) in enumerate(notes.items()):
             item = QListWidgetItem(note.get("title", "Untitled"))
             item.setData(Qt.UserRole, note_id)
             self.notes_list.addItem(item)
+            if note_id == current_id:
+                selected_row = idx
+        if selected_row is not None:
+            self.notes_list.setCurrentRow(selected_row)
 
     def loadNotes(self):
         """Load notes using the helper function from notes_io.py."""
