@@ -31,7 +31,7 @@ from pathlib import Path
 from resources.styles import AppColors
 from resources.styles import AppStyles, AnimatedButton
 from PyQt5.QtWidgets import (QApplication, QDesktopWidget, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QSpacerItem, 
-                             QSizePolicy, QGridLayout, QPushButton, QGraphicsDropShadowEffect, QStyle
+                             QSizePolicy, QGridLayout, QPushButton, QGraphicsDropShadowEffect, QStyle, QScrollArea
                              )
 from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot, QPoint, QEvent, QTimer
 from PyQt5.QtGui import QColor, QPainter, QBrush, QPen, QMovie, QCursor, QWheelEvent
@@ -257,6 +257,14 @@ class TaskCardLite(QWidget):
         self.cardHovered.emit(False, self.row_position)
         self.hideHoverOverlay()
 
+    def _find_scroll_area(self):
+        """Return the first parent QScrollArea if one exists."""
+        parent = self.parentWidget()
+        while parent is not None:
+            if isinstance(parent, QScrollArea):
+                return parent
+            parent = parent.parentWidget()
+        return None
 
     def eventFilter(self, watched, event):
         if watched == self.hoverOverlay:
@@ -270,13 +278,33 @@ class TaskCardLite(QWidget):
                 return True
 
             elif event.type() == QEvent.Wheel:
-                # Forward wheel events so scrolling continues to work
-                handled = QApplication.sendEvent(self, event)
-                if not handled and self.parentWidget():
-                    QApplication.sendEvent(self.parentWidget(), event)
+                # # Forward wheel events so scrolling continues to work
+                # handled = QApplication.sendEvent(self, event)
+                # if not handled and self.parentWidget():
+                #     QApplication.sendEvent(self.parentWidget(), event)
+                # # Forward wheel events to the parent scroll area so scrolling works
+                scroll_area = self._find_scroll_area()
+                if scroll_area:
+                    viewport = scroll_area.viewport()
+                    global_pos = self.hoverOverlay.mapToGlobal(event.pos())
+                    mapped_pos = viewport.mapFromGlobal(global_pos)
+                    self.hideHoverOverlay()
+                    forwarded = QWheelEvent(
+                        mapped_pos,
+                        global_pos,
+                        event.pixelDelta(),
+                        event.angleDelta(),
+                        event.buttons(),
+                        event.modifiers(),
+                        event.phase(),
+                        event.inverted(),
+                        event.source(),
+                    )
+                    QApplication.postEvent(viewport, forwarded)
                 return True
 
         return False
+
 
 
 
