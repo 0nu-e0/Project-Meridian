@@ -159,11 +159,11 @@ class GridLayout(QWidget):
                 
             # Calculate layout parameters
             self.min_spacing = 20
-            self.grid_width = self.width()
+            self.grid_width = self.width() 
             self.card_width, self.card_height = TaskCardLite.calculate_optimal_card_size()
 
             # Calculate optimal number of columns
-            self.num_columns = max(1, (self.grid_width + self.min_spacing) // (self.card_width + self.min_spacing))
+            self.num_columns = max(1, int((self.grid_width) // (self.card_width + self.min_spacing)))
             
             # Reset position counters
             self.current_row = 0
@@ -330,4 +330,5 @@ class GridLayout(QWidget):
         self.grid_width = event.size().width()
         if self.initComplete:
             self.rearrangeGridLayout()
+            print("resizing in grid event")
         
