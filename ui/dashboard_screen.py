@@ -279,7 +279,7 @@ class DashboardScreen(QWidget):
 
 
             # Create grid layout with correct filter
-            grid_layout = GridLayout(logger=self.logger, width=self.dashboard_width, grid_title=grid.filter.category[0], filter=filter_dict)
+            grid_layout = GridLayout(logger=self.logger, grid_title=grid.filter.category[0], filter=filter_dict)
             
             # --- Fix Resizing Issues ---
             if idx == 0:  # First grid (top one) should never resize
@@ -289,7 +289,6 @@ class DashboardScreen(QWidget):
 
             # Ensure grid resizes only when needed
             grid_layout.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
-            grid_layout.setMinimumHeight(grid_layout.sizeHint().height())
 
             # Add components to layout
             grid_section_layout.addWidget(grid_header_widget)
@@ -476,3 +475,9 @@ class DashboardScreen(QWidget):
             self.dialog_container.deleteLater()
             delattr(self, 'dialog_container')
         self.logger.debug("Done")
+
+    def resizeEvent(self, event: QResizeEvent):
+        super().resizeEvent(event)
+        for grid in getattr(self, 'grid_layouts', []):
+            grid.rearrangeGridLayout()
+            print("resizing card layout")
