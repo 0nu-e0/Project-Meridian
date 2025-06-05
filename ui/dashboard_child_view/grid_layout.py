@@ -49,12 +49,12 @@ class GridLayout(QWidget):
     taskDeleted = pyqtSignal(str)
 
 
-    def __init__(self, logger, width=0, grid_title="", filter=None):
+    def __init__(self, logger, grid_title="", filter=None):
         super().__init__()
-        
+
         self.logger = logger
         self.filter = filter
-        self.grid_width = width
+        self.grid_width = self.width()
         self.grid_title = grid_title
         self.taskCards = []
         self.visibleCards = [] 
@@ -132,11 +132,6 @@ class GridLayout(QWidget):
 
         # Determine available width
         self.grid_width = self.width()
-        parent = self
-        while parent.parent():
-            parent = parent.parent()
-
-        # Now parent should be the top-level window
         self.num_columns = max(1, (self.grid_width + self.min_spacing) // (self.card_width + self.min_spacing))
         self.grid_layout = QGridLayout()
         self.grid_layout.setContentsMargins(0, 0, 0, 0)
@@ -166,7 +161,6 @@ class GridLayout(QWidget):
             self.min_spacing = 20
             self.grid_width = self.width()
             self.card_width, self.card_height = TaskCardLite.calculate_optimal_card_size()
-            total_card_space = self.card_width + self.min_spacing
 
             # Calculate optimal number of columns
             self.num_columns = max(1, (self.grid_width + self.min_spacing) // (self.card_width + self.min_spacing))
