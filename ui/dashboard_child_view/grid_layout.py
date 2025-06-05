@@ -49,7 +49,7 @@ class GridLayout(QWidget):
     taskDeleted = pyqtSignal(str)
 
 
-    def __init__(self, logger, grid_title="", filter=None):
+    def __init__(self, logger, grid_title="", filter=None, tasks=None):
         super().__init__()
 
         self.logger = logger
@@ -61,7 +61,11 @@ class GridLayout(QWidget):
         self.num_columns = 1
         self.setAcceptDrops(True)
         self.currentlyDraggedCard = None
-        self.load_known_tasks()
+        # Load tasks if not provided
+        if tasks is not None:
+            self.load_known_tasks(tasks)
+        else:
+            self.load_known_tasks()
         self.initComplete = False
         self.initUI()
         
@@ -73,8 +77,12 @@ class GridLayout(QWidget):
             # Make all cards visible by default if no filter
             self.visibleCards = self.taskCards.copy()
 
-    def load_known_tasks(self):
-        self.tasks = load_tasks_from_json(self.logger)
+    def load_known_tasks(self, tasks=None):
+        """Load tasks either from the provided dictionary or from JSON."""
+        if tasks is not None:
+            self.tasks = tasks
+        else:
+            self.tasks = load_tasks_from_json(self.logger)
 
     def initUI(self):
         self.initCentralWidget()
