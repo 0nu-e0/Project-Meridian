@@ -475,3 +475,8 @@ class DashboardScreen(QWidget):
             self.dialog_container.deleteLater()
             delattr(self, 'dialog_container')
         self.logger.debug("Done")
+
+    def resizeEvent(self, event: QResizeEvent):
+        super().resizeEvent(event)
+        for grid in getattr(self, 'grid_layouts', []):
+            grid.rearrangeGridLayout()
