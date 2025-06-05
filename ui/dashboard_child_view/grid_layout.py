@@ -49,7 +49,7 @@ class GridLayout(QWidget):
     taskDeleted = pyqtSignal(str)
 
 
-    def __init__(self, logger, width, grid_title, filter=None):
+    def __init__(self, logger, width=0, grid_title="", filter=None):
         super().__init__()
         
         self.logger = logger
@@ -129,21 +129,22 @@ class GridLayout(QWidget):
 
         # Get card dimensions from TaskCardLite
         self.card_width, _ = TaskCardLite.calculate_optimal_card_size()
-        
-        # Calculate columns with actual card width
+
+        # Determine available width
+        self.grid_width = self.width()
         parent = self
         while parent.parent():
             parent = parent.parent()
-        
+
         # Now parent should be the top-level window
-        self.min_spacing = 20
-        self.num_columns = int(max(1, self.grid_width / (self.card_width + self.min_spacing)))
+        self.num_columns = max(1, (self.grid_width + self.min_spacing) // (self.card_width + self.min_spacing))
         self.grid_layout = QGridLayout()
         self.grid_layout.setContentsMargins(0, 0, 0, 0)
         self.grid_layout.setAlignment(Qt.AlignTop)  # Set top alignment for entire grid
-        
+
         # Set default alignment for all cells
-        self.grid_layout.setVerticalSpacing(self.min_spacing)  # Add some vertical spacing
+        self.grid_layout.setVerticalSpacing(self.min_spacing)
+        self.grid_layout.setHorizontalSpacing(self.min_spacing)
         
         self.grid_container_widget = QWidget()
         self.grid_container_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
@@ -163,15 +164,12 @@ class GridLayout(QWidget):
                 
             # Calculate layout parameters
             self.min_spacing = 20
-            task_card_lite = TaskCardLite
-            task_card_lite.screen_width = self.grid_width
+            self.grid_width = self.width()
             self.card_width, self.card_height = TaskCardLite.calculate_optimal_card_size()
             total_card_space = self.card_width + self.min_spacing
-            
+
             # Calculate optimal number of columns
-            num_cards_fit = int(self.grid_width / total_card_space)
-            new_num_columns = max(1, num_cards_fit)
-            self.num_columns = new_num_columns
+            self.num_columns = max(1, (self.grid_width + self.min_spacing) // (self.card_width + self.min_spacing))
             
             # Reset position counters
             self.current_row = 0
@@ -332,4 +330,10 @@ class GridLayout(QWidget):
             self.taskCards = []
   
         self.rearrangeGridLayout()
+
+    def resizeEvent(self, event: QResizeEvent):
+        super().resizeEvent(event)
+        self.grid_width = self.width()
+        if self.initComplete:
+            self.rearrangeGridLayout()
         
