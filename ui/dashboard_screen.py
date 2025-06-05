@@ -121,12 +121,14 @@ class DashboardScreen(QWidget):
 
         # If no grid layouts, create at least one grid
         if not self.saved_grid_layouts:
-            grid_layout = GridLayout(logger=self.logger)
+            grid_layout = GridLayout(logger=self.logger, tasks=self.tasks)
             self.task_layout_container.addWidget(grid_layout)
         
         self.main_layout.addWidget(tasks_scroll_area)
 
     def iterrateGridLayouts(self):
+        # Reload tasks and build category dictionary
+        self.tasks = load_tasks_from_json(self.logger)
         # filtered_tasks = {}
         # for idx, grid in enumerate(self.saved_grid_layouts):
         #     filtered_tasks[grid.filter.category if hasattr(grid.filter, 'category') and grid.filter.category else []] = []
@@ -279,7 +281,7 @@ class DashboardScreen(QWidget):
 
 
             # Create grid layout with correct filter
-            grid_layout = GridLayout(logger=self.logger, grid_title=grid.filter.category[0], filter=filter_dict)
+            grid_layout = GridLayout(logger=self.logger, grid_title=grid.filter.category[0], filter=filter_dict, tasks=self.tasks)
             
             # --- Fix Resizing Issues ---
             if idx == 0:  # First grid (top one) should never resize
