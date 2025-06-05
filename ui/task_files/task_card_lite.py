@@ -34,7 +34,7 @@ from PyQt5.QtWidgets import (QApplication, QDesktopWidget, QWidget, QVBoxLayout,
                              QSizePolicy, QGridLayout, QPushButton, QGraphicsDropShadowEffect, QStyle
                              )
 from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot, QPoint, QEvent, QTimer
-from PyQt5.QtGui import QColor, QPainter, QBrush, QPen, QMovie, QCursor
+from PyQt5.QtGui import QColor, QPainter, QBrush, QPen, QMovie, QCursor, QWheelEvent
 from PyQt5.QtSvg import QSvgWidget
 
 from PyQt5.QtWidgets import QStyleFactory
@@ -158,8 +158,14 @@ class TaskCardLite(QWidget):
         self.hoverOverlay = QWidget(self.window())  # Still main window parent
         self.hoverOverlay.setWindowFlags(Qt.FramelessWindowHint | Qt.Tool)
         self.hoverOverlay.setAttribute(Qt.WA_TranslucentBackground, True)
-        self.hoverOverlay.setAttribute(Qt.WA_TransparentForMouseEvents, True)
-        self.hoverOverlay.mousePressEvent = self.forwardMouseClickToCard
+        # self.hoverOverlay.setAttribute(Qt.WA_TransparentForMouseEvents)
+        # self.hoverOverlay.mousePressEvent = self.forwardMouseClickToCard
+        # self.hoverOverlay.wheelEvent = self.forwardWheelEventToUnderlyingWidget
+        # self.hoverOverlay.setFocusPolicy(Qt.NoFocus)
+        # self.hoverOverlay.setAttribute(Qt.WA_NoMousePropagation, True)
+
+        # self.hoverOverlay.wheelEvent = lambda event: event.ignore()
+
         self.hoverOverlay.installEventFilter(self)
 
         self.hoverOverlay.setObjectName("card_container")
@@ -194,6 +200,11 @@ class TaskCardLite(QWidget):
         if event.button() == Qt.LeftButton:
             self.cardClicked.emit(self.task)
             self.hideHoverOverlay()
+
+    def forwardWheelEventToUnderlyingWidget(self, event):
+        widget_under = QApplication.widgetAt(QCursor.pos())
+        if widget_under and widget_under != self.hoverOverlay:
+            QApplication.sendEvent(widget_under, event)
 
     def showHoverOverlay(self):
         # If not created yet, do so
@@ -248,11 +259,25 @@ class TaskCardLite(QWidget):
 
 
     def eventFilter(self, watched, event):
-        # Catch leave‐events from the overlay and close it
-        if watched is self.hoverOverlay and event.type() == QEvent.Leave:
-            self.hideHoverOverlay()
-            return True
-        return super().eventFilter(watched, event)
+        if watched == self.hoverOverlay:
+            if event.type() == QEvent.Leave:
+                self.hideHoverOverlay()
+                return True
+
+            elif event.type() == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
+                self.cardClicked.emit(self.task)
+                self.hideHoverOverlay()
+                return True
+
+            elif event.type() == QEvent.Wheel:
+                widget_under = QApplication.widgetAt(QCursor.pos())
+                if widget_under and widget_under != self.hoverOverlay:
+                    QApplication.sendEvent(widget_under, event)
+                    return True  # stop propagation after sending
+
+        return False
+
+
 
     def setExpanded(self, expanded):
         self.updateContent(expanded)

@@ -56,7 +56,6 @@ class GridLayout(QWidget):
         self.filter = filter
         self.grid_width = width
         self.grid_title = grid_title
-        # print(f"Initializing {self.grid_title}")
         self.taskCards = []
         self.visibleCards = [] 
         self.num_columns = 1
@@ -267,7 +266,8 @@ class GridLayout(QWidget):
                     break  # Break after finding the card
             except Exception as e:
                 self.logger.error(f"Error removing task card: {e}")
-
+    
+    @staticmethod
     def clearGridLayout(self, layout):
         try:
             # Remove all widgets from the given grid layout
@@ -278,9 +278,7 @@ class GridLayout(QWidget):
                     widget.deleteLater()
         except Exception as e:
             self.logger.error(f"Error in clearGridLayout: {e}")
-            import traceback
-            self.logger.error(traceback.format_exc())
-
+  
     def onFilterChanged(self, active_filters, sender=None):
 
         """Handle filter changes and update the visible cards list"""
@@ -332,7 +330,6 @@ class GridLayout(QWidget):
                 self.visibleCards.append(card)
 
             self.taskCards = []
-
   
         self.rearrangeGridLayout()
         
