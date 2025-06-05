@@ -270,10 +270,11 @@ class TaskCardLite(QWidget):
                 return True
 
             elif event.type() == QEvent.Wheel:
-                widget_under = QApplication.widgetAt(QCursor.pos())
-                if widget_under and widget_under != self.hoverOverlay:
-                    QApplication.sendEvent(widget_under, event)
-                    return True  # stop propagation after sending
+                # Forward wheel events so scrolling continues to work
+                handled = QApplication.sendEvent(self, event)
+                if not handled and self.parentWidget():
+                    QApplication.sendEvent(self.parentWidget(), event)
+                return True
 
         return False
 
