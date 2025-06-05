@@ -96,9 +96,7 @@ class TaskCardLite(QWidget):
         
         # Set size
         self.setFixedSize(self.card_width, self.card_height)
-        
         self.installEventFilter(self)
-        # self.setStyleSheet(AppStyles.task_card())
         self.initUI()
 
     def enterEvent(self, event):
@@ -111,34 +109,6 @@ class TaskCardLite(QWidget):
             self.hoverOverlay.move(pos)
         self.cardHovered.emit(True, self.row_position)
         super().enterEvent(event)
-
-    # def leaveEvent(self, event):
-    #     if self.hoverOverlay and self.hoverOverlay.underMouse():
-    #         return
-    #     self.expanded = False
-    #     self.shadow.setBlurRadius(15)
-    #     self.cardHovered.emit(False, self.row_position)
-    #     self.hideHoverOverlay()
-    #     super().leaveEvent(event)
-
-    from PyQt5.QtCore import QTimer
-
-    # def leaveEvent(self, event):
-    #     # Delay checking to allow overlay to receive mouse event
-    #     QTimer.singleShot(50, self._check_if_still_hovered)
-    #     super().leaveEvent(event)
-
-    # def _check_if_still_hovered(self):
-    #     if self.underMouse():
-    #         return
-    #     if self.hoverOverlay and self.hoverOverlay.underMouse():
-    #         return
-
-    #     self.expanded = False
-    #     self.shadow.setBlurRadius(15)
-    #     self.cardHovered.emit(False, self.row_position)
-    #     self.hideHoverOverlay()
-
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
@@ -158,16 +128,7 @@ class TaskCardLite(QWidget):
         self.hoverOverlay = QWidget(self.window())  # Still main window parent
         self.hoverOverlay.setWindowFlags(Qt.FramelessWindowHint | Qt.Tool)
         self.hoverOverlay.setAttribute(Qt.WA_TranslucentBackground, True)
-        # self.hoverOverlay.setAttribute(Qt.WA_TransparentForMouseEvents)
-        # self.hoverOverlay.mousePressEvent = self.forwardMouseClickToCard
-        # self.hoverOverlay.wheelEvent = self.forwardWheelEventToUnderlyingWidget
-        # self.hoverOverlay.setFocusPolicy(Qt.NoFocus)
-        # self.hoverOverlay.setAttribute(Qt.WA_NoMousePropagation, True)
-
-        # self.hoverOverlay.wheelEvent = lambda event: event.ignore()
-
         self.hoverOverlay.installEventFilter(self)
-
         self.hoverOverlay.setObjectName("card_container")
         self.hoverOverlay.setStyleSheet(self.styleSheet())
 
@@ -278,10 +239,6 @@ class TaskCardLite(QWidget):
                 return True
 
             elif event.type() == QEvent.Wheel:
-                # # Forward wheel events so scrolling continues to work
-                # handled = QApplication.sendEvent(self, event)
-                # if not handled and self.parentWidget():
-                #     QApplication.sendEvent(self.parentWidget(), event)
                 # # Forward wheel events to the parent scroll area so scrolling works
                 scroll_area = self._find_scroll_area()
                 if scroll_area:
@@ -304,9 +261,6 @@ class TaskCardLite(QWidget):
                 return True
 
         return False
-
-
-
 
     def setExpanded(self, expanded):
         self.updateContent(expanded)
@@ -354,7 +308,6 @@ class TaskCardLite(QWidget):
         self.main_layout.invalidate()  # Invalidate current layout
         self.main_layout.activate()    # Force re-layout only on this widget
         self.updateGeometry()          # Notify parent layout of size change
-
 
     def generateUI(self):
         card_layout_widget = QWidget()
@@ -456,13 +409,14 @@ class TaskCardLite(QWidget):
                 font-size: 16px;
                 font-weight: bold;
                 background-color: #2C3E50;
-                padding: 5px;
-            },
+                padding: 6px 5px;  /* Add more top/bottom padding */
+            }
             QLabel:hover {
-                background-color: #2C3E50;  /* Same as non-hover */
+                background-color: #2C3E50;
                 border: none;
             }
         """)
+
         title_label.setMaximumHeight(30)
 
         # Set word wrap so long titles break naturally
@@ -596,7 +550,8 @@ class TaskCardLite(QWidget):
 
         for word in words:
             test_line = current_line + (" " if current_line else "") + word
-            if font_metrics.width(test_line) > max_width:
+            rect = font_metrics.boundingRect(test_line)
+            if rect.width() > max_width:
                 line_count += 1
                 current_line = word
             else:
@@ -608,4 +563,8 @@ class TaskCardLite(QWidget):
         line_count = min(line_count, max_lines)
         label.setText(text)
         label.setWordWrap(True)
-        label.setFixedHeight(font_metrics.lineSpacing() * line_count + 12)  
+
+        # Calculate actual line height including font ascent/descent and some extra padding
+        line_height = font_metrics.lineSpacing()
+        padding = 12  # minimal vertical padding to prevent clipping
+        label.setFixedHeight(line_height * line_count + padding)
