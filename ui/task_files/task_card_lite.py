@@ -316,16 +316,29 @@ class TaskCardLite(QWidget):
         card_layout.setContentsMargins(8, 8, 8, 8)
         card_layout.setSpacing(4)
 
+        # Set column stretch factors to make columns equal width
+        card_layout.setColumnStretch(0, 1)
+        card_layout.setColumnStretch(1, 1)
+
         # Title from Task
         title_label = QLabel(self.task.title)
         title_label.setStyleSheet("""
             QLabel {
                 color: white;
                 font-size: 16px;
+                font-weight: bold;
                 background-color: #2C3E50;
-                padding: 5px;
+                padding: 6px 5px;  /* Add more top/bottom padding */
+            }
+            QLabel:hover {
+                background-color: #2C3E50;
+                border: none;
             }
         """)
+
+        max_title_width = self.card_width - 16  # account for padding/margin
+        self.set_smart_title_height(title_label, self.task.title, max_title_width, max_lines=3)
+
         card_layout.addWidget(title_label, 0, 0, 1, 2)
         
         # Status (using TaskStatus enum)
@@ -417,7 +430,7 @@ class TaskCardLite(QWidget):
             }
         """)
 
-        title_label.setMaximumHeight(30)
+        # title_label.setMaximumHeight(30)
 
         # Set word wrap so long titles break naturally
         max_title_width = self.card_width - 16  # account for padding/margin
