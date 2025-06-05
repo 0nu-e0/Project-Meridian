@@ -327,7 +327,7 @@ class GridLayout(QWidget):
 
     def resizeEvent(self, event: QResizeEvent):
         super().resizeEvent(event)
-        self.grid_width = self.width()
+        self.grid_width = event.size().width()
         if self.initComplete:
             self.rearrangeGridLayout()
         
