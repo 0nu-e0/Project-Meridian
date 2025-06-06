@@ -304,8 +304,6 @@ class DashboardScreen(QWidget):
             grid_section_layout.addWidget(grid_header_widget)
             grid_section_layout.addWidget(grid_layout)
 
-            print(f'here idx: {idx}')
-
             self.grid_layouts.append(grid_layout)
             grid_layout.taskDeleted.connect(self.propagateTaskDeletion)
             grid_layout.sendTaskInCardClicked.connect(self.addNewTask)
