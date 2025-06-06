@@ -36,9 +36,9 @@ from ui.task_files.task_card_expanded import TaskCardExpanded
 from ui.task_files.task_card_lite import TaskCardLite
 from PyQt5.QtWidgets import (QApplication, QWidget, QGridLayout, QPushButton, QVBoxLayout, QHBoxLayout, QMainWindow,
                              QSpacerItem, QLabel, QSizePolicy, QStackedWidget, QDesktopWidget, QScrollArea, QStyle,
-                             QComboBox
+                             QComboBox, QGraphicsOpacityEffect
                              )
-from PyQt5.QtCore import Qt, pyqtSignal, QSize, QEvent, QTimer
+from PyQt5.QtCore import Qt, pyqtSignal, QSize, QEvent, QTimer, QObject
 from PyQt5.QtGui import QResizeEvent, QIcon
 
 class GridLayout(QWidget):
@@ -47,7 +47,7 @@ class GridLayout(QWidget):
     switchToConsoleView = pyqtSignal()
     toggleTaskManagerView = pyqtSignal()
     taskDeleted = pyqtSignal(str)
-
+    sendMinimizeGridLayout = pyqtSignal(object)
 
     def __init__(self, logger, grid_title="", filter=None, tasks=None):
         super().__init__()
@@ -67,6 +67,7 @@ class GridLayout(QWidget):
         else:
             self.load_known_tasks()
         self.initComplete = False
+        self.installEventFilter(self)
         self.initUI()
         
         # Set initial card visibility based on filters
@@ -84,6 +85,23 @@ class GridLayout(QWidget):
         else:
             self.tasks = load_tasks_from_json(self.logger)
 
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        if event.type() == QEvent.Enter:
+            # opacity_effect1 = QGraphicsOpacityEffect()
+            # opacity_effect1.setOpacity(100) 
+            # self.toggle_button.setGraphicsEffect(opacity_effect1)
+            opacity_effect2 = QGraphicsOpacityEffect()
+            opacity_effect2.setOpacity(100) 
+            self.filter_button.setGraphicsEffect(opacity_effect2)
+        elif event.type() == QEvent.Leave:
+            # opacity_effect1 = QGraphicsOpacityEffect()
+            # opacity_effect1.setOpacity(0) 
+            # self.toggle_button.setGraphicsEffect(opacity_effect1)
+            opacity_effect2 = QGraphicsOpacityEffect()
+            opacity_effect2.setOpacity(0) 
+            self.filter_button.setGraphicsEffect(opacity_effect2)
+        return super().eventFilter(watched, event)
+
     def initUI(self):
         self.initCentralWidget()
         self.initManageTasksNav()
@@ -97,22 +115,51 @@ class GridLayout(QWidget):
         self.central_layout.setSpacing(0)
         self.setLayout(self.central_layout)
 
+    def passFilter(self, opacity):
+        if opacity == "hide":
+            # opacity_effect1 = QGraphicsOpacityEffect()
+            # opacity_effect1.setOpacity(0) 
+            # self.toggle_button.setGraphicsEffect(opacity_effect1)
+            opacity_effect2 = QGraphicsOpacityEffect()
+            opacity_effect2.setOpacity(0) 
+            self.filter_button.setGraphicsEffect(opacity_effect2)
+        if opacity == "show":
+            # opacity_effect1 = QGraphicsOpacityEffect()
+            # opacity_effect1.setOpacity(100) 
+            # self.toggle_button.setGraphicsEffect(opacity_effect1)
+            opacity_effect2 = QGraphicsOpacityEffect()
+            opacity_effect2.setOpacity(100) 
+            self.filter_button.setGraphicsEffect(opacity_effect2)
+
     def initManageTasksNav(self):    
         self.manage_tasks_widget = QWidget()
         self.manage_tasks_layout = QHBoxLayout(self.manage_tasks_widget)  
         self.manage_tasks_layout.setContentsMargins(0, 5, 15, 5)
 
-        filter_button = FilterButton()
+        opacity_effect1 = QGraphicsOpacityEffect()
+        opacity_effect1.setOpacity(0) 
+
+        # self.toggle_button = QPushButton("▼")
+        # self.toggle_button.setMaximumWidth(20)
+        # self.toggle_button.setMaximumHeight(20)
+        # self.toggle_button.setGraphicsEffect(opacity_effect1)
+        # self.toggle_button.clicked.connect(self.minimizeGridLayout)
+
+        opacity_effect2 = QGraphicsOpacityEffect()
+        opacity_effect2.setOpacity(0) 
+
+        self.filter_button = FilterButton()
+        self.filter_button.setGraphicsEffect(opacity_effect2)
 
         if hasattr(self, 'filter') and self.filter:
             # Copy the filters to the button's active_filters
-            filter_button.active_filters = {
+            self.filter_button.active_filters = {
                 'status': list(self.filter.get('status', [])),
                 'category': list(self.filter.get('category', [])),
                 'due': list(self.filter.get('due', []))
             }
             # Update the button's appearance
-            filter_button.updateButtonState()
+            self.filter_button.updateButtonState()
 
         filter_combo = QComboBox()
         filter_combo.setProperty("source", "Filter Combo")
@@ -121,10 +168,11 @@ class GridLayout(QWidget):
         filter_combo.addItems([category.value for category in TaskCategory])
         filter_combo.addItems([due.value for due in DueStatus])
 
-        filter_button.filtersChanged.connect(self.onFilterChanged)
+        self.filter_button.filtersChanged.connect(self.onFilterChanged)
 
         self.manage_tasks_layout.addSpacerItem(QSpacerItem(20, 20, QSizePolicy.Expanding, QSizePolicy.Minimum))
-        self.manage_tasks_layout.addWidget(filter_button)
+        # self.manage_tasks_layout.addWidget(self.toggle_button)
+        self.manage_tasks_layout.addWidget(self.filter_button)
         self.manage_tasks_layout.addStretch(1)
 
         self.central_layout.addWidget(self.manage_tasks_widget)
@@ -211,6 +259,7 @@ class GridLayout(QWidget):
             card.setStyleSheet(AppStyles.task_card())
             card.cardHovered.connect(self.handleCardHover)
             card.cardClicked.connect(lambda _, t=task: self.sendTaskInCardClicked.emit(t))
+            card.filterPass.connect(self.passFilter)
             
             # Check for duplicates
             skip_this_card = False
@@ -338,5 +387,10 @@ class GridLayout(QWidget):
         self.grid_width = event.size().width()
         if self.initComplete:
             self.rearrangeGridLayout()
-            print("resizing in grid event")
         
+    # def minimizeGridLayout(self):
+    #     if self.grid_container_widget.isVisible():
+    #         self.grid_container_widget.hide()
+            
+    #     else:
+    #         self.grid_container_widget.show()

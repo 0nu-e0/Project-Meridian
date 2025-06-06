@@ -44,6 +44,7 @@ class TaskCardLite(QWidget):
     cardClicked = pyqtSignal(object)
     cardHovered = pyqtSignal(bool, int) 
     removeTaskCardSignal = pyqtSignal(str)
+    filterPass = pyqtSignal(str)
 
     @classmethod
     def calculate_optimal_card_size(cls):
@@ -229,7 +230,10 @@ class TaskCardLite(QWidget):
 
     def eventFilter(self, watched, event):
         if watched == self.hoverOverlay:
+            if event.type() == QEvent.Enter:
+                self.filterPass.emit("show")
             if event.type() == QEvent.Leave:
+                self.filterPass.emit("hide")
                 self.hideHoverOverlay()
                 return True
 
