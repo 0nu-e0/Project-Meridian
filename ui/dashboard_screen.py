@@ -225,14 +225,20 @@ class DashboardScreen(QWidget):
                 continue
 
             # Create section with title for this grid
-            grid_section = QWidget()
-            grid_section_layout = QVBoxLayout(grid_section)
+            self.grid_section = QWidget()
+            grid_section_layout = QVBoxLayout(self.grid_section)
             grid_section_layout.setContentsMargins(20, 0, 0, 0)
 
             # Create header with hover capability
             grid_header_widget = QWidget()
             grid_header_widget.setMouseTracking(True)
             grid_header_layout = QHBoxLayout(grid_header_widget)
+
+            toggle_button = QPushButton("▼")
+            toggle_button.setMaximumWidth(20)
+            toggle_button.setMaximumHeight(20)
+            toggle_button.setVisible(False)
+            grid_header_layout.addWidget(toggle_button)
 
             # Add title for this grid
             grid_title = QLabel(grid.name)
@@ -254,20 +260,22 @@ class DashboardScreen(QWidget):
             grid_header_layout.addStretch(1)
 
             # Event handlers for hover effects
-            def make_enter_event(button, widget):
+            def make_enter_event(buttons, widget):
                 def custom_enter_event(event):
-                    button.setVisible(True)
-                    QWidget.enterEvent(widget, event)
+                    for button in buttons:
+                        button.setVisible(True)
+                        QWidget.enterEvent(widget, event)
                 return custom_enter_event
 
-            def make_leave_event(button, widget):
+            def make_leave_event(buttons, widget):
                 def custom_leave_event(event):
-                    button.setVisible(False)
-                    QWidget.leaveEvent(widget, event)
+                    for button in buttons:
+                        button.setVisible(False)
+                        QWidget.leaveEvent(widget, event)
                 return custom_leave_event
 
-            grid_header_widget.enterEvent = make_enter_event(remove_grid_button, grid_header_widget)
-            grid_header_widget.leaveEvent = make_leave_event(remove_grid_button, grid_header_widget)
+            grid_header_widget.enterEvent = make_enter_event([toggle_button, remove_grid_button], grid_header_widget)
+            grid_header_widget.leaveEvent = make_leave_event([toggle_button, remove_grid_button], grid_header_widget)
 
             # --- Restore `filter_dict` ---
             filter_dict = {
@@ -285,9 +293,9 @@ class DashboardScreen(QWidget):
             
             # --- Fix Resizing Issues ---
             if idx == 0:  # First grid (top one) should never resize
-                grid_section.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+                self.grid_section.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
             else:  # Allow lower grids to expand downward
-                grid_section.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
+                self.grid_section.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
 
             # Ensure grid resizes only when needed
             grid_layout.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
@@ -296,11 +304,15 @@ class DashboardScreen(QWidget):
             grid_section_layout.addWidget(grid_header_widget)
             grid_section_layout.addWidget(grid_layout)
 
+            print(f'here idx: {idx}')
+
             self.grid_layouts.append(grid_layout)
             grid_layout.taskDeleted.connect(self.propagateTaskDeletion)
             grid_layout.sendTaskInCardClicked.connect(self.addNewTask)
+            
+            toggle_button.clicked.connect(lambda _, gl=grid_layout: self.toggleGridVisibility(gl))
 
-            self.task_layout_container.addWidget(grid_section)
+            self.task_layout_container.addWidget(self.grid_section)
 
             # Add a small spacer between grids
             spacer = QWidget()
@@ -482,4 +494,9 @@ class DashboardScreen(QWidget):
         super().resizeEvent(event)
         for grid in getattr(self, 'grid_layouts', []):
             grid.rearrangeGridLayout()
-            print("resizing card layout")
+
+    def toggleGridVisibility(self, grid_layout):
+        if grid_layout.isVisible():
+            grid_layout.hide()
+        else:
+            grid_layout.show()
