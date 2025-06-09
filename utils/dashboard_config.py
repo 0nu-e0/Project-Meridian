@@ -52,6 +52,8 @@ class DashboardConfigManager:
         # Get the config file path from AppConfig
         app_config = AppConfig()
         config_path = os.path.join(app_config.app_data_dir, "config", "app_config.yaml")
+
+        print(f"yaml config file: {config_path}")
         
         # Check if the file exists
         if not os.path.exists(config_path):
@@ -87,6 +89,7 @@ class DashboardConfigManager:
                 grid.name = grid_data.get('name', "Unnamed Grid")
                 grid.position = grid_data.get('position', len(grid_layouts))
                 grid.columns = grid_data.get('columns', 3)
+                grid.minimize = grid_data.get('minimize', 'false')
                 
                 # Create filter object
                 grid.filter = type('', (), {})()
@@ -155,7 +158,8 @@ class DashboardConfigManager:
                 'name': grid.name,
                 'position': grid.position,
                 'columns': grid.columns,
-                'filter': {}
+                'filter': {},
+                "minimize": grid.minimize
             }
             
             # Add filters

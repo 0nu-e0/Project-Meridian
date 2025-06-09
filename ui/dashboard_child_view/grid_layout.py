@@ -49,9 +49,9 @@ class GridLayout(QWidget):
     taskDeleted = pyqtSignal(str)
     sendMinimizeGridLayout = pyqtSignal(object)
 
-    def __init__(self, logger, grid_title="", filter=None, tasks=None):
+    def __init__(self, logger, id, grid_title="", filter=None, tasks=None):
         super().__init__()
-
+        self.id = id
         self.logger = logger
         self.filter = filter
         self.grid_width = self.width()
@@ -290,7 +290,6 @@ class GridLayout(QWidget):
             else:
                 sender_card.hideHoverOverlay()
 
-
     def handleCardClicked(self, task):
         self.sendTaskInCardClicked.emit(task)
 
@@ -388,9 +387,3 @@ class GridLayout(QWidget):
         if self.initComplete:
             self.rearrangeGridLayout()
         
-    # def minimizeGridLayout(self):
-    #     if self.grid_container_widget.isVisible():
-    #         self.grid_container_widget.hide()
-            
-    #     else:
-    #         self.grid_container_widget.show()
