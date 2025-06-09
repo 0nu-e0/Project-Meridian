@@ -69,8 +69,6 @@ class DashboardScreen(QWidget):
     def loadGridLayouts(self):
         return DashboardConfigManager.get_all_grid_layouts()
     
-    
-    
     def initUI(self):
         self.initCentralWidget()
         self.initBannerSpacer()
@@ -129,9 +127,6 @@ class DashboardScreen(QWidget):
     def iterrateGridLayouts(self):
         # Reload tasks and build category dictionary
         self.tasks = load_tasks_from_json(self.logger)
-        # filtered_tasks = {}
-        # for idx, grid in enumerate(self.saved_grid_layouts):
-        #     filtered_tasks[grid.filter.category if hasattr(grid.filter, 'category') and grid.filter.category else []] = []
 
         task_categories_dict = {}
 
@@ -212,7 +207,6 @@ class DashboardScreen(QWidget):
         self.task_layout_container.addWidget(manage_header_widget)
 
         for idx, grid in enumerate(self.saved_grid_layouts):
-            
 
             self.logger.debug(f"Adding Grids for:: {grid.name}")
             self.logger.debug(f"Grid Total: {grid}, type: {type(grid)}")
@@ -286,10 +280,8 @@ class DashboardScreen(QWidget):
 
             self.logger.debug(f"filter dict: {filter_dict}")
 
-
-
             # Create grid layout with correct filter
-            grid_layout = GridLayout(logger=self.logger, grid_title=grid.filter.category[0], filter=filter_dict, tasks=self.tasks)
+            grid_layout = GridLayout(logger=self.logger, id=grid.id, grid_title=grid.filter.category[0], filter=filter_dict, tasks=self.tasks)
             
             # --- Fix Resizing Issues ---
             if idx == 0:  # First grid (top one) should never resize
@@ -312,11 +304,16 @@ class DashboardScreen(QWidget):
 
             self.task_layout_container.addWidget(self.grid_section)
 
+            if grid.minimize == "true":
+                print(f"here: {grid.minimize}")
+                grid_layout.hide()
+            else:
+                print(f"there: {grid.minimize}")
+
             # Add a small spacer between grids
             spacer = QWidget()
             spacer.setFixedHeight(10)
             self.task_layout_container.addWidget(spacer)
-
 
     def removeGridSection(self, grid_id):
         """Remove the grid section with the specified ID"""
@@ -350,6 +347,7 @@ class DashboardScreen(QWidget):
             self.completeSaveActions()
 
     def addNewTask(self, task=None):
+        print(f"running addNewTask with task: {task}")
         # Get the main window as parent
         window = self.window()
         
@@ -494,7 +492,13 @@ class DashboardScreen(QWidget):
             grid.rearrangeGridLayout()
 
     def toggleGridVisibility(self, grid_layout):
+        
         if grid_layout.isVisible():
+            properties = {"minimize": "true"}
+            DashboardConfigManager.update_grid_properties(grid_layout.id, properties=properties)
             grid_layout.hide()
         else:
+            properties = {"minimize": "false"}
+            DashboardConfigManager.update_grid_properties(grid_layout.id, properties=properties)
             grid_layout.show()
+   
