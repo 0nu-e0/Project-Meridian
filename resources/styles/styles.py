@@ -289,6 +289,39 @@ class AppStyles:
     def label_normal_warn():
         return f"color: {AppColors.red}; font-size: {AppPixelSizes.font_norm}; font-style: {AppFontWeight.norm}; font-family: {AppFontFamily.helvetica};"
     
+    @staticmethod
+    def card_label_single():
+        return """ 
+            QLabel {
+                    color: white;
+                    font-size: 16px;
+                    font-weight: bold;
+                    background-color: #2C3E50;
+                    padding: 6px 5px;  /* Add more top/bottom padding */
+                }
+                QLabel:hover {
+                    background-color: #2C3E50;
+                    border: none;
+                }
+            """
+    
+    @staticmethod
+    def card_label_double():
+        return """ 
+            QLabel {
+                    color: white;
+                    font-size: 12px;
+                    font-weight: bold;
+                    background-color: #2C3E50;
+                    padding: 6px 5px;  /* Add more top/bottom padding */
+                }
+                QLabel:hover {
+                    background-color: #2C3E50;
+                    border: none;
+                }
+            """
+    
+
     ### Container Styles ###
             
     @staticmethod

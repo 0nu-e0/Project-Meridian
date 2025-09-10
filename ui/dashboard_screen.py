@@ -42,8 +42,6 @@ from PyQt5.QtCore import Qt, pyqtSignal, QPropertyAnimation, QEasingCurve, QRect
 from PyQt5.QtGui import QResizeEvent, QPixmap, QIcon
 
 class DashboardScreen(QWidget):
-    sendTaskInCardClicked = pyqtSignal(object)
-    savecomplete = pyqtSignal()
 
     def __init__(self, logger, width):
         super().__init__()
@@ -127,12 +125,12 @@ class DashboardScreen(QWidget):
     def iterrateGridLayouts(self):
         # Reload tasks and build category dictionary
         self.tasks = load_tasks_from_json(self.logger)
-
+        print("iterrateGridLayouts done loading json")
         task_categories_dict = {}
 
         for task in self.tasks.values():
             if task.category not in task_categories_dict:
-                task_categories_dict[task.category.value] = []  # Use .value instead of .name
+                task_categories_dict[task.category.value] = [] 
 
         for task in self.tasks.values():
             task_categories_dict[task.category.value].append(task)
@@ -170,7 +168,7 @@ class DashboardScreen(QWidget):
         addTaskButton = AnimatedButton("+", blur=2, x=10, y=10, offsetX=1, offsetY=1)
         addTaskButton.setStyleSheet(AppStyles.button_normal())
         addTaskButton.setFixedSize(button_size)  # Set fixed size
-        addTaskButton.clicked.connect(lambda: self.addNewTask(task=None))
+        addTaskButton.clicked.connect(lambda: self.openExpandedCardOverlay(task=None))
         
         task_row_layout.addWidget(card_count_widget)
         task_row_layout.addStretch(1)
@@ -206,6 +204,8 @@ class DashboardScreen(QWidget):
         
         self.task_layout_container.addWidget(manage_header_widget)
 
+        self.grid_layout_map = {}
+
         for idx, grid in enumerate(self.saved_grid_layouts):
 
             self.logger.debug(f"Adding Grids for:: {grid.name}")
@@ -214,7 +214,6 @@ class DashboardScreen(QWidget):
                 f"This thing: {grid.filter.category[0]}, type: {type(grid.filter.category[0])}"
             )
             
-
             if grid.filter.category[0] not in task_categories_dict:
                 continue
 
@@ -283,6 +282,10 @@ class DashboardScreen(QWidget):
             # Create grid layout with correct filter
             grid_layout = GridLayout(logger=self.logger, id=grid.id, grid_title=grid.filter.category[0], filter=filter_dict, tasks=self.tasks)
             
+            self.grid_layout_map[grid.id] = grid_layout
+
+            print(type(grid.id))
+
             # --- Fix Resizing Issues ---
             if idx == 0:  # First grid (top one) should never resize
                 self.grid_section.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
@@ -298,17 +301,14 @@ class DashboardScreen(QWidget):
 
             self.grid_layouts.append(grid_layout)
             grid_layout.taskDeleted.connect(self.propagateTaskDeletion)
-            grid_layout.sendTaskInCardClicked.connect(self.addNewTask)
+            grid_layout.sendTaskInCardClicked.connect(self.openExpandedCardOverlay)
             
             toggle_button.clicked.connect(lambda _, gl=grid_layout: self.toggleGridVisibility(gl))
 
             self.task_layout_container.addWidget(self.grid_section)
 
             if grid.minimize == "true":
-                print(f"here: {grid.minimize}")
                 grid_layout.hide()
-            else:
-                print(f"there: {grid.minimize}")
 
             # Add a small spacer between grids
             spacer = QWidget()
@@ -346,8 +346,27 @@ class DashboardScreen(QWidget):
             # Refresh the dashboard
             self.completeSaveActions()
 
-    def addNewTask(self, task=None):
-        print(f"running addNewTask with task: {task}")
+    def updateSingleGridLayout(self, task, grid_id):
+        if grid_id not in self.grid_layout_map:
+            self.logger.warning(f"No grid layout found for grid_id: {grid_id}")
+            return
+
+        # Find the updated version of the task
+        updated_task = self.tasks.get(task.title)  # or use task.id or task.uuid
+        if updated_task is None:
+            self.logger.warning(f"Updated task not found in JSON for: {task.title}")
+            return
+
+        # Get the layout to update
+        grid_layout = self.grid_layout_map[grid_id]
+
+        # Ask the GridLayout to update just that task
+        grid_layout.updateSingleTask(updated_task)
+
+
+    def openExpandedCardOverlay(self, task=None, grid_id=None):
+        print(f"running openExpandedCardOverlay with task: {task}")
+        print(f"running openExpandedCardOverlay with grid_id: {grid_id}")
         # Get the main window as parent
         window = self.window()
         
@@ -365,11 +384,14 @@ class DashboardScreen(QWidget):
         self.overlay.setStyleSheet("background-color: rgba(0, 0, 0, 0.5);")
         self.overlay.setGeometry(self.dialog_container.rect())
         self.overlay.installEventFilter(self)
+
+        # pass_grid_id  = self.grid_layout_map[grid_id]
         
         # Create the expanded card as a child of the container.
         self.expanded_card = TaskCardExpanded(
             logger=self.logger,
             task=task,
+            grid_id=grid_id,
             parent_view=self,
             parent=self.dialog_container
         )
@@ -398,7 +420,6 @@ class DashboardScreen(QWidget):
             self.dialog_container.close()
             return True
         return super().eventFilter(source, event)
-
 
     def addGroupTask(self):
         self.overlay_grid_dialog = QWidget(self)
@@ -454,11 +475,17 @@ class DashboardScreen(QWidget):
         # Close the expanded card
         self.closeExpandedCard()
 
-    def completeSaveActions(self):
+    def completeSaveActions(self, task=None, grid_id=None):
         self.logger.debug("closing layouts")
         self.loadGridLayouts()
-        self.clear_layout(self.task_layout_container)
-        self.iterrateGridLayouts()
+        self.tasks = load_tasks_from_json(self.logger)
+
+        if grid_id:
+            self.updateSingleGridLayout(task, grid_id)
+        else:
+            self.clear_layout(self.task_layout_container)
+            self.iterrateGridLayouts()
+
         self.closeExpandedCard()
 
     def clear_layout(self, layout):
@@ -466,24 +493,30 @@ class DashboardScreen(QWidget):
             item = layout.takeAt(0)
             widget = item.widget()
             if widget is not None:
-                widget.deleteLater()  # Properly delete the widget
+                widget.deleteLater() 
             else:
                 self.clear_layout(item.layout()) 
 
     def closeExpandedCard(self, event=None):
         if hasattr(self, 'expanded_card'):
+            print("Dashboard Close Expanded card start expanded_card")
             self.expanded_card.close()
             self.expanded_card.deleteLater()
             delattr(self, 'expanded_card')
+            print("Dashboard Close Expanded card end expanded_card")
         if hasattr(self, 'overlay'):
+            print("Dashboard Close Expanded card start overlay")
             self.overlay.removeEventFilter(self) 
             self.overlay.close()
             self.overlay.deleteLater()
             delattr(self, 'overlay')
+            print("Dashboard Close Expanded card end overlay")
         if hasattr(self, 'dialog_container'):
+            print("Dashboard Close Expanded card start dialog_container")
             self.dialog_container.close()
             self.dialog_container.deleteLater()
             delattr(self, 'dialog_container')
+            print("Dashboard Close Expanded card end dialog_container")
         self.logger.debug("Done")
 
     def resizeEvent(self, event: QResizeEvent):
@@ -495,10 +528,10 @@ class DashboardScreen(QWidget):
         
         if grid_layout.isVisible():
             properties = {"minimize": "true"}
-            DashboardConfigManager.update_grid_properties(grid_layout.id, properties=properties)
+            DashboardConfigManager.update_grid_properties(grid_layout.grid_id, properties=properties)
             grid_layout.hide()
         else:
             properties = {"minimize": "false"}
-            DashboardConfigManager.update_grid_properties(grid_layout.id, properties=properties)
+            DashboardConfigManager.update_grid_properties(grid_layout.grid_id, properties=properties)
             grid_layout.show()
    

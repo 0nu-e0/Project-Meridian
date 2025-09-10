@@ -42,16 +42,12 @@ from PyQt5.QtCore import Qt, pyqtSignal, QSize, QEvent, QTimer, QObject
 from PyQt5.QtGui import QResizeEvent, QIcon
 
 class GridLayout(QWidget):
-    task_instance = pyqtSignal(Task)
-    sendTaskInCardClicked = pyqtSignal(object)
-    switchToConsoleView = pyqtSignal()
-    toggleTaskManagerView = pyqtSignal()
+    sendTaskInCardClicked = pyqtSignal(object, str)
     taskDeleted = pyqtSignal(str)
-    sendMinimizeGridLayout = pyqtSignal(object)
 
     def __init__(self, logger, id, grid_title="", filter=None, tasks=None):
         super().__init__()
-        self.id = id
+        self.grid_id = id
         self.logger = logger
         self.filter = filter
         self.grid_width = self.width()
@@ -254,11 +250,14 @@ class GridLayout(QWidget):
     def addTaskCard(self):
         self.setProperty("source", "add card")
         for task_name, task in self.tasks.items():
+            # print(f"addTaskCard called for task: {task}")
+            # print(f"addTaskCard called for grid_id: {self.grid_id}")
             # Create card with Task object
-            card = TaskCardLite(logger=self.logger, task=task)
+            card = TaskCardLite(logger=self.logger, grid_id = self.grid_id, task=task)
             card.setStyleSheet(AppStyles.task_card())
             card.cardHovered.connect(self.handleCardHover)
-            card.cardClicked.connect(lambda _, t=task: self.sendTaskInCardClicked.emit(t))
+            # print("calling")
+            card.cardClicked.connect(lambda t=task, g=self.grid_id: self.sendTaskInCardClicked.emit(t, g))
             card.filterPass.connect(self.passFilter)
             
             # Check for duplicates
@@ -290,8 +289,9 @@ class GridLayout(QWidget):
             else:
                 sender_card.hideHoverOverlay()
 
-    def handleCardClicked(self, task):
-        self.sendTaskInCardClicked.emit(task)
+    # def handleCardClicked(self, task):
+    #     print("handling card clicked in grid_layout.py")
+    #     self.sendTaskInCardClicked.emit(task)
 
     def removeTaskCard(self, task_title):
         """Remove a task card from this grid layout"""
@@ -387,3 +387,12 @@ class GridLayout(QWidget):
         if self.initComplete:
             self.rearrangeGridLayout()
         
+    def updateSingleTask(self, updated_task):
+        for i in range(self.layout().count()):
+            item = self.layout().itemAt(i)
+            widget = item.widget()
+
+            # Assuming each widget is a TaskCardLite and stores a `.task`
+            if isinstance(widget, TaskCardLite) and widget.task.title == updated_task.title:
+                widget.updateFromTask(updated_task)
+                break

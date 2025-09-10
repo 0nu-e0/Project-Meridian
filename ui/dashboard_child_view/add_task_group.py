@@ -124,53 +124,60 @@ class AddGridDialog(QDialog):
 
     def addGroupSave(self):
         """Collect data from the dialog and save the new grid"""
-        # Get name and trim whitespace
         name = self.name_input.text().strip()
-        
-        # Check if name is empty
+
         if not name:
-            QMessageBox.warning(self, "Missing Information", 
-                            "Please enter a name for the grid layout.", 
-                            QMessageBox.Ok)
+            QMessageBox.warning(
+                self, "Missing Information",
+                "Please enter a name for the grid layout.",
+                QMessageBox.Ok
+            )
             self.name_input.setFocus()
             return
-        
-        # Check if any filters are selected
-        status_filters = [status for status, checkbox in self.status_checkboxes.items() 
-                        if checkbox.isChecked()]
-        category_filters = [category for category, checkbox in self.category_checkboxes.items() 
-                        if checkbox.isChecked()]
-        due_filters = [due for due, checkbox in self.due_checkboxes.items() 
-                    if checkbox.isChecked()]
-        
-        # At least one filter must be selected
+
+        status_filters = [status for status, cb in self.status_checkboxes.items() if cb.isChecked()]
+        category_filters = [category for category, cb in self.category_checkboxes.items() if cb.isChecked()]
+        due_filters = [due for due, cb in self.due_checkboxes.items() if cb.isChecked()]
+
         if not status_filters and not category_filters and not due_filters:
-            QMessageBox.warning(self, "Missing Information", 
-                            "Please select at least one filter in any category.", 
-                            QMessageBox.Ok)
+            QMessageBox.warning(
+                self, "Missing Information",
+                "Please select at least one filter in any category.",
+                QMessageBox.Ok
+            )
             return
-    
-        # Get the grid ID - pass None for columns to use default
+
         grid_id = DashboardConfigManager.add_grid_layout(name, None)
-        
-        # Update the grid with the selected filters
         grid_layouts = DashboardConfigManager.get_all_grid_layouts()
-        
+
         for grid in grid_layouts:
-            if grid.id == grid_id:
-                # Update the filters
+            # dict case
+            if isinstance(grid, dict) and grid.get("id") == grid_id:
+                grid.setdefault("filter", {})
+                grid["filter"]["status"] = status_filters
+                grid["filter"]["category"] = category_filters
+                grid["filter"]["due"] = due_filters
+                # ensure minimize exists as top-level bool
+                grid.setdefault("minimize", False)
+                break
+
+            # object case
+            if hasattr(grid, "id") and grid.id == grid_id:
+                if not hasattr(grid, "filter") or grid.filter is None:
+                    f = type("", (), {})()
+                    f.status, f.category, f.due = [], [], []
+                    grid.filter = f
                 grid.filter.status = status_filters
                 grid.filter.category = category_filters
                 grid.filter.due = due_filters
+                if not hasattr(grid, "minimize"):
+                    grid.minimize = False
                 break
-        
-        # Save the updated grid layouts
+
         DashboardConfigManager.save_grid_layouts(grid_layouts)
-        
         self.addGroupSaveSignel.emit()
-        
-        # Close the dialog
         self.done(QDialog.Accepted)
+
         
     def get_grid_config(self):
         """Return the grid configuration dictionary."""

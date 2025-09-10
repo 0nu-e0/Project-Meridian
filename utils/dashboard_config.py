@@ -269,57 +269,57 @@ class DashboardConfigManager:
             logger.error(f"Error parsing grid layouts: {e}")
             return []
     
+    # In DashboardConfigManager.add_grid_layout
     @staticmethod
     def add_grid_layout(name=None, columns=None):
         """
         Add a new grid layout.
-        Args:
-            name (str, optional): Name for the new grid.
-            columns (int, optional): Number of columns.
         Returns:
             str: ID of the newly created grid layout
         """
         import uuid
-        
-        # Get existing grid layouts
+
         grid_layouts = DashboardConfigManager.get_all_grid_layouts()
-        
-        # Create new grid as a dictionary (better for YAML serialization)
-        new_grid = {
-            'id': f"grid_{uuid.uuid4().hex[:8]}",
-            'name': name or "New Grid",
-            'position': len(grid_layouts),
-            'columns': columns or 3,
-            'filter': {
-                'status': [],
-                'category': [],
-                'due': []
+        is_dicts = (not grid_layouts) or isinstance(grid_layouts[0], dict)
+
+        new_grid_id = f"grid_{uuid.uuid4().hex[:8]}"
+
+        # canonical dict form used for YAML
+        new_grid_dict = {
+            "id": new_grid_id,
+            "name": name or "New Grid",
+            "position": len(grid_layouts),
+            "columns": columns or 3,
+            "minimize": False,             # <-- top-level, boolean
+            "filter": {
+                "status": [],
+                "category": [],
+                "due": []
             }
         }
-        
-        # Add to list (convert to object if your system requires objects)
-        if isinstance(grid_layouts[0], dict):
-            # If existing grids are dictionaries
-            grid_layouts.append(new_grid)
+
+        if is_dicts:
+            grid_layouts.append(new_grid_dict)
         else:
-            # If existing grids are objects
-            grid = type('', (), {})()
-            grid.id = new_grid['id']
-            grid.name = new_grid['name']
-            grid.position = new_grid['position']
-            grid.columns = new_grid['columns']
-            
-            grid.filter = type('', (), {})()
+            # Build an object with the same top-level attributes
+            grid = type("", (), {})()
+            grid.id = new_grid_dict["id"]
+            grid.name = new_grid_dict["name"]
+            grid.position = new_grid_dict["position"]
+            grid.columns = new_grid_dict["columns"]
+            grid.minimize = False         # <-- top-level, boolean
+
+            # filter object
+            grid.filter = type("", (), {})()
             grid.filter.status = []
             grid.filter.category = []
             grid.filter.due = []
-            
+
             grid_layouts.append(grid)
-        
-        # Save updated list
+
         DashboardConfigManager.save_grid_layouts(grid_layouts)
-        
-        return new_grid['id']
+        return new_grid_id
+
     
     @staticmethod
     def update_grid_filter(grid_id, filter_type, filter_values):
