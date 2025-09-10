@@ -48,10 +48,9 @@ from PyQt5.QtSvg import QSvgWidget
 
 class TaskCardExpanded(QWidget):
     taskDeleted = pyqtSignal(str) 
-    saveCompleted = pyqtSignal() 
-    updatedCompleted = pyqtSignal()
+    saveCompleted = pyqtSignal(str) 
     cancelTask = pyqtSignal()
-    newTaskUpdate = pyqtSignal()
+    newTaskUpdate = pyqtSignal(object, str)
     
     @classmethod
     def calculate_optimal_card_size(cls):
@@ -67,11 +66,13 @@ class TaskCardExpanded(QWidget):
         card_height = int(max(int(card_width / 1.5), min_height_for_content))
         return card_width, card_height
 
-    def __init__(self, logger, task=None, parent_view=None, parent=None):
+    def __init__(self, logger, task=None, grid_id=None, parent_view=None, parent=None):
         super().__init__(parent)
         self.setMouseTracking(True)
         self.logger = logger
         self.task = task
+        self.grid_id = grid_id
+        print(f"Expanded card grid_id: {self.grid_id}")
         self.parent_view = parent_view
         self.initial_state = None
         self.isNewTask = False
@@ -92,6 +93,7 @@ class TaskCardExpanded(QWidget):
     def store_initial_task_state(self):
         """Store the initial state of the task so we can restore it on cancel"""
         task = self.task
+        print(task)
         self.initial_state = {
             'description': task.description,
             'status': task.status,
@@ -399,9 +401,11 @@ class TaskCardExpanded(QWidget):
         
         # Use lambda to properly connect functions that need to be called when clicked
         save_button.clicked.connect(lambda: save_task_to_json(self.task, self.logger))
-        save_button.clicked.connect(self.saveCompleted.emit)
-        # if self.isNewTask:
-        save_button.clicked.connect(self.newTaskUpdate.emit)
+
+        if self.task == None:
+            save_button.clicked.connect(lambda g=self.grid_id: self.saveCompleted.emit(g))
+        else:
+            save_button.clicked.connect(lambda _, t=self.task, g=self.grid_id: self.newTaskUpdate.emit(t, g))
 
         cancel_button.clicked.connect(self.cancelTaskChanges)
         delete_button.clicked.connect(self.deleteTask)
@@ -788,7 +792,7 @@ class TaskCardExpanded(QWidget):
         return section_layout
 
     def open_attachment(self, path_or_url):
-        self.saveCompleted.emit()
+        self.saveCompleted.emit(self.grid_id)
         # Convert to an absolute path if needed
         if not os.path.isabs(path_or_url):
             path_or_url = os.path.abspath(path_or_url)

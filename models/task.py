@@ -62,6 +62,7 @@ class TaskCategory(Enum):
     BUILD_FIXTURE = "Build Fixture"
     WORK_INSTRUCTION = "Work Instruction"
     LAB_TESTING = "Lab Testing"
+    PROJECTS = "Projects"
     ARCHIVED = "Archived"
 
 class DueStatus(Enum):
@@ -72,7 +73,6 @@ class DueStatus(Enum):
    NO_DUE_DATE = "No Due Date"
 
 class Task(QObject):
-    removeTaskCardSignal = pyqtSignal(str)
     
     def __init__(
         self,

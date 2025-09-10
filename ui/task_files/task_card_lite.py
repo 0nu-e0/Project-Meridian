@@ -34,16 +34,15 @@ from PyQt5.QtWidgets import (QApplication, QDesktopWidget, QWidget, QVBoxLayout,
                              QSizePolicy, QGridLayout, QPushButton, QGraphicsDropShadowEffect, QStyle, QScrollArea
                              )
 from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot, QPoint, QEvent, QTimer
-from PyQt5.QtGui import QColor, QPainter, QBrush, QPen, QMovie, QCursor, QWheelEvent
+from PyQt5.QtGui import QColor, QPainter, QBrush, QPen, QMovie, QCursor, QWheelEvent, QFontMetrics
 from PyQt5.QtSvg import QSvgWidget
 
 from PyQt5.QtWidgets import QStyleFactory
 
 class TaskCardLite(QWidget):
     card_count = 0
-    cardClicked = pyqtSignal(object)
+    cardClicked = pyqtSignal(object, str)
     cardHovered = pyqtSignal(bool, int) 
-    removeTaskCardSignal = pyqtSignal(str)
     filterPass = pyqtSignal(str)
 
     @classmethod
@@ -68,13 +67,13 @@ class TaskCardLite(QWidget):
         
         return card_width, card_height
 
-    def __init__(self, logger, task, parent=None):
+    def __init__(self, logger, task, grid_id=None, parent=None):
         super().__init__(parent)
         self.setMouseTracking(True)
         TaskCardLite.card_count += 1
         self.logger = logger
         self.task = task  # This is now a Task object that contains all the info
-            
+        self.grid_id = grid_id
         # Calculate size first
         self.card_width, self.card_height = self.calculate_optimal_card_size()
         
@@ -126,7 +125,10 @@ class TaskCardLite(QWidget):
                 return True
 
             elif event.type() == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
-                self.cardClicked.emit(self.task)
+                # self.cardClicked.emit(self.grid_layout, self.task)
+                print(f"card clicked with task in eventFilter: {self.task}")
+                print(f"card clicked with grid_id in eventFilter: {self.grid_id}")
+                self.cardClicked.emit(self.task, self.grid_id)
                 self.hideHoverOverlay()
                 return True
 
@@ -156,7 +158,10 @@ class TaskCardLite(QWidget):
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
-            self.cardClicked.emit(self.task)
+            # self.cardClicked.emit(self.grid_layout, self.task)
+            print(f"card clicked with task in mousePressEvent: {self.task}")
+            print(f"card clicked with grid_id in mousePressEvent: {self.grid_id}")
+            self.cardClicked.emit(self.task, self.grid_id)
         super().mousePressEvent(event)
         
     def setRowPosition(self, row):
@@ -218,22 +223,10 @@ class TaskCardLite(QWidget):
         card_layout.setColumnStretch(1, 1)
 
         # Title from Task
-        title_label = QLabel(self.task.title)
-        title_label.setStyleSheet("""
-            QLabel {
-                color: white;
-                font-size: 16px;
-                font-weight: bold;
-                background-color: #2C3E50;
-                padding: 6px 5px;  /* Add more top/bottom padding */
-            }
-            QLabel:hover {
-                background-color: #2C3E50;
-                border: none;
-            }
-        """)
+        title_label = QLabel()
+        title_label.setStyleSheet(AppStyles.card_label_single())
 
-        max_title_width = self.card_width - 16  # account for padding/margin
+        max_title_width = self.card_width #- 26  # account for padding/margin
         self.set_smart_title_height(title_label, self.task.title, max_title_width, max_lines=3)
 
         card_layout.addWidget(title_label, 0, 0, 1, 2)
@@ -341,7 +334,10 @@ class TaskCardLite(QWidget):
 
     def forwardMouseClickToCard(self, event):
         if event.button() == Qt.LeftButton:
-            self.cardClicked.emit(self.task)
+            # self.cardClicked.emit(self.grid_layout, self.task)
+            print(f"card clicked with task in forwardMouseClickToCard: {self.task}")
+            print(f"card clicked with grid_id in forwardMouseClickToCard: {self.grid_id}")
+            self.cardClicked.emit(self.task, self.grid_id)
             self.hideHoverOverlay()
 
     def forwardWheelEventToUnderlyingWidget(self, event):
@@ -409,19 +405,7 @@ class TaskCardLite(QWidget):
 
         # Title - Compact
         title_label = QLabel(self.task.title)
-        title_label.setStyleSheet("""
-            QLabel {
-                color: white;
-                font-size: 16px;
-                font-weight: bold;
-                background-color: #2C3E50;
-                padding: 6px 5px;  /* Add more top/bottom padding */
-            }
-            QLabel:hover {
-                background-color: #2C3E50;
-                border: none;
-            }
-        """)
+        title_label.setStyleSheet(AppStyles.card_label_single())
 
         # title_label.setMaximumHeight(30)
 
@@ -547,30 +531,46 @@ class TaskCardLite(QWidget):
     @staticmethod
     def set_smart_title_height(label: QLabel, text: str, max_width: int, max_lines: int = 3):
         """
-        Adjust label height based on wrapped lines, up to a maximum.
+        Adjust QLabel font size and wrapping so that text fits within `max_width`
+        and no more than `max_lines`.
         """
-        font_metrics = label.fontMetrics()
-        words = text.split()
-        line_count = 1
-        current_line = ""
+        max_font_size = 16    # highest size you'd like
+        min_font_size = 8     # smallest acceptable
+        font_size = max_font_size
 
-        for word in words:
-            test_line = current_line + (" " if current_line else "") + word
-            rect = font_metrics.boundingRect(test_line)
-            if rect.width() > max_width:
-                line_count += 1
-                current_line = word
-            else:
-                current_line = test_line
-
-            if line_count >= max_lines:
-                break
-
-        line_count = min(line_count, max_lines)
-        label.setText(text)
+        # Prepare font & wrap mode
+        font = label.font()
         label.setWordWrap(True)
 
+        while font_size >= min_font_size:
+            font.setPointSize(font_size)
+            fm = QFontMetrics(font)
+
+            # Measure the bounding rectangle with wrapping
+            bounding = fm.boundingRect(0, 0, max_width, 1000, Qt.TextWordWrap, text)
+
+            line_height = fm.lineSpacing()
+            lines_used = bounding.height() / line_height
+
+            if lines_used <= max_lines:
+                # It fits
+                break
+
+            font_size -= 1
+
+        # Set final font & text
+        font.setPointSize(font_size)
+        label.setFont(font)
+        label.setText(text)
+
+        # Optional: change styles
+        if lines_used > 1:
+            label.setStyleSheet(AppStyles.card_label_double())
+        else:
+            label.setStyleSheet(AppStyles.card_label_single())
+            
+
         # Calculate actual line height including font ascent/descent and some extra padding
-        line_height = font_metrics.lineSpacing()
-        padding = 12  # minimal vertical padding to prevent clipping
-        label.setFixedHeight(line_height * line_count + padding)
+        # line_height = font_metrics.lineSpacing()
+        # padding = 18  # minimal vertical padding to prevent clipping
+        # label.setFixedHeight(line_height * line_count + padding)

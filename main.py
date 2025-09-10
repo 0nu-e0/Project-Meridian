@@ -402,10 +402,6 @@ def ensure_required_files():
         }
         with open(app_config_path, 'w') as f:
             yaml.dump(default_config, f, default_flow_style=False)
-        # print(f"Created missing file: {app_config_path}")
-
-    # print("File check completed.")
-
 
 if __name__ == '__main__':
     setup_logging()
