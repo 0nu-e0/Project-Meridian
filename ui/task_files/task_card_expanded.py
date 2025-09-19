@@ -88,6 +88,8 @@ class TaskCardExpanded(QWidget):
         self.setWindowModality(Qt.ApplicationModal)
         self.setObjectName("card_container")
 
+        self.settingsOverlay = None
+
         self.initUI()
 
     def store_initial_task_state(self):
@@ -398,6 +400,8 @@ class TaskCardExpanded(QWidget):
         cancel_button.setStyleSheet(AppStyles.save_button())
         delete_button = QPushButton("Delete")
         delete_button.setStyleSheet(AppStyles.save_button())
+        settings_button = QPushButton("Settings")
+        settings_button.setStyleSheet(AppStyles.save_button())
         
         # Use lambda to properly connect functions that need to be called when clicked
         save_button.clicked.connect(lambda: save_task_to_json(self.task, self.logger))
@@ -409,10 +413,12 @@ class TaskCardExpanded(QWidget):
 
         cancel_button.clicked.connect(self.cancelTaskChanges)
         delete_button.clicked.connect(self.deleteTask)
+        settings_button.clicked.connect(self.settingsMenu)
         
         button_layout.addWidget(save_button)
         button_layout.addWidget(cancel_button)
         button_layout.addWidget(delete_button)
+        button_layout.addWidget(settings_button)
         return button_layout
         
     def createActivitySection(self):
@@ -1270,3 +1276,50 @@ class TaskCardExpanded(QWidget):
                 self.task.checklist[i]['checked'] = checked
                 break
         
+    def settingsMenu(self):
+        window = self.window()
+        
+        # Create a container widget that covers the entire main window.
+        self.dialog_container = QWidget(window)
+        # Make the container completely transparent so it doesn't override child styling.
+        self.dialog_container.setAttribute(Qt.WA_StyledBackground, True)
+        self.dialog_container.setAttribute(Qt.WA_TranslucentBackground, True)
+        self.dialog_container.setStyleSheet("background-color: transparent;")
+        self.dialog_container.setWindowFlags(Qt.FramelessWindowHint)
+        self.dialog_container.setGeometry(window.rect())
+        
+        # Create the semi-transparent overlay.
+        self.overlay = QWidget(self.dialog_container)
+        self.overlay.setStyleSheet("background-color: rgba(0, 0, 0, 0.5);")
+        self.overlay.setGeometry(self.dialog_container.rect())
+        self.overlay.installEventFilter(self)
+
+        # pass_grid_id  = self.grid_layout_map[grid_id]
+        
+        # Create the expanded card as a child of the container.
+        self.expanded_card = TaskCardExpanded(
+            logger=self.logger,
+            task=task,
+            grid_id=grid_id,
+            parent_view=self,
+            parent=self.dialog_container
+        )
+        self.expanded_card.saveCompleted.connect(self.closeExpandedCard)
+        self.expanded_card.newTaskUpdate.connect(self.completeSaveActions)
+        # Set the object name so the style sheet applies.
+        self.expanded_card.setObjectName("card_container")
+        # Enable styled backgrounds so that the style sheet paints the background.
+        self.expanded_card.setAttribute(Qt.WA_StyledBackground, True)
+        # Notice: We do NOT set WA_TranslucentBackground here, so that the style sheet's background color is visible.
+        self.expanded_card.setStyleSheet(AppStyles.expanded_task_card())
+        
+        # Calculate optimal dimensions and center the expanded card.
+        card_width, card_height = self.expanded_card.calculate_optimal_card_size()
+        center_x = (self.dialog_container.width() - card_width) // 2
+        center_y = (self.dialog_container.height() - card_height) // 2
+        self.expanded_card.setGeometry(center_x, center_y, card_width, card_height)
+        self.expanded_card.setWindowFlags(Qt.FramelessWindowHint)
+        self.expanded_card.raise_()
+        
+        # Show the container (which holds both the overlay and the expanded card)
+        self.dialog_container.show()

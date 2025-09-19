@@ -381,6 +381,28 @@ def save_task_to_json(task, logger):
                     'user_id': entry.user_id
                 }
                 for entry in getattr(task, 'entries', [])
+            ],
+            "settings": [
+                {
+                    "details": {
+
+                    },
+                    "dependencies": {
+
+                    },
+                    "attachments": {
+
+                    },
+                    "checklist": {
+
+                    },
+                    "comments": {
+
+                    },
+                    "worklog": {
+
+                    },
+                }
             ]
         }
         
