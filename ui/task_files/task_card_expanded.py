@@ -29,11 +29,13 @@ import sys, os, json, copy
 from utils.tasks_io import load_tasks_from_json, save_task_to_json
 from datetime import datetime
 from pathlib import Path
+from functools import partial
 from utils.directory_finder import resource_path
 from models.task import Task, TaskCategory, TaskPriority, TaskStatus, Attachment, TaskEntry, TimeLog
 from ui.custom_widgets.collapsable_section import CollapsibleSection
 from resources.styles import AppColors
 from resources.styles import AppStyles, AnimatedButton
+from ui.task_files.task_settings_menu import TaskSettingsMenu
 from PyQt5.QtWidgets import (QApplication, QDesktopWidget, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QSpacerItem, 
                              QSizePolicy, QGridLayout, QPushButton, QGraphicsDropShadowEffect, QStyle, QComboBox, QTextEdit,
                              QDateTimeEdit, QLineEdit, QCalendarWidget, QToolButton, QSpinBox, QListWidget, QTabWidget,
@@ -42,7 +44,7 @@ from PyQt5.QtWidgets import (QApplication, QDesktopWidget, QWidget, QVBoxLayout,
                              )
 from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot, QEvent, QSize, QDateTime, QUrl, QTimer
 from PyQt5.QtGui import (QColor, QPainter, QBrush, QPen, QMovie, QTextCharFormat, QColor, QIcon, QPixmap, QDesktopServices,
-                        
+                            QGuiApplication, QResizeEvent,
                         )
 from PyQt5.QtSvg import QSvgWidget
 
@@ -54,16 +56,16 @@ class TaskCardExpanded(QWidget):
     
     @classmethod
     def calculate_optimal_card_size(cls):
-        # Get screen dimensions
-        screen = QDesktopWidget().screenGeometry()
-        screen_width = screen.width()
-        screen_height = screen.height()
-        # Base calculations
-        min_width = 600  
-        min_height = 800 
+        screen = QGuiApplication.primaryScreen().availableGeometry()
+        screen_width, screen_height = screen.width(), screen.height()
+
+        min_width = 600
         min_height_for_content = 120
+
         card_width = int(max(min_width, screen_width * 0.6))
         card_height = int(max(int(card_width / 1.5), min_height_for_content))
+        # Optional: clamp very tall screens
+        card_height = min(card_height, int(screen_height * 0.9))
         return card_width, card_height
 
     def __init__(self, logger, task=None, grid_id=None, parent_view=None, parent=None):
@@ -84,13 +86,63 @@ class TaskCardExpanded(QWidget):
             )
             self.isNewTask = True
 
+        self._dirty = False
+        self._initial_snapshot = None   # dict
+        self._changes = {} 
+
         self.setWindowFlags(Qt.FramelessWindowHint)
         self.setWindowModality(Qt.ApplicationModal)
         self.setObjectName("card_container")
 
         self.settingsOverlay = None
 
+        screen = QGuiApplication.screenAt(self.geometry().center())
+        if not screen:
+            screen = QGuiApplication.primaryScreen()
+        self._current_screen = screen
+        self._current_dpi = screen.logicalDotsPerInch()
+
         self.initUI()
+
+    def resizeEvent(self, event: QResizeEvent):
+        super().resizeEvent(event)
+        self.checkForDPIChange()
+
+    def checkForDPIChange(self):
+        """Check if we've moved to a screen with different DPI and update text accordingly"""
+        screen = QGuiApplication.screenAt(self.geometry().center())
+        
+        if not screen:
+            return
+        
+        new_dpi = screen.logicalDotsPerInch()
+        
+        # Check if screen or DPI has changed
+        if not hasattr(self, '_current_dpi'):
+            self._current_dpi = new_dpi
+            self._current_screen = screen
+            return
+        
+        if screen != self._current_screen or abs(new_dpi - self._current_dpi) > 1:
+            self.logger.debug(f"DPI changed from {self._current_dpi} to {new_dpi}")
+            self._current_dpi = new_dpi
+            self._current_screen = screen
+            self.refreshTextForDPI()
+
+    def refreshTextForDPI(self):
+        """Refresh all text elements to match the new screen's DPI"""
+        # Force reapply all stylesheets to recalculate font sizes
+        self.style().unpolish(self)
+        self.style().polish(self)
+        
+        # Update all child widgets
+        for widget in self.findChildren(QWidget):
+            widget.style().unpolish(widget)
+            widget.style().polish(widget)
+        
+        # Force a complete update
+        self.updateGeometry()
+        self.update()
 
     def store_initial_task_state(self):
         """Store the initial state of the task so we can restore it on cancel"""
@@ -214,17 +266,19 @@ class TaskCardExpanded(QWidget):
 
         return status_priority_layout
 
-    def updateTaskStatus(self, new_status):
-        """Update the task status in memory"""
+    def updateTaskStatus(self, new_status: str):
         if self.task is not None:
-            # Convert the status text back to enum
-            self.task.status = TaskStatus(new_status)
+            for st in TaskStatus:
+                if st.value == new_status:
+                    self.task.status = st
+                    break
 
-    def updateTaskPriority(self, new_priority):
-        """Update the task priority in memory"""
+    def updateTaskPriority(self, new_priority: str):
         if self.task is not None:
-            # Convert the priority text back to enum
-            self.task.priority = TaskPriority[new_priority]
+            for pr in TaskPriority:
+                if pr.name == new_priority:
+                    self.task.priority = pr
+                    break
 
     def createDescriptionSection(self):
         desc_layout = QVBoxLayout()
@@ -286,87 +340,65 @@ class TaskCardExpanded(QWidget):
         return dates_layout
 
     def showCalendar(self):
-        calendar = QCalendarWidget(self)
-        calendar.setWindowFlags(Qt.Popup | Qt.FramelessWindowHint)
-        
-        # Ensure all dates are visible
-        calendar.setGridVisible(True)  # Show grid lines
-        calendar.setSelectionMode(QCalendarWidget.SingleSelection)
+        # Close any existing instance
+        if hasattr(self, '_calendar_widget') and self._calendar_widget:
+            self._calendar_widget.close()
 
+        calendar = QCalendarWidget(self)
+        self._calendar_widget = calendar
+        calendar.setWindowFlags(Qt.Popup | Qt.FramelessWindowHint)
+        calendar.setGridVisible(True)
+        calendar.setSelectionMode(QCalendarWidget.SingleSelection)
         calendar.setVerticalHeaderFormat(QCalendarWidget.NoVerticalHeader)
-        
-        # Set date format
         calendar.setDateEditEnabled(True)
         calendar.setFirstDayOfWeek(Qt.Sunday)
 
+        # style tweaks ...
         format_saturday = calendar.weekdayTextFormat(Qt.Saturday)
         format_sunday = calendar.weekdayTextFormat(Qt.Sunday)
-
         format_saturday.setForeground(QColor('#5F9EA0'))
         format_sunday.setForeground(QColor('#5F9EA0'))
-
         calendar.setWeekdayTextFormat(Qt.Saturday, format_saturday)
         calendar.setWeekdayTextFormat(Qt.Sunday, format_sunday)
 
+        # icons → text arrows
         prev_button = calendar.findChild(QToolButton, "qt_calendar_prevmonth")
         next_button = calendar.findChild(QToolButton, "qt_calendar_nextmonth")
-        
         if prev_button:
-            prev_button.setText("<")
-            prev_button.setIcon(QIcon())
-        
+            prev_button.setText("<"); prev_button.setIcon(QIcon()); prev_button.setStyleSheet(AppStyles.button_calendar_horizontal())
         if next_button:
-            next_button.setText(">")
-            next_button.setIcon(QIcon())
-
-        # Find and modify the navigation buttons
-        for button in calendar.findChildren(QToolButton):
-            if button.text() == ">" or button.text() == "<":
-                button.setStyleSheet(AppStyles.button_calendar_horizontal())
+            next_button.setText(">"); next_button.setIcon(QIcon()); next_button.setStyleSheet(AppStyles.button_calendar_horizontal())
 
         year_spinbox = calendar.findChild(QSpinBox, "qt_calendar_yearedit")
         if year_spinbox:
-            # Get the up and down buttons
             up_button = year_spinbox.findChild(QToolButton, "qt_spinbox_upbutton")
             down_button = year_spinbox.findChild(QToolButton, "qt_spinbox_downbutton")
-
             if up_button:
-                up_button.setText("▲")
-                up_button.setIcon(QIcon())
-                up_button.setStyleSheet(AppStyles.button_calendar_vertical())
+                up_button.setText("▲"); up_button.setIcon(QIcon()); up_button.setStyleSheet(AppStyles.button_calendar_vertical())
             if down_button:
-                down_button.setText("▼")
-                down_button.setIcon(QIcon())
-                down_button.setStyleSheet(AppStyles.button_calendar_vertical())
-            
-            year_spinbox.setAttribute(Qt.WA_MacShowFocusRect, 0) 
+                down_button.setText("▼"); down_button.setIcon(QIcon()); down_button.setStyleSheet(AppStyles.button_calendar_vertical())
+            year_spinbox.setAttribute(Qt.WA_MacShowFocusRect, 0)
 
         calendar.setStyleSheet(AppStyles.calendar_norm())
 
-        # Set current date if exists
-        if self.task is not None:
-            if self.task.due_date:
-                calendar.setSelectedDate(self.task.due_date)
-        # else:
-        #     calendar.setSelectedDate(datetime.now().strftime('%m / %d / %Y'))
-            
-        # Position calendar under the button
+        if self.task and self.task.due_date:
+            # QDate from Python date
+            qd = QDateTime(self.task.due_date).date()
+            calendar.setSelectedDate(qd)
+
         button = self.sender()
         pos = button.mapToGlobal(button.rect().bottomLeft())
         calendar.move(pos)
-        
-        # Connect date selection
+
         calendar.clicked.connect(self.updateDueDate)
         calendar.show()
 
     def updateDueDate(self, date):
-        # Convert QDate to Python date
         self.task.due_date = date.toPyDate()
         self.due_date_label.setText(date.toString('MM / dd / yyyy'))
-
-        for child in self.children():
-            if isinstance(child, QCalendarWidget):
-                child.close()
+        if hasattr(self, '_calendar_widget') and self._calendar_widget:
+            self._calendar_widget.close()
+            self._calendar_widget = None
 
     def createCategorySection(self):
         category_layout = QHBoxLayout()
@@ -392,34 +424,34 @@ class TaskCardExpanded(QWidget):
                 break
 
     def createButtonSection(self):
-        button_layout = QHBoxLayout()
-        button_layout.setContentsMargins(0, 0, 0, 15)
-        save_button = QPushButton("Save")
-        save_button.setStyleSheet(AppStyles.save_button())
-        cancel_button = QPushButton("Cancel")
-        cancel_button.setStyleSheet(AppStyles.save_button())
-        delete_button = QPushButton("Delete")
-        delete_button.setStyleSheet(AppStyles.save_button())
-        settings_button = QPushButton("Settings")
-        settings_button.setStyleSheet(AppStyles.save_button())
-        
-        # Use lambda to properly connect functions that need to be called when clicked
-        save_button.clicked.connect(lambda: save_task_to_json(self.task, self.logger))
+        layout = QHBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 15)
 
-        if self.task == None:
-            save_button.clicked.connect(lambda g=self.grid_id: self.saveCompleted.emit(g))
+        save_btn = QPushButton("Save")
+        cancel_btn = QPushButton("Cancel")
+        delete_btn = QPushButton("Delete")
+        settings_btn = QPushButton("Settings")
+
+        save_btn.setStyleSheet(AppStyles.save_button())
+        cancel_btn.setStyleSheet(AppStyles.save_button())
+        delete_btn.setStyleSheet(AppStyles.save_button())
+        settings_btn.setStyleSheet(AppStyles.save_button())
+
+        # Persist task and notify parent appropriately
+        save_btn.clicked.connect(lambda: save_task_to_json(self.task, self.logger))
+        if self.task is None:
+            save_btn.clicked.connect(lambda: self.saveCompleted.emit(self.grid_id))
         else:
-            save_button.clicked.connect(lambda _, t=self.task, g=self.grid_id: self.newTaskUpdate.emit(t, g))
+            save_btn.clicked.connect(lambda: self.newTaskUpdate.emit(self.task, self.grid_id))
 
-        cancel_button.clicked.connect(self.cancelTaskChanges)
-        delete_button.clicked.connect(self.deleteTask)
-        settings_button.clicked.connect(self.settingsMenu)
-        
-        button_layout.addWidget(save_button)
-        button_layout.addWidget(cancel_button)
-        button_layout.addWidget(delete_button)
-        button_layout.addWidget(settings_button)
-        return button_layout
+        cancel_btn.clicked.connect(self.cancelTaskChanges)
+        delete_btn.clicked.connect(self.deleteTask)
+        settings_btn.clicked.connect(self.settingsMenu)
+
+        for b in (save_btn, cancel_btn, delete_btn, settings_btn):
+            layout.addWidget(b)
+
+        return layout
         
     def createActivitySection(self):
         # Create a container widget for the activity section
@@ -736,27 +768,22 @@ class TaskCardExpanded(QWidget):
         self.checklist_section.add_checklist("Task Items")
         
         # IMPORTANT: Load the existing data BEFORE connecting the signal
-        if hasattr(self.task, 'checklist') and self.task.checklist:
-            for item in self.task.checklist:
-                # Set the text in the input field
-                self.checklist_section.checklist_input.setText(item['text'])
-                
-                # Add the item (this will emit a signal but nothing is connected yet)
-                self.checklist_section.add_checklist_item()
-                
-                # Check the box if needed using checklist_data
-                if item.get('checked', False):
-                    last_idx = len(self.checklist_section.checklist_data) - 1
-                    if last_idx >= 0:
-                        checkbox = self.checklist_section.checklist_data[last_idx].get('checkbox')
-                        if checkbox:
-                            checkbox.setChecked(True)
-                
-        # NOW connect the signal AFTER all items are loaded
+        # Load existing BEFORE signals
+        for item in self.task.checklist:
+            self.checklist_section.checklist_input.setText(item['text'])
+            self.checklist_section.add_checklist_item()
+            if item.get('checked', False):
+                last_idx = len(self.checklist_section.checklist_data) - 1
+                if last_idx >= 0:
+                    checkbox = self.checklist_section.checklist_data[last_idx].get('checkbox')
+                    if checkbox:
+                        checkbox.setChecked(True)
+
+        # Connect signals AFTER load
         self.checklist_section.checklist_item_added.connect(self.addChecklistItem)
         self.checklist_section.checkbox_state_changed.connect(self.updateCheckboxState)
         self.checklist_section.checklist_item_removed.connect(self.removeChecklistItem)
-        
+
         if not self.task.checklist:
             self.checklist_section.toggle_collapsed()
         
@@ -808,23 +835,12 @@ class TaskCardExpanded(QWidget):
         QDesktopServices.openUrl(url)
     
     def add_file_attachment_to_task(self):
-        """Show dialog to add a new attachment."""
-        path_or_url, _ = QFileDialog.getOpenFileName(
-            self, "Select Attachment", "", "All Files (*)"
-        )
-        
+        path_or_url, _ = QFileDialog.getOpenFileName(self, "Select Attachment", "", "All Files (*)")
         if path_or_url:
             path_or_url = os.path.abspath(path_or_url)
             attachment = Attachment(path_or_url, user_id="Current User", description="")
             self.task.attachments.append(attachment)
-            # print(f"attachment type: {attachment.attachment_type}")
-            self.attachments_section.add_attachments(self.task.attachments)
-            
-            # Print the attachment type of the newly added attachment
-            # print(f"attachment type: {attachment.attachment_type}")
-            
-            # Refresh the attachments section
-            self.attachments_section.add_attachments(self.task.attachments)
+            self.attachments_section.add_attachments(self.task.attachments)  # single refresh
 
     def remove_attachment_from_task(self, attachment):
         """Remove an attachment from the task."""
@@ -976,44 +992,22 @@ class TaskCardExpanded(QWidget):
         delete_label.mousePressEvent = lambda event, item=item: self.delete_activity(item)
         
     def add_comment(self, comment_input):
-        """Add a comment to the task"""
         text = comment_input.toPlainText().strip()
         if text:
-            entry = TaskEntry(
-                content=text,
-                entry_type="comment",
-                user_id="Current User"
-            )
-            self.task.entries.append(entry)
-            
-            # Clear input and refresh display
+            ts = QDateTime.currentDateTime().toString("MM / dd / yyyy hh:mm")
+            self.saveActivity(text, ts, "comment")
             comment_input.clear()
             self.display_activities()
 
     def add_work_log(self, hours_input, description_input):
-        """Add a work log entry with hours"""
         hours = hours_input.value()
         description = description_input.text().strip()
-        
         if hours > 0 and description:
-            # Create the work log entry
-            entry = TaskEntry(
-                content=description,
-                entry_type="work_log",
-                user_id="Current User"
-            )
-            self.task.entries.append(entry)
-            
-            # Also track the time in time_logs if needed
-            time_log = TimeLog(
-                hours=float(hours),
-                user_id="Current User",
-                description=description
-            )
+            ts = QDateTime.currentDateTime().toString("MM / dd / yyyy hh:mm")
+            self.saveActivity(description, ts, "work_log")
+            time_log = TimeLog(hours=float(hours), user_id="Current User", description=description)
             self.task.time_logs.append(time_log)
             self.task.actual_hours += float(hours)
-            
-            # Clear inputs and refresh display
             hours_input.setValue(0)
             description_input.clear()
             self.display_activities()
@@ -1169,54 +1163,43 @@ class TaskCardExpanded(QWidget):
         task.checklist = self.initial_state['checklist']
 
     def deleteTask(self):
-        """Delete the task and close the expanded card"""
-        # Confirm delete
         confirm = QMessageBox.question(
             self, "Confirm Delete",
             f"Are you sure you want to delete the task '{self.task.title}'?",
             QMessageBox.Yes | QMessageBox.No
         )
-        
-        if confirm == QMessageBox.Yes:
-            # Get the json file path from AppConfig
-            from utils.app_config import AppConfig
-            app_config = AppConfig()
-            json_file_path = app_config.tasks_file
-            
-            try:
-                # Store the task ID and title before deletion
-                task_id = self.task.id
-                task_title = self.task.title
-                
-                # Load existing tasks
-                with open(json_file_path, 'r') as file:
-                    tasks_data = json.load(file)
-                
-                # Remove the task by ID
-                if task_id in tasks_data:
-                    del tasks_data[task_id]
-                    
-                    # Save the updated data
-                    with open(json_file_path, 'w') as file:
-                        json.dump(tasks_data, file, indent=2)
-                    
-                    # Emit the deletion signal with task title (for backward compatibility)
-                    self.taskDeleted.emit(task_title)
-                    
-                    # Close the expanded card
-                    if hasattr(self, 'parent_view') and self.parent_view and hasattr(self.parent_view, 'overlay'):
-                        self.parent_view.overlay.hide()
-                    
-                    self.close()
-                    
-                    # Show success message
-                    QMessageBox.information(self, "Success", f"Task '{task_title}' was deleted.")
-                else:
-                    QMessageBox.warning(self, "Warning", f"Task '{task_title}' not found in saved tasks.")
-                    
-            except Exception as e:
-                self.logger.error(f"Error deleting task: {e}")
-                QMessageBox.critical(self, "Error", f"An error occurred while deleting the task: {str(e)}")
+        if confirm != QMessageBox.Yes:
+            return
+
+        from utils.app_config import AppConfig
+        app_config = AppConfig()
+        json_file_path = app_config.tasks_file
+
+        try:
+            # Keep these for messages/signals
+            task_id = self.task.id
+            task_title = self.task.title
+
+            with open(json_file_path, 'r') as f:
+                tasks_data = json.load(f)
+
+            if task_id in tasks_data:
+                del tasks_data[task_id]
+                with open(json_file_path, 'w') as f:
+                    json.dump(tasks_data, f, indent=2)
+
+                self.taskDeleted.emit(task_title)
+                if hasattr(self, 'parent_view') and self.parent_view and hasattr(self.parent_view, 'overlay'):
+                    self.parent_view.overlay.hide()
+                self.close()
+
+                QMessageBox.information(self, "Success", f"Task '{task_title}' was deleted.")
+            else:
+                QMessageBox.warning(self, "Warning", f"Task '{task_title}' not found in saved tasks.")
+        except Exception as e:
+            self.logger.error(f"Error deleting task: {e}")
+            QMessageBox.critical(self, "Error", f"An error occurred while deleting the task: {str(e)}")
+
                 
     def add_checklist_item_to_task(self, text):
         """Add a checklist item to the task"""
@@ -1243,11 +1226,11 @@ class TaskCardExpanded(QWidget):
                     break
 
     def closeWindow(self):
-        print("trying to close")
-        if self.parent_view and hasattr(self.parent_view, 'overlay'):
-            print("trying harder")
+        self.logger.debug("Closing expanded card")
+        if self.parent_view and hasattr(self.parent_view, 'overlay') and self.parent_view.overlay:
             self.parent_view.overlay.hide()
         self.close()
+        self.deleteLater()
 
     def addChecklistItem(self, text):
         """Add checklist item to the current task"""
@@ -1297,29 +1280,28 @@ class TaskCardExpanded(QWidget):
         # pass_grid_id  = self.grid_layout_map[grid_id]
         
         # Create the expanded card as a child of the container.
-        self.expanded_card = TaskCardExpanded(
+        self.task_settings_menu = TaskSettingsMenu(
             logger=self.logger,
-            task=task,
-            grid_id=grid_id,
+            task=self.task,
+            grid_id=self.grid_id,
             parent_view=self,
             parent=self.dialog_container
         )
-        self.expanded_card.saveCompleted.connect(self.closeExpandedCard)
-        self.expanded_card.newTaskUpdate.connect(self.completeSaveActions)
+
         # Set the object name so the style sheet applies.
-        self.expanded_card.setObjectName("card_container")
+        self.task_settings_menu.setObjectName("card_container")
         # Enable styled backgrounds so that the style sheet paints the background.
-        self.expanded_card.setAttribute(Qt.WA_StyledBackground, True)
+        self.task_settings_menu.setAttribute(Qt.WA_StyledBackground, True)
         # Notice: We do NOT set WA_TranslucentBackground here, so that the style sheet's background color is visible.
-        self.expanded_card.setStyleSheet(AppStyles.expanded_task_card())
+        self.task_settings_menu.setStyleSheet(AppStyles.expanded_task_card())
         
         # Calculate optimal dimensions and center the expanded card.
-        card_width, card_height = self.expanded_card.calculate_optimal_card_size()
+        card_width, card_height = self.task_settings_menu.calculate_optimal_card_size()
         center_x = (self.dialog_container.width() - card_width) // 2
         center_y = (self.dialog_container.height() - card_height) // 2
-        self.expanded_card.setGeometry(center_x, center_y, card_width, card_height)
-        self.expanded_card.setWindowFlags(Qt.FramelessWindowHint)
-        self.expanded_card.raise_()
+        self.task_settings_menu.setGeometry(center_x, center_y, card_width, card_height)
+        self.task_settings_menu.setWindowFlags(Qt.FramelessWindowHint)
+        self.task_settings_menu.raise_()
         
         # Show the container (which holds both the overlay and the expanded card)
         self.dialog_container.show()
