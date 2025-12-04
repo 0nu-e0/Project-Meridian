@@ -112,7 +112,6 @@ class DashboardScreen(QWidget):
         tasks_scroll_area.setWidget(task_layout_widget)
         self.task_layout_container.setSizeConstraint(QLayout.SetNoConstraint)
 
-
         self.iterrateGridLayouts()
 
         # If no grid layouts, create at least one grid
@@ -283,8 +282,6 @@ class DashboardScreen(QWidget):
             grid_layout = GridLayout(logger=self.logger, id=grid.id, grid_title=grid.filter.category[0], filter=filter_dict, tasks=self.tasks)
             
             self.grid_layout_map[grid.id] = grid_layout
-
-            print(type(grid.id))
 
             # --- Fix Resizing Issues ---
             if idx == 0:  # First grid (top one) should never resize
