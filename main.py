@@ -77,6 +77,8 @@ def get_logger(name=__name__):
     return logging.getLogger(name)
 
 class MainWindow(QMainWindow):
+
+
     def __init__(self):
         super().__init__()
         self.logger = logging.getLogger(__name__)
@@ -220,6 +222,8 @@ class MainWindow(QMainWindow):
 
         self.mindmaps_screen = MindMapScreen(logger=self.logger)
         self.mindmaps_screen.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+        self.dashboard_screen.refreshPlanningUI.connect(self.planning_screen.refreshUI)
 
         self.stacked_widget.addWidget(self.dashboard_screen)
         self.stacked_widget.addWidget(self.welcome_screen)

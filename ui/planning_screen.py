@@ -672,6 +672,8 @@ class DropZoneWidget(QWidget):
 class PlanningScreen(QWidget):
     """Modern planning screen for scheduling priority tasks"""
 
+    refreshPlanningUI = pyqtSignal()
+
     def __init__(self, logger: Logger, parent=None):
         super().__init__(parent)
         self.logger = logger
@@ -686,6 +688,12 @@ class PlanningScreen(QWidget):
         self.initUI()
         self.loadTasks()
         self.loadScheduledTasks()
+
+    def refreshPlanningUI(self):
+        """Refresh the planning UI"""
+        self.task_list.clear()
+        self.loadTasks()
+        self.refreshScheduledTasks()
 
     def initUI(self):
         """Initialize the UI"""

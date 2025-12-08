@@ -32,7 +32,7 @@ import os
 from functools import partial
 
 # Third-party imports
-from PyQt5.QtCore import QEvent, QSize, Qt
+from PyQt5.QtCore import QEvent, QSize, Qt, pyqtSignal
 from PyQt5.QtGui import QIcon, QPixmap, QResizeEvent
 from PyQt5.QtWidgets import (QFrame, QHBoxLayout, QLabel, QLayout, QMessageBox,
                              QPushButton, QScrollArea, QSizePolicy, QSpacerItem, QVBoxLayout, QWidget)
@@ -49,6 +49,8 @@ from .dashboard_child_view.grid_layout import GridLayout
 
 class DashboardScreen(QWidget):
 
+    refreshPlanningUI =  pyqtSignal()
+
     def __init__(self, logger, width):
         super().__init__()
 
@@ -58,8 +60,6 @@ class DashboardScreen(QWidget):
 
         # first_key = next(iter(self.tasks))
         # print(f"Task Loaded Types: {type(self.tasks[first_key])}")
-
-
 
         self.saved_grid_layouts = self.loadGridLayouts() or []
         self.consoles = {}
@@ -568,6 +568,7 @@ class DashboardScreen(QWidget):
         self.clear_layout(self.task_layout_container)
         self.grid_layouts = []  # Clear the grid_layouts list before rebuilding
         self.iterrateGridLayouts()
+        self.refreshPlanningUI.emit()
 
         self.closeExpandedCard()
 
