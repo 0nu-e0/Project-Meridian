@@ -53,7 +53,7 @@ class DashboardConfigManager:
         app_config = AppConfig()
         config_path = os.path.join(app_config.app_data_dir, "config", "app_config.yaml")
 
-        print(f"yaml config file: {config_path}")
+        logger.debug(f"yaml config file: {config_path}")
         
         # Check if the file exists
         if not os.path.exists(config_path):
@@ -153,30 +153,42 @@ class DashboardConfigManager:
         # Convert grid layouts to YAML format
         yaml_grid_layouts = []
         for grid in grid_layouts:
-            grid_data = {
-                'id': grid.id,
-                'name': grid.name,
-                'position': grid.position,
-                'columns': grid.columns,
-                'filter': {},
-                "minimize": grid.minimize
-            }
+            # Handle both dict and object types
+            if isinstance(grid, dict):
+                grid_data = {
+                    'id': grid.get('id'),
+                    'name': grid.get('name'),
+                    'position': grid.get('position'),
+                    'columns': grid.get('columns', 3),
+                    'filter': grid.get('filter', {}),
+                    "minimize": grid.get('minimize', 'false')
+                }
+            else:
+                grid_data = {
+                    'id': grid.id,
+                    'name': grid.name,
+                    'position': grid.position,
+                    'columns': grid.columns,
+                    'filter': {},
+                    "minimize": grid.minimize
+                }
             
-            # Add filters
-            if hasattr(grid, 'filter'):
-                if hasattr(grid.filter, 'status'):
-                    grid_data['filter']['status'] = grid.filter.status
-                if hasattr(grid.filter, 'category'):
-                    grid_data['filter']['category'] = grid.filter.category
-                if hasattr(grid.filter, 'due'):
-                    grid_data['filter']['due'] = grid.filter.due
-                # Include legacy fields if present
-                if hasattr(grid.filter, 'type'):
-                    grid_data['filter']['type'] = grid.filter.type
-                if hasattr(grid.filter, 'priority'):
-                    grid_data['filter']['priority'] = grid.filter.priority
-                if hasattr(grid.filter, 'tags'):
-                    grid_data['filter']['tags'] = grid.filter.tags
+            # Add filters (only for object types, dicts already have it)
+            if not isinstance(grid, dict):
+                if hasattr(grid, 'filter'):
+                    if hasattr(grid.filter, 'status'):
+                        grid_data['filter']['status'] = grid.filter.status
+                    if hasattr(grid.filter, 'category'):
+                        grid_data['filter']['category'] = grid.filter.category
+                    if hasattr(grid.filter, 'due'):
+                        grid_data['filter']['due'] = grid.filter.due
+                    # Include legacy fields if present
+                    if hasattr(grid.filter, 'type'):
+                        grid_data['filter']['type'] = grid.filter.type
+                    if hasattr(grid.filter, 'priority'):
+                        grid_data['filter']['priority'] = grid.filter.priority
+                    if hasattr(grid.filter, 'tags'):
+                        grid_data['filter']['tags'] = grid.filter.tags
             
             yaml_grid_layouts.append(grid_data)
         

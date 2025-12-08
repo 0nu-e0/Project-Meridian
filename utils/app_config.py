@@ -40,10 +40,11 @@ class AppConfig:
     _instance = None
     
     path = os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~\\AppData\\Local")), "MeridianTasks")
-    # print(f"Expected directory: {path}")
-    # print(f"Exists: {os.path.exists(path)}")
-    print(f"Real Path: {os.path.realpath(path)}")
-    # print(f"Dir Contents: {os.listdir(path) if os.path.exists(path) else 'Not Found'}")
+    logger = logging.getLogger("AppConfig")
+    # logger.debug(f"Expected directory: {path}")
+    # logger.debug(f"Exists: {os.path.exists(path)}")
+    logger.debug(f"Real Path: {os.path.realpath(path)}")
+    # logger.debug(f"Dir Contents: {os.listdir(path) if os.path.exists(path) else 'Not Found'}")
 
     def __new__(cls):
         """Implement singleton pattern"""
@@ -72,7 +73,7 @@ class AppConfig:
         
         # Store paths for common data files
         self.tasks_file = os.path.join(self.data_dir, "saved_tasks.json")
-        print(f"Tasks directory: {self.tasks_file}")
+        self.logger.debug(f"Tasks directory: {self.tasks_file}")
         self.projects_file = os.path.join(self.data_dir, "projects.json")
         self.notes_file = os.path.join(self.data_dir, "notes.json")
         self.settings_file = os.path.join(self.app_data_dir, "settings.json")
@@ -90,7 +91,7 @@ class AppConfig:
         if self.system == "Windows":
             # Windows: AppData\Local\{app_name}
             win_base = os.environ.get('LOCALAPPDATA', os.path.expanduser(r'~\\AppData\\Local'))
-            print(f"Path name: {os.path.join(win_base, self.app_name)}")
+            self.logger.debug(f"Path name: {os.path.join(win_base, self.app_name)}")
             return os.path.join(win_base, self.app_name)
         elif self.system == "Darwin":
             # macOS: ~/Library/Application Support/{app_name}

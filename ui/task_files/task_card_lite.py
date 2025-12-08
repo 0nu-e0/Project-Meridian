@@ -26,18 +26,25 @@
 # Author: Jereme Shaver
 # -----------------------------------------------------------------------------
 
-import sys
-from pathlib import Path
-from resources.styles import AppColors
-from resources.styles import AppStyles, AnimatedButton
-from PyQt5.QtWidgets import (QApplication, QDesktopWidget, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QSpacerItem, 
-                             QSizePolicy, QGridLayout, QPushButton, QGraphicsDropShadowEffect, QStyle, QScrollArea
-                             )
-from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot, QPoint, QEvent, QTimer
-from PyQt5.QtGui import QColor, QPainter, QBrush, QPen, QMovie, QCursor, QWheelEvent, QFontMetrics
-from PyQt5.QtSvg import QSvgWidget
+# Standard library imports
+from logging import Logger
+from typing import Optional, Tuple
 
-from PyQt5.QtWidgets import QStyleFactory
+# Third-party imports
+from PyQt5.QtCore import QEasingCurve, QEvent, QPropertyAnimation, QSize, Qt, QTimer, pyqtSignal
+from PyQt5.QtGui import QColor, QCursor, QFontMetrics, QGuiApplication
+from PyQt5.QtWidgets import (QApplication, QGraphicsDropShadowEffect, QGridLayout, QLabel,
+                             QScrollArea, QSizePolicy, QStyle, QVBoxLayout, QWidget)
+
+# Local application imports
+from models.task import Task
+from resources.styles import AppColors, AppStyles
+from utils.constants import (ANIMATION_COLLAPSE_DURATION_MS, ANIMATION_DURATION_MS,
+                             ANIMATION_UPDATE_INTERVAL_MS, CARD_DETAIL_SPACING,
+                             CARD_HEIGHT_ASPECT_RATIO, CARD_MARGIN_MULTIPLIER,
+                             CARD_MIN_CARDS_PER_ROW, CARD_MIN_HEIGHT_FOR_CONTENT,
+                             CARD_MIN_READABLE_WIDTH, CARD_PADDING,
+                             CARD_TARGET_CARDS_PER_ROW_DIVISOR, LAYOUT_NO_SPACING)
 
 class TaskCardLite(QWidget):
     card_count = 0
@@ -46,46 +53,49 @@ class TaskCardLite(QWidget):
     filterPass = pyqtSignal(str)
 
     @classmethod
-    def calculate_optimal_card_size(cls):
-        # Get screen dimensions
-        screen = QDesktopWidget().screenGeometry()
-        screen_width = screen.width()
-        screen_height = screen.height()
-        
-        # Base calculations
-        min_readable_width = 200
-        optimal_character_count = 25
-        min_height_for_content = 120
-        
+    def calculate_optimal_card_size(cls) -> Tuple[int, int]:
+        # Get screen dimensions using QGuiApplication instead of deprecated QDesktopWidget
+        screen = QGuiApplication.primaryScreen()
+        screen_geometry = screen.availableGeometry()
+        screen_width = screen_geometry.width()
+        screen_height = screen_geometry.height()
+
         # Calculate width
-        target_cards_per_row = max(4, screen_width // 400)
-        available_width = screen_width - (40 * (target_cards_per_row + 1))
-        card_width = max(min_readable_width, available_width // target_cards_per_row)
-        
+        target_cards_per_row = max(
+            CARD_MIN_CARDS_PER_ROW,
+            screen_width // CARD_TARGET_CARDS_PER_ROW_DIVISOR
+        )
+        available_width = screen_width - (CARD_MARGIN_MULTIPLIER * (target_cards_per_row + 1))
+        card_width = max(CARD_MIN_READABLE_WIDTH, available_width // target_cards_per_row)
+
         # Calculate height
-        card_height = min(int(card_width / 1.5), min_height_for_content)
-        
+        card_height = min(
+            int(card_width / CARD_HEIGHT_ASPECT_RATIO),
+            CARD_MIN_HEIGHT_FOR_CONTENT
+        )
+
         return card_width, card_height
 
-    def __init__(self, logger, task, grid_id=None, parent=None):
+    def __init__(self, logger: Logger, task: Task, grid_id: Optional[str] = None, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
-        self.setMouseTracking(True)
         TaskCardLite.card_count += 1
         self.logger = logger
         self.task = task  # This is now a Task object that contains all the info
         self.grid_id = grid_id
+
         # Calculate size first
         self.card_width, self.card_height = self.calculate_optimal_card_size()
-        
-        # Then set expansion properties
+
+        # Expansion properties
         self.expanded = False
         self.row_position = 0
-        self.original_height = self.card_height
-        self.expanded_height = self.original_height * 1.5
+        self.compact_height = self.card_height
+        self.expanded_height = int(self.card_height * 2.0)  # 2x expansion for more detail
 
-        # Overlay widget for hover expansion
-        self.hoverOverlay = None
-        
+        # Animation for smooth expansion
+        self.animation = None
+        self.detail_container = None
+
         # Add shadow effect
         self.shadow = QGraphicsDropShadowEffect(self)
         self.shadow.setColor(QColor(AppColors.accent_background_color_dark))
@@ -93,130 +103,203 @@ class TaskCardLite(QWidget):
         self.shadow.setXOffset(2)
         self.shadow.setYOffset(2)
         self.setGraphicsEffect(self.shadow)
-        
-        # Set size
-        self.setFixedSize(self.card_width, self.card_height)
-        self.installEventFilter(self)
+
+        # Set initial size
+        self.setMinimumHeight(self.compact_height)
+        self.setMaximumHeight(self.compact_height)
+        self.setFixedWidth(self.card_width)
+
+        # Set size policy to allow vertical expansion
+        self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+
         self.initUI()
 
-    def enterEvent(self, event):
-        self.Overlay = True
-        self.shadow.setBlurRadius(25)
-        # Prepare overlay and position it
-        self.createHoverOverlay()
-        if self.hoverOverlay:
-            pos = self.mapToParent(QPoint(0, 0))
-            self.hoverOverlay.move(pos)
-        self.cardHovered.emit(True, self.row_position)
+    def sizeHint(self) -> QSize:
+        """Provide size hint based on current expansion state"""
+        current_height = self.expanded_height if self.expanded else self.compact_height
+        return QSize(self.card_width, current_height)
+
+    def minimumSizeHint(self) -> QSize:
+        """Minimum size hint"""
+        return QSize(self.card_width, self.compact_height)
+
+    def enterEvent(self, event: QEvent) -> None:
+        """Expand card smoothly when mouse enters"""
+        if not self.expanded:
+            self.expandCard()
         super().enterEvent(event)
 
-    def leaveEvent(self, event):
-        # Delay the check to allow the mouse to fully enter the overlay
-        QTimer.singleShot(100, self._check_hover_exit)
+    def leaveEvent(self, event: QEvent) -> None:
+        """Collapse card smoothly when mouse leaves"""
+        if self.expanded:
+            QTimer.singleShot(100, self._checkCollapseCard)
         super().leaveEvent(event)
+
+    def _checkCollapseCard(self) -> None:
+        """Check if mouse has truly left the card before collapsing"""
+        widget_under_cursor = QApplication.widgetAt(QCursor.pos())
+        if widget_under_cursor is self or self.isAncestorOf(widget_under_cursor):
+            return  # Mouse still over card, don't collapse
+        self.collapseCard()
     
-    def eventFilter(self, watched, event):
-        if watched == self.hoverOverlay:
-            if event.type() == QEvent.Enter:
-                self.filterPass.emit("show")
-            if event.type() == QEvent.Leave:
-                self.filterPass.emit("hide")
-                self.hideHoverOverlay()
-                return True
+    def expandCard(self) -> None:
+        """Expand card to show detailed information with smooth animation"""
+        if self.expanded or self.animation and self.animation.state() == QPropertyAnimation.Running:
+            return
 
-            elif event.type() == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
-                # self.cardClicked.emit(self.grid_layout, self.task)
-                print(f"card clicked with task in eventFilter: {self.task}")
-                print(f"card clicked with grid_id in eventFilter: {self.grid_id}")
-                self.cardClicked.emit(self.task, self.grid_id)
-                self.hideHoverOverlay()
-                return True
+        self.expanded = True
+        self.shadow.setBlurRadius(25)
+        self.cardHovered.emit(True, self.row_position)
 
-            elif event.type() == QEvent.Wheel:
-                # # Forward wheel events to the parent scroll area so scrolling works
-                scroll_area = self._find_scroll_area()
-                if scroll_area:
-                    viewport = scroll_area.viewport()
-                    global_pos = self.hoverOverlay.mapToGlobal(event.pos())
-                    mapped_pos = viewport.mapFromGlobal(global_pos)
-                    self.hideHoverOverlay()
-                    forwarded = QWheelEvent(
-                        mapped_pos,
-                        global_pos,
-                        event.pixelDelta(),
-                        event.angleDelta(),
-                        event.buttons(),
-                        event.modifiers(),
-                        event.phase(),
-                        event.inverted(),
-                        event.source(),
-                    )
-                    QApplication.postEvent(viewport, forwarded)
-                return True
+        # Show detail container
+        if self.detail_container:
+            self.detail_container.setMaximumHeight(16777215)  # Remove height restriction
 
-        return False
+        # Update max height immediately to allow expansion
+        self.setMaximumHeight(self.expanded_height)
+
+        # Animate card height expansion
+        self.animation = QPropertyAnimation(self, b"minimumHeight")
+        self.animation.setDuration(ANIMATION_DURATION_MS)
+        self.animation.setStartValue(self.compact_height)
+        self.animation.setEndValue(self.expanded_height)
+        self.animation.setEasingCurve(QEasingCurve.OutCubic)
+
+        # Update layout during animation, not just at the end
+        self.animation.valueChanged.connect(self._onHeightChanged)
+        self.animation.finished.connect(self._onExpandFinished)
+        self.animation.start()
+
+    def _onHeightChanged(self) -> None:
+        """Called during animation to update layout in real-time"""
+        self.updateGeometry()
+        parent = self.parent()
+        if parent and hasattr(parent, 'layout') and parent.layout():
+            parent.layout().invalidate()
+
+    def _onExpandFinished(self) -> None:
+        """Called when expansion animation completes"""
+        self.animation.valueChanged.disconnect(self._onHeightChanged)
+        self._notifyParentLayoutUpdate()
+
+    def _notifyParentLayoutUpdate(self) -> None:
+        """Notify parent widgets to update their geometry after expansion"""
+        # Update this widget's geometry first
+        self.updateGeometry()
+
+        # Force immediate size policy recalculation
+        size_policy = self.sizePolicy()
+        size_policy.setHeightForWidth(False)
+        self.setSizePolicy(size_policy)
+
+        # Traverse up the widget hierarchy and force layout updates
+        parent = self.parent()
+        while parent:
+            # Update parent geometry
+            parent.updateGeometry()
+
+            # If parent has a layout, force it to recalculate
+            if hasattr(parent, 'layout') and parent.layout():
+                layout = parent.layout()
+                layout.invalidate()
+                layout.activate()
+                layout.update()
+
+            # For QScrollArea widgets, ensure viewport is updated
+            from PyQt5.QtWidgets import QScrollArea
+            if isinstance(parent, QScrollArea):
+                if parent.widget():
+                    parent.widget().adjustSize()
+                parent.updateGeometry()
+
+            parent = parent.parent()
+
+        # Force an immediate repaint to avoid visual lag
+        QApplication.processEvents()
+
+    def collapseCard(self) -> None:
+        """Collapse card back to compact view with smooth animation"""
+        if not self.expanded or self.animation and self.animation.state() == QPropertyAnimation.Running:
+            return
+
+        self.expanded = False
+        self.shadow.setBlurRadius(15)
+        self.cardHovered.emit(False, self.row_position)
+
+        # Animate card height collapse
+        self.animation = QPropertyAnimation(self, b"minimumHeight")
+        self.animation.setDuration(ANIMATION_COLLAPSE_DURATION_MS)
+        self.animation.setStartValue(self.expanded_height)
+        self.animation.setEndValue(self.compact_height)
+        self.animation.setEasingCurve(QEasingCurve.InCubic)
+
+        # Update layout during animation
+        self.animation.valueChanged.connect(self._onHeightChanged)
+        self.animation.finished.connect(self._onCollapseFinished)
+        self.animation.start()
+
+    def _onCollapseFinished(self) -> None:
+        """Hide detail container after collapse animation completes"""
+        # Disconnect the value changed signal
+        self.animation.valueChanged.disconnect(self._onHeightChanged)
+
+        if self.detail_container and not self.expanded:
+            self.detail_container.setMaximumHeight(0)
+
+        # Reset to fixed height after collapse
+        self.setMinimumHeight(self.compact_height)
+        self.setMaximumHeight(self.compact_height)
+
+        # Notify parent to update layout
+        self._notifyParentLayoutUpdate()
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
             # self.cardClicked.emit(self.grid_layout, self.task)
-            print(f"card clicked with task in mousePressEvent: {self.task}")
-            print(f"card clicked with grid_id in mousePressEvent: {self.grid_id}")
+            self.logger.debug(f"card clicked with task in mousePressEvent: {self.task}")
+            self.logger.debug(f"card clicked with grid_id in mousePressEvent: {self.grid_id}")
             self.cardClicked.emit(self.task, self.grid_id)
         super().mousePressEvent(event)
         
     def setRowPosition(self, row):
         self.row_position = row
 
-    def setExpanded(self, expanded):
-        self.updateContent(expanded)
-        self.update()  
-
-    def task_routine(self, task_name, description, creation_date, due_date, status, assigned, catagory, priority):
-        self.task_name = task_name
-
-    def subtask_routine(self, parent, subtask_name, description, creation_date, due_date, status, assigned, catagory, priority):
-        self.subtask_name = subtask_name
-
     def initUI(self):
+        """Initialize UI with both compact and expandable detail sections"""
         self.initCentralWidget()
-        self.expanded = False
-        self.generateUI()
-        self.card_width, self.card_height = self.calculate_optimal_card_size()
-        self.original_height = int(self.card_height)
-        self.expanded_height = int(self.card_height * 2)  # Double height when expanded
+
+        # Generate compact view
+        self.generateCompactUI()
+
+        # Create detail container (initially hidden)
+        self.detail_container = QWidget()
+        detail_layout = QVBoxLayout(self.detail_container)
+        detail_layout.setContentsMargins(LAYOUT_NO_SPACING, LAYOUT_NO_SPACING, LAYOUT_NO_SPACING, LAYOUT_NO_SPACING)
+        detail_layout.setSpacing(LAYOUT_NO_SPACING)
+
+        # Generate detail content
+        self.generateDetailContent(detail_layout)
+
+        # Add detail container to main layout (collapsed initially)
+        self.detail_container.setMaximumHeight(0)
+        self.main_layout.addWidget(self.detail_container)
 
     def initCentralWidget(self):
         self.central_widget = QWidget()
         self.central_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.main_layout = QVBoxLayout(self.central_widget)
-        self.main_layout.setContentsMargins(0, 0, 0, 0) 
-        self.main_layout.setSpacing(0)  
+        self.main_layout.setContentsMargins(LAYOUT_NO_SPACING, LAYOUT_NO_SPACING, LAYOUT_NO_SPACING, LAYOUT_NO_SPACING)
+        self.main_layout.setSpacing(LAYOUT_NO_SPACING)
         self.setLayout(self.main_layout)
 
-    def updateContent(self, expanded):
-        # Clear the current layout
-        while self.main_layout.count():
-            item = self.main_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
 
-        # Rebuild UI based on the expanded state
-        if expanded:
-            self.generateDetailTaskCard()
-        else:
-            self.generateUI()
-
-        # Ensure layout refreshes properly
-        self.main_layout.invalidate()  # Invalidate current layout
-        self.main_layout.activate()    # Force re-layout only on this widget
-        self.updateGeometry()          # Notify parent layout of size change
-
-    def generateUI(self):
+    def generateCompactUI(self):
+        """Generate compact card view - always visible"""
         card_layout_widget = QWidget()
-        card_layout_widget.setObjectName("card_container") 
+        card_layout_widget.setObjectName("card_container")
         card_layout = QGridLayout(card_layout_widget)
-        card_layout.setContentsMargins(8, 8, 8, 8)
-        card_layout.setSpacing(4)
+        card_layout.setContentsMargins(CARD_PADDING, CARD_PADDING, CARD_PADDING, CARD_PADDING)
+        card_layout.setSpacing(CARD_DETAIL_SPACING)
 
         # Set column stretch factors to make columns equal width
         card_layout.setColumnStretch(0, 1)
@@ -226,16 +309,16 @@ class TaskCardLite(QWidget):
         title_label = QLabel()
         title_label.setStyleSheet(AppStyles.card_label_single())
 
-        max_title_width = self.card_width #- 26  # account for padding/margin
+        max_title_width = self.card_width
         self.set_smart_title_height(title_label, self.task.title, max_title_width, max_lines=3)
 
         card_layout.addWidget(title_label, 0, 0, 1, 2)
-        
+
         # Status (using TaskStatus enum)
         status_label = QLabel()
         status_icon = self.style().standardIcon(QStyle.SP_DialogApplyButton)
         status_label.setPixmap(status_icon.pixmap(16, 16))
-        status_label.setText(f"  {self.task.status.value}")  # Using enum value
+        status_label.setText(f"  {self.task.status.value}")
         status_label.setStyleSheet(f"""
             QLabel {{
                 color: white;
@@ -245,12 +328,12 @@ class TaskCardLite(QWidget):
             }}
         """)
         card_layout.addWidget(status_label, 1, 0)
-    
+
         # Priority (using TaskPriority enum)
         priority_label = QLabel()
         priority_icon = self.style().standardIcon(QStyle.SP_TitleBarContextHelpButton)
         priority_label.setPixmap(priority_icon.pixmap(16, 16))
-        priority_label.setText(f"  {self.task.priority.name}")  # Using enum name
+        priority_label.setText(f"  {self.task.priority.name}")
         priority_label.setStyleSheet(f"""
             QLabel {{
                 color: white;
@@ -260,12 +343,12 @@ class TaskCardLite(QWidget):
             }}
         """)
         card_layout.addWidget(priority_label, 1, 1)
-        
+
         # Category (using TaskCategory enum)
         category_label = QLabel()
         category_icon = self.style().standardIcon(QStyle.SP_DirIcon)
         category_label.setPixmap(category_icon.pixmap(16, 16))
-        category_label.setText(f"  {self.task.category.value}")  # Using enum value
+        category_label.setText(f"  {self.task.category.value}")
         category_label.setStyleSheet(f"""
             QLabel {{
                 color: white;
@@ -275,12 +358,12 @@ class TaskCardLite(QWidget):
             }}
         """)
         card_layout.addWidget(category_label, 2, 0)
-        
+
         # Completion percentage
         complete_label = QLabel()
         complete_icon = self.style().standardIcon(QStyle.SP_BrowserReload)
         complete_label.setPixmap(complete_icon.pixmap(16, 16))
-        complete_label.setText(f"  {self.task.percentage_complete}%")  # Using integer percentage
+        complete_label.setText(f"  {self.task.percentage_complete}%")
         complete_label.setStyleSheet(f"""
             QLabel {{
                 color: white;
@@ -293,240 +376,109 @@ class TaskCardLite(QWidget):
 
         self.main_layout.addWidget(card_layout_widget)
 
-    def createHoverOverlay(self):
-        """Create a standalone overlay (top‐level) so it isn’t clipped by parent layouts."""
-        if self.hoverOverlay is not None:
-            return
+    def generateDetailContent(self, detail_layout):
+        """Generate detailed information shown when card expands"""
+        detail_widget = QWidget()
+        detail_widget.setObjectName("card_container")
+        detail_grid = QGridLayout(detail_widget)
+        detail_grid.setContentsMargins(CARD_PADDING, CARD_DETAIL_SPACING, CARD_PADDING, CARD_PADDING)
+        detail_grid.setSpacing(CARD_DETAIL_SPACING)
 
-        # 1) Make it a child of the main window (so it’s “above” all grid cells)
-        main_window = self.window()
-        self.hoverOverlay = QWidget(self.window())  # Still main window parent
-        self.hoverOverlay.setWindowFlags(Qt.FramelessWindowHint | Qt.Tool)
-        self.hoverOverlay.setAttribute(Qt.WA_TranslucentBackground, True)
-        self.hoverOverlay.installEventFilter(self)
-        self.hoverOverlay.setObjectName("card_container")
-        self.hoverOverlay.setStyleSheet(self.styleSheet())
+        detail_grid.setColumnStretch(0, 1)
+        detail_grid.setColumnStretch(1, 1)
 
-        # 3) Build its internal layout exactly as before
-        layout = QVBoxLayout(self.hoverOverlay)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
+        row = 0
 
-        original_layout = self.main_layout
-        self.main_layout = layout
-        self.generateDetailTaskCard()
-        self.main_layout = original_layout
+        # Description (if exists)
+        if self.task.description:
+            desc_label = QLabel(self.task.description)
+            desc_label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+            desc_label.setWordWrap(True)
+            desc_label.setStyleSheet("""
+                QLabel {
+                    color: white;
+                    font-size: 12px;
+                    background-color: #34495E;
+                    padding: 6px;
+                    border-radius: 4px;
+                }
+            """)
+            desc_label.setMaximumWidth(self.card_width - 16)
+            detail_grid.addWidget(desc_label, row, 0, 1, 2)
+            row += 1
 
-        # 4) Fix the overlay’s width to match the collapsed card’s width
-        self.hoverOverlay.setFixedWidth(self.card_width)
-
-        # 5) Let Qt compute needed height (it will only grow vertically because width is fixed)
-        self.hoverOverlay.setFixedHeight(int(self.card_height * 1.75))
-
-        # 6) Ensure text labels wrap inside that fixed width
-        for label in self.hoverOverlay.findChildren(QLabel):
-            label.setWordWrap(True)
-            # subtract any layout margins/padding (e.g. total 16px)
-            label.setMaximumWidth(self.card_width - 16)
-
-        # Initially hidden; we’ll show() when hovering
-        self.hoverOverlay.hide()
-
-    def forwardMouseClickToCard(self, event):
-        if event.button() == Qt.LeftButton:
-            # self.cardClicked.emit(self.grid_layout, self.task)
-            print(f"card clicked with task in forwardMouseClickToCard: {self.task}")
-            print(f"card clicked with grid_id in forwardMouseClickToCard: {self.grid_id}")
-            self.cardClicked.emit(self.task, self.grid_id)
-            self.hideHoverOverlay()
-
-    def forwardWheelEventToUnderlyingWidget(self, event):
-        widget_under = QApplication.widgetAt(QCursor.pos())
-        if widget_under and widget_under != self.hoverOverlay:
-            QApplication.sendEvent(widget_under, event)
-
-    def showHoverOverlay(self):
-        # If not created yet, do so
-        self.createHoverOverlay()
-
-        # 1) Compute global position of the top‐left corner of this card
-        global_pos = self.mapToGlobal(QPoint(0, 0))
-
-        # 2) Move the overlay to that position
-        self.hoverOverlay.move(global_pos)
-
-        # 3) Raise it above everything and show
-        self.hoverOverlay.raise_()
-        self.hoverOverlay.show()
-
-    def hideHoverOverlay(self):
-        if not self.hoverOverlay:
-            return
-
-        overlay = self.hoverOverlay
-        self.hoverOverlay = None
-        overlay.hide()
-        overlay.deleteLater()
-
-    def _check_hover_exit(self):
-        # Get the widget under the mouse cursor
-        widget_under_cursor = QApplication.widgetAt(QCursor.pos())
-
-        # If cursor is still over the card or overlay, do not hide
-        if widget_under_cursor is self or self.isAncestorOf(widget_under_cursor):
-            return
-        if self.hoverOverlay and (self.hoverOverlay is widget_under_cursor or self.hoverOverlay.isAncestorOf(widget_under_cursor)):
-            return
-
-        self.expanded = False
-        self.shadow.setBlurRadius(15)
-        self.cardHovered.emit(False, self.row_position)
-        self.hideHoverOverlay()
-
-    def _find_scroll_area(self):
-        """Return the first parent QScrollArea if one exists."""
-        parent = self.parentWidget()
-        while parent is not None:
-            if isinstance(parent, QScrollArea):
-                return parent
-            parent = parent.parentWidget()
-        return None
-
-    def generateDetailTaskCard(self):
-        card_layout_widget = QWidget()
-        card_layout_widget.setObjectName("card_container") 
-        card_layout = QGridLayout(card_layout_widget)
-        card_layout.setContentsMargins(8, 8, 8, 8)
-        card_layout.setSpacing(4)
-
-        # Set column stretch factors to make columns equal width
-        card_layout.setColumnStretch(0, 1)
-        card_layout.setColumnStretch(1, 1)
-
-        # Title - Compact
-        title_label = QLabel(self.task.title)
-        title_label.setStyleSheet(AppStyles.card_label_single())
-
-        # title_label.setMaximumHeight(30)
-
-        # Set word wrap so long titles break naturally
-        max_title_width = self.card_width - 16  # account for padding/margin
-        self.set_smart_title_height(title_label, self.task.title, max_title_width, max_lines=3)
-
-        card_layout.addWidget(title_label, 0, 0, 1, 2)
-
-        # Status and Priority - Split into two columns
-        status_label = QLabel(f"Status: {self.task.status.value}")
-        status_label.setStyleSheet(f"""
-        QLabel {{
-            color: white;
-            font-size: 12px;
-            background-color: {AppColors.get_status_color(self.task.status)};
-            padding: 3px;
-        }}
-        """)
-        status_label.setMaximumHeight(25)
-        card_layout.addWidget(status_label, 1, 0)  # First column
-
-        priority_label = QLabel(f"Priority: {self.task.priority.name}")
-        priority_label = QLabel(f"Priority: {self.task.priority.name}")
-        priority_label.setStyleSheet(f"""
-            QLabel {{
-                color: white;
-                font-size: 12px;
-                background-color: {AppColors.get_priority_color(self.task.priority)};
-                padding: 3px;
-                border-radius: 8px;
-            }}
-        """)
-        priority_label.setMaximumHeight(25)
-        card_layout.addWidget(priority_label, 1, 1)  # Second column
-
-        # Description - More space
-        desc_label = QLabel(self.task.description)
-        desc_label.setAlignment(Qt.AlignLeft | Qt.AlignTop) 
-        desc_label.setWordWrap(True)
-        desc_label.setStyleSheet("""
-            QLabel {
-                color: white;
-                font-size: 14px;
-                background-color: #34495E;
-                padding: 8px;
-            }
-        """)
-        desc_label.setWordWrap(True)
-        desc_label.setMaximumWidth(self.card_width - (int(self.card_width * 0.75)))
-        desc_label.setMinimumHeight(60)
-        card_layout.addWidget(desc_label, 2, 0, 1, 2)
-
-        # Progress info - Compact but informative
-        progress_info = []
-        progress_info.append(f"Progress: {self.task.percentage_complete}%")
+        # Progress info
+        progress_info = [f"{self.task.percentage_complete}%"]
         if hasattr(self.task, 'estimated_hours') and self.task.estimated_hours:
             progress_info.append(f"Est: {self.task.estimated_hours}h")
         if hasattr(self.task, 'actual_hours') and self.task.actual_hours:
             progress_info.append(f"Actual: {self.task.actual_hours}h")
-        
+
         progress_label = QLabel(" | ".join(progress_info))
         progress_label.setStyleSheet(f"""
             QLabel {{
                 color: white;
-                font-size: 12px;
+                font-size: 11px;
                 background-color: {AppColors.get_progress_color(self.task.percentage_complete)};
-                padding: 3px;
+                padding: 4px;
+                border-radius: 4px;
             }}
         """)
-        progress_label.setMaximumHeight(25)
-        card_layout.addWidget(progress_label, 3, 0, 1, 2)
+        detail_grid.addWidget(progress_label, row, 0, 1, 2)
+        row += 1
 
-         # Dates - Split into two columns (modified)
+        # Dates
         if self.task.start_date is not None:
             started_label = QLabel(f"Started: {self.task.start_date.strftime('%m/%d/%y')}")
             started_label.setStyleSheet("""
                 QLabel {
                     color: white;
-                    font-size: 12px;
+                    font-size: 11px;
                     background-color: #2980B9;
-                    padding: 3px;
+                    padding: 4px;
+                    border-radius: 4px;
                 }
             """)
-            started_label.setMaximumHeight(25)
-            card_layout.addWidget(started_label, 4, 0)  # First column
-        
+            detail_grid.addWidget(started_label, row, 0)
+
         if self.task.due_date is not None:
             due_label = QLabel(f"Due: {self.task.due_date.strftime('%m/%d/%y')}")
             due_label.setStyleSheet(f"""
                 QLabel {{
                     color: white;
-                    font-size: 12px;
+                    font-size: 11px;
                     background-color: {AppColors.get_due_date_color(self.task.due_date)};
-                    padding: 3px;
+                    padding: 4px;
+                    border-radius: 4px;
                 }}
             """)
-            due_label.setMaximumHeight(25)
-            card_layout.addWidget(due_label, 4, 1)  # Second column
+            detail_grid.addWidget(due_label, row, 1)
 
-        # Team info - Single line
+        if self.task.start_date or self.task.due_date:
+            row += 1
+
+        # Team info
         team_info = []
         if hasattr(self.task, 'assignee') and self.task.assignee:
             team_info.append(f"Assignee: {self.task.assignee}")
         if hasattr(self.task, 'watchers') and self.task.watchers:
             team_info.append(f"Watchers: {len(self.task.watchers)}")
-        
+
         if team_info:
             team_label = QLabel(" | ".join(team_info))
             team_label.setStyleSheet("""
                 QLabel {
                     color: white;
-                    font-size: 12px;
+                    font-size: 11px;
                     background-color: #8E44AD;
-                    padding: 3px;
+                    padding: 4px;
+                    border-radius: 4px;
                 }
             """)
-            team_label.setMaximumHeight(25)
-            card_layout.addWidget(team_label, 5, 0, 1, 2)
+            detail_grid.addWidget(team_label, row, 0, 1, 2)
 
-        self.main_layout.addWidget(card_layout_widget)
+        detail_layout.addWidget(detail_widget)
+
 
     @staticmethod
     def set_smart_title_height(label: QLabel, text: str, max_width: int, max_lines: int = 3):

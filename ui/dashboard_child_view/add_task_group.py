@@ -29,11 +29,12 @@ import time
 from datetime import datetime
 from utils.dashboard_config import DashboardConfigManager
 from models.task import TaskCategory, TaskPriority, TaskStatus, DueStatus
-from PyQt5.QtWidgets import (QApplication, QDesktopWidget, QWidget, QSizePolicy, QHBoxLayout, QVBoxLayout,
-                             QPushButton, QDialog, QLabel, QLineEdit, QSpinBox, QTabWidget, QCheckBox, 
+from PyQt5.QtWidgets import (QApplication, QWidget, QSizePolicy, QHBoxLayout, QVBoxLayout,
+                             QPushButton, QDialog, QLabel, QLineEdit, QSpinBox, QTabWidget, QCheckBox,
                              QMessageBox
                             )
 from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtGui import QGuiApplication
 
 class AddGridDialog(QDialog):
     addGroupCancel = pyqtSignal()
@@ -53,9 +54,11 @@ class AddGridDialog(QDialog):
         self.initUI()
         
     def calculate_optimal_size(self):
-        screen = QDesktopWidget().screenGeometry()
-        width = min(600, screen.width() * 0.5)
-        height = min(700, screen.height() * 0.7)
+        # Use QGuiApplication.primaryScreen() instead of deprecated QDesktopWidget
+        screen = QGuiApplication.primaryScreen()
+        screen_geometry = screen.availableGeometry()
+        width = min(600, screen_geometry.width() * 0.5)
+        height = min(700, screen_geometry.height() * 0.7)
         return width, height
         
     def initUI(self):

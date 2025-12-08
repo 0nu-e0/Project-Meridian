@@ -281,8 +281,8 @@ def save_task_to_json(task, logger):
             category=TaskCategory.FEATURE
         )
 
-    print(f"Task status type: {type(task.status)}")
-    print(f"Task category type: {type(task.category)}")
+    logger.debug(f"Task status type: {type(task.status)}")
+    logger.debug(f"Task category type: {type(task.category)}")
     # Get the path from AppConfig
     app_config = AppConfig()
     json_file_path = app_config.tasks_file
@@ -304,11 +304,11 @@ def save_task_to_json(task, logger):
                 tasks_data = json.load(file)
 
         task_status = task.status.name
-        print(f"task: {task.title} and status: {task_status}, type: {type(task_status)}")
+        logger.debug(f"task: {task.title} and status: {task_status}, type: {type(task_status)}")
         if task_status == "COMPLETED":
             task.category = TaskCategory.ARCHIVED
 
-        print("Completed")
+        logger.debug("Completed")
         # Convert Task object to dictionary, handling potential None values
         task_data = {
             'id': getattr(task, 'id', str(uuid4())),  # Generate new ID if none exists
@@ -382,31 +382,17 @@ def save_task_to_json(task, logger):
                 }
                 for entry in getattr(task, 'entries', [])
             ],
-            "settings": [
-                {
-                    "details": {
-
-                    },
-                    "dependencies": {
-
-                    },
-                    "attachments": {
-
-                    },
-                    "checklist": {
-
-                    },
-                    "comments": {
-
-                    },
-                    "worklog": {
-
-                    },
-                }
-            ]
+            "settings": {
+                "details": {},
+                "dependencies": {},
+                "attachments": {},
+                "checklist": {},
+                "comments": {},
+                "worklog": {}
+            }
         }
-        
-        print(f"Saving update: {task_data['category']}")
+
+        logger.debug(f"Saving update: {task_data['category']}")
 
         # Clean up None values for cleaner JSON
         task_data = {k: v for k, v in task_data.items() if v is not None}

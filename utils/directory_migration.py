@@ -10,11 +10,11 @@ def migrate_data_if_needed():
     Check for legacy files (JSON and YAML) using resource_path, and migrate them to the new location if found.
     """
     from utils.app_config import AppConfig
-    
+
     # This should be imported from wherever it's defined in your project
     # from utils.helpers import resource_path
-    
-    # logger = logging.getLogger("FileMigration")
+
+    logger = logging.getLogger("FileMigration")
     
     # Get the AppConfig instance
     app_config = AppConfig()
@@ -81,9 +81,9 @@ def migrate_data_if_needed():
             shutil.copy2(source_path, backup_path)
             os.remove(source_path)
             # logger.info(f"Legacy file backed up to {backup_path} and removed")
-            
+
         except Exception as e:
-            print(f"Error migrating file {source_rel_path}: {e}")
+            logger.error(f"Error migrating file {source_rel_path}: {e}")
     
     # Make sure all required directories exist
     os.makedirs(app_config.data_dir, exist_ok=True)
