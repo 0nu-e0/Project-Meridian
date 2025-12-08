@@ -25,21 +25,22 @@
 # Author: Jereme Shaver
 # -----------------------------------------------------------------------------
 
-import os, json
-from utils.tasks_io import load_tasks_from_json, save_task_to_json
-from datetime import datetime, timedelta
+# Standard library imports
+from datetime import datetime
+from functools import partial
+
+# Third-party imports
+from PyQt5.QtCore import QEvent, QObject, QSize, Qt, QTimer, pyqtSignal
+from PyQt5.QtGui import QResizeEvent
+from PyQt5.QtWidgets import (QComboBox, QGraphicsOpacityEffect, QGridLayout,
+                             QHBoxLayout, QSizePolicy, QSpacerItem, QVBoxLayout, QWidget)
+
+# Local application imports
+from models.task import DueStatus, TaskCategory, TaskStatus
+from resources.styles import AppStyles
 from ui.custom_widgets.filter_image import FilterButton
-from models.task import Task, TaskStatus, TaskPriority, TaskCategory, TaskEntry, Attachment, DueStatus
-from resources.styles import AppStyles, AnimatedButton
-from utils.directory_finder import resource_path
-from ui.task_files.task_card_expanded import TaskCardExpanded
 from ui.task_files.task_card_lite import TaskCardLite
-from PyQt5.QtWidgets import (QApplication, QWidget, QGridLayout, QPushButton, QVBoxLayout, QHBoxLayout, QMainWindow,
-                             QSpacerItem, QLabel, QSizePolicy, QStackedWidget, QDesktopWidget, QScrollArea, QStyle,
-                             QComboBox, QGraphicsOpacityEffect
-                             )
-from PyQt5.QtCore import Qt, pyqtSignal, QSize, QEvent, QTimer, QObject
-from PyQt5.QtGui import QResizeEvent, QIcon
+from utils.tasks_io import load_tasks_from_json
 
 class GridLayout(QWidget):
     sendTaskInCardClicked = pyqtSignal(object, str)
@@ -257,7 +258,7 @@ class GridLayout(QWidget):
             card.setStyleSheet(AppStyles.task_card())
             card.cardHovered.connect(self.handleCardHover)
             # print("calling")
-            card.cardClicked.connect(lambda t=task, g=self.grid_id: self.sendTaskInCardClicked.emit(t, g))
+            card.cardClicked.connect(partial(self.sendTaskInCardClicked.emit, task, self.grid_id))
             card.filterPass.connect(self.passFilter)
             
             # Check for duplicates
@@ -280,14 +281,11 @@ class GridLayout(QWidget):
                 self.current_row += 1
 
     def handleCardHover(self, is_hovering, row):
-        self.setProperty("source", "hover")
-        sender_card = self.sender()
-
-        if sender_card and self.grid_title == sender_card.task.category.value:
-            if is_hovering:
-                sender_card.showHoverOverlay()
-            else:
-                sender_card.hideHoverOverlay()
+        """Card hover handling - expansion is now automatic via enterEvent/leaveEvent"""
+        # The expandable card system handles hover state automatically
+        # Force layout update to accommodate expanded card height
+        QTimer.singleShot(50, lambda: self.updateGeometry())
+        QTimer.singleShot(50, lambda: self.parent().updateGeometry() if self.parent() else None)
 
     # def handleCardClicked(self, task):
     #     print("handling card clicked in grid_layout.py")
@@ -296,24 +294,43 @@ class GridLayout(QWidget):
     def removeTaskCard(self, task_title):
         """Remove a task card from this grid layout"""
         self.setProperty("source", "remove task card")
+        self.logger.debug(f"Attempting to remove task card: '{task_title}' (type: {type(task_title)})")
+        self.logger.debug(f"Current taskCards count: {len(self.taskCards)}")
+
+        card_found = False
         for i, card in enumerate(self.taskCards):
             try:
-                if hasattr(card, 'task') and hasattr(card.task, 'title') and card.task.title == task_title:
-                    # Remove from the layout
-                    self.grid_layout.removeWidget(card)
-                    
-                    # Remove from our list
-                    self.taskCards.pop(i)
-                    
-                    # Delete the widget
-                    card.deleteLater()
-                    
-                    # Rearrange remaining cards
-                    self.rearrangeGridLayout()
-                    
-                    break  # Break after finding the card
+                if hasattr(card, 'task') and hasattr(card.task, 'title'):
+                    card_title = card.task.title
+                    self.logger.debug(f"Card {i}: title='{card_title}' (type: {type(card_title)}, len: {len(card_title)})")
+                    self.logger.debug(f"  Comparing: '{card_title}' == '{task_title}' ? {card_title == task_title}")
+                    self.logger.debug(f"  Repr comparison: {repr(card_title)} == {repr(task_title)}")
+
+                    if card.task.title == task_title:
+                        self.logger.debug(f"Found matching card at index {i}, removing...")
+                        card_found = True
+
+                        # Remove from the layout
+                        self.grid_layout.removeWidget(card)
+
+                        # Remove from our list
+                        self.taskCards.pop(i)
+
+                        # Delete the widget
+                        card.deleteLater()
+
+                        # Rearrange remaining cards
+                        self.rearrangeGridLayout()
+
+                        self.logger.debug(f"Card removed successfully. Remaining cards: {len(self.taskCards)}")
+                        break  # Break after finding the card
+                else:
+                    self.logger.debug(f"Card {i}: No task or title attribute")
             except Exception as e:
                 self.logger.error(f"Error removing task card: {e}")
+
+        if not card_found:
+            self.logger.warning(f"Task card '{task_title}' not found in this grid layout")
     
     @staticmethod
     def clearGridLayout(self, layout):
@@ -377,8 +394,6 @@ class GridLayout(QWidget):
             if show_card:
                 self.visibleCards.append(card)
 
-            self.taskCards = []
-  
         self.rearrangeGridLayout()
 
     def resizeEvent(self, event: QResizeEvent):

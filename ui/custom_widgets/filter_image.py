@@ -27,6 +27,7 @@
 # -----------------------------------------------------------------------------
 
 from datetime import datetime
+from functools import partial
 from ui.task_files.task_card_lite import TaskCardLite
 from models.task import TaskCategory, TaskStatus, DueStatus
 from PyQt5.QtWidgets import QPushButton, QMenu
@@ -78,23 +79,23 @@ class FilterButton(QPushButton):
             action = status_menu.addAction(status.value)
             action.setCheckable(True)
             action.setChecked(status.value in self.active_filters['status'])
-            action.triggered.connect(lambda checked, s=status.value: self.toggleFilter('status', s, checked))
-            
+            action.triggered.connect(partial(self.toggleFilter, 'status', status.value))
+
     def addCategoryFilters(self, menu):
         category_menu = menu.addMenu("Category")
         for category in TaskCategory:
             action = category_menu.addAction(category.value)
             action.setCheckable(True)
             action.setChecked(category.value in self.active_filters['category'])
-            action.triggered.connect(lambda checked, c=category.value: self.toggleFilter('category', c, checked))
-            
+            action.triggered.connect(partial(self.toggleFilter, 'category', category.value))
+
     def addDueFilters(self, menu):
         due_menu = menu.addMenu("Due Date")
         for due in DueStatus:
             action = due_menu.addAction(due.value)
             action.setCheckable(True)
             action.setChecked(due.value in self.active_filters['due'])
-            action.triggered.connect(lambda checked, d=due.value: self.toggleFilter('due', d, checked))
+            action.triggered.connect(partial(self.toggleFilter, 'due', due.value))
             
     def toggleFilter(self, filter_type, value, checked):
         if checked and value not in self.active_filters[filter_type]:

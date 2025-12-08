@@ -26,19 +26,20 @@
 # Author: Jereme Shaver
 # -----------------------------------------------------------------------------
 
+# Standard library imports
+import logging
 import os
-from resources.styles import AppStyles, AppColors, AppBorders, AppPixelSizes
-from PyQt5.QtWidgets import (QApplication, QDesktopWidget, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QSpacerItem, 
-                             QSizePolicy, QGridLayout, QPushButton, QGraphicsDropShadowEffect, QStyle, QComboBox, QTextEdit,
-                             QDateTimeEdit, QLineEdit, QCalendarWidget, QToolButton, QSpinBox, QListWidget, QTabWidget,
-                             QMessageBox, QInputDialog, QListWidgetItem, QScrollArea, QTreeWidget, QTreeWidgetItem, QCheckBox,
-                             QListView
-                             )
-from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot, QEvent, QSize, QDateTime
-from PyQt5.QtGui import QColor, QPainter, QBrush, QPen, QMovie, QTextCharFormat, QColor, QIcon, QPixmap, QFont
-from PyQt5.QtSvg import QSvgWidget
+from functools import partial
 
-from PyQt5.QtWidgets import QStyleFactory
+# Third-party imports
+from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtGui import QIcon
+from PyQt5.QtWidgets import (QCheckBox, QComboBox, QFrame, QHBoxLayout, QLabel,
+                             QLineEdit, QListView, QListWidget, QListWidgetItem,
+                             QPushButton, QScrollArea, QSizePolicy, QVBoxLayout, QWidget)
+
+# Local application imports
+from resources.styles import AppBorders, AppColors, AppPixelSizes, AppStyles
 
 class CollapsibleSection(QWidget):
     team_member_added = pyqtSignal(str)    
@@ -58,8 +59,9 @@ class CollapsibleSection(QWidget):
     checkbox_state_changed = pyqtSignal(str, bool)
 
     def __init__(self, title, parent=None):
-        super().__init__(parent)  
-        self.title = title 
+        super().__init__(parent)
+        self.logger = logging.getLogger(__name__)
+        self.title = title
         self.is_collapsed = False
 
         # This is the key change
@@ -197,9 +199,9 @@ class CollapsibleSection(QWidget):
             self.team_list.addItem(item)
             self.team_list.setItemWidget(item, item_widget)
             items_height = self.team_list.count() * 26  # each item is 26 pixels
-            self.team_list.setFixedHeight(min(items_height + 2, 200)) 
+            self.team_list.setFixedHeight(min(items_height + 2, 200))
 
-            remove_button.clicked.connect(lambda: self.remove_team_member(item))
+            remove_button.clicked.connect(partial(self.remove_team_member, item))
             self.team_input.clear()
             
             # Emit signal with the name
@@ -316,7 +318,7 @@ class CollapsibleSection(QWidget):
         self.task_combo.setStyleSheet(AppStyles.combo_box_norm())
         self.task_combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)  # ADDED: prevent excessive width expansion
         self.task_combo.setView(QListView())
-        print(f"self.task_combo: {self.task_combo.objectName()} - Address: {hex(id(self.task_combo))}")
+        self.logger.debug(f"self.task_combo: {self.task_combo.objectName()} - Address: {hex(id(self.task_combo))}")
         
         add_button = QPushButton("Add Dependency")
         add_button.setStyleSheet(AppStyles.add_button())
@@ -401,10 +403,10 @@ class CollapsibleSection(QWidget):
             # Update height based on actual content
             total_height = self.dependencies_list.count() * 50  # 40px + some padding
             self.dependencies_list.setFixedHeight(total_height)
-            
+
             # Connect remove button
-            remove_button.clicked.connect(lambda: self.remove_dependency(item))
-            
+            remove_button.clicked.connect(partial(self.remove_dependency, item))
+
             # Emit signal to save dependency
             self.dependency_added.emit(task_title)
 
@@ -474,7 +476,7 @@ class CollapsibleSection(QWidget):
                     text-decoration: underline;
                 }
             """)
-            open_all_button.clicked.connect(lambda: self.openAllAttachments(attachments))
+            open_all_button.clicked.connect(partial(self.openAllAttachments, attachments))
             open_all_layout.addWidget(open_all_button)
             open_all_layout.setAlignment(Qt.AlignLeft)
 
@@ -493,7 +495,7 @@ class CollapsibleSection(QWidget):
     
     def add_attachment_item(self, attachment):
         """Add a single attachment item with link and remove button."""
-        print(f"attachment type: {attachment.attachment_type}")
+        self.logger.debug(f"attachment type: {attachment.attachment_type}")
         item_layout = QHBoxLayout()
         item_layout.setContentsMargins(5, 2, 5, 2) 
         
@@ -533,17 +535,17 @@ class CollapsibleSection(QWidget):
         link = QLabel()
         link.setText(f"<a href='{attachment.path_or_url}' style='color: white;'>{filename}</a>")
         link.setTextInteractionFlags(Qt.TextBrowserInteraction)
-        link.linkActivated.connect(lambda url: self.attachment_clicked.emit(url))
-        
+        link.linkActivated.connect(self.attachment_clicked.emit)
+
         # Important settings to handle long filenames
-        link.setWordWrap(True) 
-        link.setMaximumWidth(200) 
+        link.setWordWrap(True)
+        link.setMaximumWidth(200)
         link.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
-        
+
         # Create remove button
         remove_btn = QPushButton("×")
         remove_btn.setFixedSize(20, 20)
-        remove_btn.clicked.connect(lambda: self.attachment_removed.emit(attachment))
+        remove_btn.clicked.connect(partial(self.attachment_removed.emit, attachment))
         
         # Add widgets to layout
         item_layout.addWidget(folder_label)
@@ -702,10 +704,8 @@ class CollapsibleSection(QWidget):
             
             # Connect signals
             idx = len(self.checklist_data) - 1
-            checkbox.stateChanged.connect(lambda state, idx=idx: 
-                                        self.update_checklist_item_state(idx, state == Qt.Checked))
-            remove_button.clicked.connect(lambda checked=False, item_text=text, idx=idx: 
-                                     self.remove_checklist_item(idx, item_text))
+            checkbox.stateChanged.connect(partial(self._on_checklist_item_state_changed, idx))
+            remove_button.clicked.connect(partial(self.remove_checklist_item, idx, text))
             
             # Emit signal for item added (if it exists)
             if hasattr(self, 'checklist_item_added'):
@@ -713,6 +713,10 @@ class CollapsibleSection(QWidget):
             
             # Clear input field
             self.checklist_input.clear()
+
+    def _on_checklist_item_state_changed(self, idx, state):
+        """Helper to convert Qt.CheckState to boolean and call update_checklist_item_state"""
+        self.update_checklist_item_state(idx, state == Qt.Checked)
 
     def update_checklist_item_state(self, idx, checked):
         """Update the state of a checklist item"""
@@ -763,9 +767,8 @@ class CollapsibleSection(QWidget):
             # Disconnect old connections
             checkbox = item_data['checkbox']
             checkbox.disconnect()
-            
+
             # Connect with new index
-            checkbox.stateChanged.connect(lambda state, idx=i: 
-                                        self.update_checklist_item_state(idx, state == Qt.Checked))
+            checkbox.stateChanged.connect(partial(self._on_checklist_item_state_changed, i))
 
     

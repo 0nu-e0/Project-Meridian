@@ -29,23 +29,37 @@
 # -----------------------------------------------------------------------------
 
 
-import os, yaml, logging, sys, asyncio, json, qasync, ctypes
-from utils.directory_finder import resource_path
-from utils.dashboard_config import DashboardConfigManager
-from utils.directory_migration import migrate_data_if_needed
-from ui.welcome_screen import WelcomeScreen
+# Standard library imports
+import asyncio
+import ctypes
+import json
+import logging
+import os
+import sys
+import yaml
+
+# Third-party imports
+import qasync
+from PyQt5.QtCore import QEasingCurve, QEvent, QPropertyAnimation, QRect, QSize, Qt, QTimer
+from PyQt5.QtGui import QGuiApplication, QIcon, QPixmap, QResizeEvent
+from PyQt5.QtWidgets import (QApplication, QFrame, QGraphicsDropShadowEffect, QHBoxLayout,
+                             QLabel, QMainWindow, QPushButton, QSizePolicy, QSpacerItem,
+                             QStackedWidget, QVBoxLayout, QWidget)
+
+# Local application imports
+from functools import partial
+from utils.constants import (DRAWER_SPACING, LAYOUT_NO_SPACING, WINDOW_DEFAULT_HEIGHT_RATIO,
+                             WINDOW_DEFAULT_WIDTH_RATIO, WINDOW_MIN_HEIGHT_RATIO,
+                             WINDOW_MIN_WIDTH_RATIO)
+from resources.styles import AnimatedButton, AppStyles
 from ui.dashboard_screen import DashboardScreen
-from ui.notes_screen import NotesScreen
 from ui.mindmap_screen import MindMapScreen
-from resources.styles import AppStyles, AnimatedButton
-from PyQt5.QtWidgets import (QApplication, QMainWindow, QPushButton, 
-                             QVBoxLayout, QWidget, QFrame, QDesktopWidget, QSpacerItem,
-                             QSizePolicy, QGraphicsDropShadowEffect, QHBoxLayout,
-                             QSpacerItem, QLabel, QStackedWidget, )
-from PyQt5.QtCore import QPropertyAnimation, QEasingCurve, QRect, QEvent, Qt, QTimer, QSize
-from PyQt5.QtGui import QResizeEvent, QPixmap, QIcon
-from pathlib import Path
-import shutil
+from ui.notes_screen import NotesScreen
+from ui.planning_screen import PlanningScreen
+from ui.welcome_screen import WelcomeScreen
+from utils.dashboard_config import DashboardConfigManager
+from utils.directory_finder import resource_path
+from utils.directory_migration import migrate_data_if_needed
 
 def setup_logging():
     log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -72,14 +86,23 @@ class MainWindow(QMainWindow):
 
         self.screen_mapping = {
             "Dashboard": "dashboard_screen",
+            "Planning": "planning_screen",
             "Projects": "projects_screen",
             "Notes": "notes_screen",
             "Mindmaps": "mindmaps_screen"
         }
 
-        self.screen_size = QDesktopWidget().screenGeometry(-1)
-        self.resize(int(self.screen_size.width() * 0.90), int(self.screen_size.height() * 0.90))
-        self.setMinimumSize(int(self.screen_size.width() * 0.5), int(self.screen_size.height() * 0.5))
+        # Use QGuiApplication.primaryScreen() instead of deprecated QDesktopWidget
+        screen = QGuiApplication.primaryScreen()
+        self.screen_size = screen.availableGeometry()
+        self.resize(
+            int(self.screen_size.width() * WINDOW_DEFAULT_WIDTH_RATIO),
+            int(self.screen_size.height() * WINDOW_DEFAULT_HEIGHT_RATIO)
+        )
+        self.setMinimumSize(
+            int(self.screen_size.width() * WINDOW_MIN_WIDTH_RATIO),
+            int(self.screen_size.height() * WINDOW_MIN_HEIGHT_RATIO)
+        )
         self.window_width = self.width()
         self.initUI()
 
@@ -106,6 +129,11 @@ class MainWindow(QMainWindow):
 
         return super(MainWindow, self).eventFilter(source, event)
 
+    def closeEvent(self, event):
+        """Clean up event filter when window closes"""
+        QApplication.instance().removeEventFilter(self)
+        super().closeEvent(event)
+
     def resizeEvent(self, event: QResizeEvent):
         super().resizeEvent(event)
 
@@ -122,7 +150,7 @@ class MainWindow(QMainWindow):
                     self.drawer.setGeometry(-drawer_width, 0, drawer_width, new_height)
                     
             except Exception as e:
-                print(f"Error setting drawer geometry: {e}")
+                self.logger.error(f"Error setting drawer geometry: {e}")
 
         # Adjust banner and central widget taking the drawer into account
         if hasattr(self, 'banner') and self.banner:
@@ -132,7 +160,7 @@ class MainWindow(QMainWindow):
                 else:
                     self.banner.setGeometry(0, 0, new_width, 75)
             except Exception as e:
-                print(f"Error setting banner geometry: {e}")
+                self.logger.error(f"Error setting banner geometry: {e}")
 
         # Adjust central widget and other components accordingly
         if hasattr(self, 'central_widget') and self.central_widget:
@@ -142,7 +170,7 @@ class MainWindow(QMainWindow):
                 else:
                     self.central_widget.setGeometry(0, 0, new_width, new_height)
             except Exception as e:
-                print(f"Error setting central widget geometry: {e}")
+                self.logger.error(f"Error setting central widget geometry: {e}")
 
         # Adjust toggle button position
         if hasattr(self, 'toggle_drawer_button') and self.toggle_drawer_button and self.toggle_drawer_button.isVisible():
@@ -150,7 +178,7 @@ class MainWindow(QMainWindow):
                 button_center_y = int(75 / 2 - self.toggle_drawer_button.height() / 2)
                 self.toggle_drawer_button.move(10, button_center_y)
             except Exception as e:
-                print(f"Error moving toggle drawer button: {e}")
+                self.logger.error(f"Error moving toggle drawer button: {e}")
     
     def initUI(self):
         self.setWindowTitle("Project Meridian")
@@ -169,8 +197,8 @@ class MainWindow(QMainWindow):
         self.central_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setCentralWidget(self.central_widget)
         self.main_layout = QVBoxLayout(self.central_widget)
-        self.main_layout.setContentsMargins(0, 0, 0, 0)
-        self.main_layout.setSpacing(0)
+        self.main_layout.setContentsMargins(LAYOUT_NO_SPACING, LAYOUT_NO_SPACING, LAYOUT_NO_SPACING, LAYOUT_NO_SPACING)
+        self.main_layout.setSpacing(LAYOUT_NO_SPACING)
 
     def initStackedWidgets(self):
         self.stacked_widget = QStackedWidget()
@@ -184,6 +212,9 @@ class MainWindow(QMainWindow):
         self.dashboard_screen.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.dashboard_screen.setObjectName("Dashboard")
 
+        self.planning_screen = PlanningScreen(logger=self.logger)
+        self.planning_screen.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
         self.notes_screen = NotesScreen(logger=self.logger)
         self.notes_screen.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
@@ -192,6 +223,7 @@ class MainWindow(QMainWindow):
 
         self.stacked_widget.addWidget(self.dashboard_screen)
         self.stacked_widget.addWidget(self.welcome_screen)
+        self.stacked_widget.addWidget(self.planning_screen)
         self.stacked_widget.addWidget(self.notes_screen)
         self.stacked_widget.addWidget(self.mindmaps_screen)
         self.stacked_widget.setCurrentWidget(self.welcome_screen)
@@ -255,7 +287,7 @@ class MainWindow(QMainWindow):
         self.drawer_shadow.setEnabled(False)
 
     def addDrawerButtons(self):
-        self.drawer_layout.setSpacing(20)
+        self.drawer_layout.setSpacing(DRAWER_SPACING)
 
         header_widget = QWidget()
         header_layout = QVBoxLayout(header_widget)
@@ -277,7 +309,7 @@ class MainWindow(QMainWindow):
             button = AnimatedButton(text=name, blur=2, x=60, y=20, offsetX=1, offsetY=1)
 
             button.setStyleSheet(AppStyles.button_normal())
-            button.clicked.connect(lambda checked, name=screen: self.buttonClicked(name))
+            button.clicked.connect(partial(self.buttonClicked, screen))
             self.drawer_layout.addWidget(button)
         
         settings_button = QPushButton()
@@ -299,8 +331,8 @@ class MainWindow(QMainWindow):
     def buttonClicked(self, screen):
         if self.drawer_open:
             self.toggleDrawer()
-        
-        self.drawer_animation.finished.connect(lambda: self.initiateStackedWidgetTransition(screen))
+
+        self.drawer_animation.finished.connect(partial(self.initiateStackedWidgetTransition, screen))
     
     def showSettingsMenu(self):
         pass
@@ -311,6 +343,7 @@ class MainWindow(QMainWindow):
 
         screen_to_widget_mapping = {
             "dashboard_screen": self.dashboard_screen,
+            "planning_screen": self.planning_screen,
             "notes_screen": self.notes_screen,
             "mindmaps_screen": self.mindmaps_screen
         }
@@ -321,7 +354,7 @@ class MainWindow(QMainWindow):
         if targetWidget and currentWidget != targetWidget:
             self.animateStackedWidgetTransition(currentWidget, targetWidget)
         else:
-            print(f"No valid transition for screen: {screen}")
+            self.logger.warning(f"No valid transition for screen: {screen}")
 
         for key, value in self.screen_mapping.items():
             if value == screen:

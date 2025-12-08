@@ -73,7 +73,7 @@ class DueStatus(Enum):
    NO_DUE_DATE = "No Due Date"
 
 class Task(QObject):
-    
+
     def __init__(
         self,
         title: str,
@@ -81,6 +81,9 @@ class Task(QObject):
         project_id: str = None,
         category: TaskCategory = TaskCategory.FEATURE
     ):
+        # Initialize QObject parent class
+        super().__init__()
+
         # Unique identifiers
         self.id = str(uuid4())
         self.project_id = project_id

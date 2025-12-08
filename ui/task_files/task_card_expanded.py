@@ -25,34 +25,34 @@
 # Author: Jereme Shaver
 # -----------------------------------------------------------------------------
 
-import sys, os, json, copy
-from utils.tasks_io import load_tasks_from_json, save_task_to_json
+# Standard library imports
+import json
+import os
 from datetime import datetime
-from pathlib import Path
 from functools import partial
-from utils.directory_finder import resource_path
-from models.task import Task, TaskCategory, TaskPriority, TaskStatus, Attachment, TaskEntry, TimeLog
+
+# Third-party imports
+from PyQt5.QtCore import QDateTime, QEvent, QSize, Qt, QTimer, QUrl, pyqtSignal
+from PyQt5.QtGui import QDesktopServices, QGuiApplication, QIcon, QPixmap, QResizeEvent
+from PyQt5.QtWidgets import (QApplication, QCalendarWidget, QComboBox, QFileDialog,
+                             QGridLayout, QHBoxLayout, QInputDialog, QLabel, QLineEdit,
+                             QListView, QListWidget, QListWidgetItem, QMessageBox,
+                             QPushButton, QScrollArea, QSizePolicy, QSpinBox, QTabWidget,
+                             QTextEdit, QToolButton, QVBoxLayout, QWidget)
+
+# Local application imports
+from models.task import Attachment, Task, TaskCategory, TaskEntry, TaskPriority, TaskStatus, TimeLog
+from resources.styles import AppStyles
 from ui.custom_widgets.collapsable_section import CollapsibleSection
-from resources.styles import AppColors
-from resources.styles import AppStyles, AnimatedButton
 from ui.task_files.task_settings_menu import TaskSettingsMenu
-from PyQt5.QtWidgets import (QApplication, QDesktopWidget, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QSpacerItem, 
-                             QSizePolicy, QGridLayout, QPushButton, QGraphicsDropShadowEffect, QStyle, QComboBox, QTextEdit,
-                             QDateTimeEdit, QLineEdit, QCalendarWidget, QToolButton, QSpinBox, QListWidget, QTabWidget,
-                             QMessageBox, QInputDialog, QListWidgetItem, QScrollArea, QTreeWidget, QTreeWidgetItem, QFileDialog,
-                             QStyleFactory, QListView, QLayout
-                             )
-from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot, QEvent, QSize, QDateTime, QUrl, QTimer
-from PyQt5.QtGui import (QColor, QPainter, QBrush, QPen, QMovie, QTextCharFormat, QColor, QIcon, QPixmap, QDesktopServices,
-                            QGuiApplication, QResizeEvent,
-                        )
-from PyQt5.QtSvg import QSvgWidget
+from utils.directory_finder import resource_path
+from utils.tasks_io import load_tasks_from_json, save_task_to_json
 
 class TaskCardExpanded(QWidget):
-    taskDeleted = pyqtSignal(str) 
-    saveCompleted = pyqtSignal(str) 
+    taskDeleted = pyqtSignal(str)
+    saveCompleted = pyqtSignal(object, str)  # (task, grid_id)
     cancelTask = pyqtSignal()
-    newTaskUpdate = pyqtSignal(object, str)
+    newTaskUpdate = pyqtSignal(object, str)  # (task, grid_id)
     
     @classmethod
     def calculate_optimal_card_size(cls):
@@ -74,7 +74,7 @@ class TaskCardExpanded(QWidget):
         self.logger = logger
         self.task = task
         self.grid_id = grid_id
-        print(f"Expanded card grid_id: {self.grid_id}")
+        self.logger.debug(f"Expanded card grid_id: {self.grid_id}")
         self.parent_view = parent_view
         self.initial_state = None
         self.isNewTask = False
@@ -87,14 +87,18 @@ class TaskCardExpanded(QWidget):
             self.isNewTask = True
 
         self._dirty = False
-        self._initial_snapshot = None   # dict
-        self._changes = {} 
+        self._initial_snapshot = None
+        self._changes = {}
+
+        # Initialize widget references to None for proper cleanup
+        self._calendar_widget = None
+        self.dialog_container = None
+        self.overlay = None
+        self.task_settings_menu = None
 
         self.setWindowFlags(Qt.FramelessWindowHint)
         self.setWindowModality(Qt.ApplicationModal)
         self.setObjectName("card_container")
-
-        self.settingsOverlay = None
 
         screen = QGuiApplication.screenAt(self.geometry().center())
         if not screen:
@@ -147,7 +151,7 @@ class TaskCardExpanded(QWidget):
     def store_initial_task_state(self):
         """Store the initial state of the task so we can restore it on cancel"""
         task = self.task
-        print(task)
+        self.logger.debug(task)
         self.initial_state = {
             'description': task.description,
             'status': task.status,
@@ -171,15 +175,11 @@ class TaskCardExpanded(QWidget):
         self.initRightPanelWidget()
 
     def initCentralWidget(self):
-        central_widget = QWidget()
-        central_widget.setObjectName("card_container")
         self.setObjectName("card_container")
-        central_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.main_layout = QHBoxLayout(self)
-        # central_widget.setStyleSheet(AppStyles.expanded_task_card())
         self.main_layout.setContentsMargins(0, 0, 0, 0)
         self.main_layout.setSpacing(0)
-        self.setLayout(self.main_layout)
 
     def initLeftPanelWidget(self):
         main_widget = QWidget()
@@ -209,14 +209,18 @@ class TaskCardExpanded(QWidget):
     def createTitleSection(self):
         title_layout = QHBoxLayout()
         title_layout.setContentsMargins(0, 0, 5, 0)
-        title_edit = QLineEdit(self.task.title if self.task is not None else "")
-        title_edit.setPlaceholderText("Set task name")
-        title_edit.setStyleSheet(AppStyles.line_edit_norm())
+        self.title_edit = QLineEdit(self.task.title if self.task is not None else "")
+        self.title_edit.setPlaceholderText("Set task name")
+        self.title_edit.setStyleSheet(AppStyles.line_edit_norm())
 
-        title_edit.editingFinished.connect(lambda: self.updateTaskTitle(title_edit.text()))
+        self.title_edit.editingFinished.connect(self._on_title_edit_finished)
 
-        title_layout.addWidget(title_edit)
+        title_layout.addWidget(self.title_edit)
         return title_layout
+
+    def _on_title_edit_finished(self):
+        """Wrapper for title edit signal"""
+        self.updateTaskTitle(self.title_edit.text())
     
     def updateTaskTitle(self, new_title):
         """Update the task title in memory"""
@@ -283,16 +287,20 @@ class TaskCardExpanded(QWidget):
     def createDescriptionSection(self):
         desc_layout = QVBoxLayout()
         
-        desc_edit = QTextEdit(self.task.description if self.task is not None else "")
-        desc_edit.setStyleSheet(AppStyles.text_edit_norm())
-        desc_edit.setMinimumHeight(50)
-        
+        self.desc_edit = QTextEdit(self.task.description if self.task is not None else "")
+        self.desc_edit.setStyleSheet(AppStyles.text_edit_norm())
+        self.desc_edit.setMinimumHeight(50)
+
         # Connect the text changed signal to update description
-        desc_edit.textChanged.connect(lambda: self.updateTaskDescription(desc_edit.toPlainText()))
-        
+        self.desc_edit.textChanged.connect(self._on_description_changed)
+
         desc_layout.addWidget(QLabel("Description:"))
-        desc_layout.addWidget(desc_edit)
+        desc_layout.addWidget(self.desc_edit)
         return desc_layout
+
+    def _on_description_changed(self):
+        """Wrapper for description text changed signal"""
+        self.updateTaskDescription(self.desc_edit.toPlainText())
 
     def updateTaskDescription(self, new_description):
         """Update the task description in memory"""
@@ -341,10 +349,12 @@ class TaskCardExpanded(QWidget):
 
     def showCalendar(self):
         # Close any existing instance
-        if hasattr(self, '_calendar_widget') and self._calendar_widget:
+        if hasattr(self, '_calendar_widget') and self._calendar_widget is not None:
             self._calendar_widget.close()
+            self._calendar_widget = None
 
         calendar = QCalendarWidget(self)
+        calendar.setAttribute(Qt.WA_DeleteOnClose)
         self._calendar_widget = calendar
         calendar.setWindowFlags(Qt.Popup | Qt.FramelessWindowHint)
         calendar.setGridVisible(True)
@@ -407,11 +417,11 @@ class TaskCardExpanded(QWidget):
         category_combo.addItems([category.value for category in TaskCategory])
         category_combo.setCurrentText(self.task.category.value if self.task else category_combo.itemText(0))
         category_combo.setView(QListView())
-        print(f"category_combo: {category_combo.objectName()} - Address: {hex(id(category_combo))}")
-        
+        self.logger.debug(f"category_combo: {category_combo.objectName()} - Address: {hex(id(category_combo))}")
+
         # Connect the combo box change to the update method
-        category_combo.currentTextChanged.connect(lambda text: self.updateTaskCategory(text))
-        
+        category_combo.currentTextChanged.connect(self.updateTaskCategory)
+
         category_layout.addWidget(QLabel("Category:"))
         category_layout.addWidget(category_combo)
         return category_layout
@@ -422,6 +432,19 @@ class TaskCardExpanded(QWidget):
             if category.value == new_category:
                 self.task.category = category
                 break
+
+    def _handleSaveClick(self):
+        """Handle the save button click - save task and emit appropriate signal"""
+        is_new_task = self.task is None
+
+        # Save the task to JSON
+        save_task_to_json(self.task, self.logger)
+
+        # Emit the appropriate signal with the task object
+        if is_new_task:
+            self.saveCompleted.emit(self.task, self.grid_id)
+        else:
+            self.newTaskUpdate.emit(self.task, self.grid_id)
 
     def createButtonSection(self):
         layout = QHBoxLayout()
@@ -438,11 +461,7 @@ class TaskCardExpanded(QWidget):
         settings_btn.setStyleSheet(AppStyles.save_button())
 
         # Persist task and notify parent appropriately
-        save_btn.clicked.connect(lambda: save_task_to_json(self.task, self.logger))
-        if self.task is None:
-            save_btn.clicked.connect(lambda: self.saveCompleted.emit(self.grid_id))
-        else:
-            save_btn.clicked.connect(lambda: self.newTaskUpdate.emit(self.task, self.grid_id))
+        save_btn.clicked.connect(self._handleSaveClick)
 
         cancel_btn.clicked.connect(self.cancelTaskChanges)
         delete_btn.clicked.connect(self.deleteTask)
@@ -498,9 +517,9 @@ class TaskCardExpanded(QWidget):
         comments_scroll_area.setWidgetResizable(True)
         
         comments_layout.addWidget(comments_scroll_area)
-        
+
         # Connect signals - pass the input widget
-        post_button.clicked.connect(lambda: self.add_comment(comment_input))
+        post_button.clicked.connect(partial(self.add_comment, comment_input))
         
         # Work Logs tab
         work_logs_tab = QWidget()
@@ -536,9 +555,9 @@ class TaskCardExpanded(QWidget):
         work_scroll_area.setStyleSheet(AppStyles.scroll_area())
         
         work_logs_layout.addWidget(work_scroll_area)
-        
+
         # Connect to work log method - pass both inputs
-        log_button.clicked.connect(lambda: self.add_work_log(hours_input, log_description))
+        log_button.clicked.connect(partial(self.add_work_log, hours_input, log_description))
         
         # Add tabs to tab widget
         tab_widget.addTab(comments_tab, " Comments ")
@@ -709,10 +728,10 @@ class TaskCardExpanded(QWidget):
                 details_section.add_team_member()
 
         if not self.task.collaborators:
-            print("No teams found")
+            self.logger.debug("No teams found")
             details_section.toggle_collapsed()
         else:
-            print("found teams")
+            self.logger.debug("found teams")
                 
         # Add section to layout
         section_layout.addWidget(details_section)
@@ -1028,9 +1047,9 @@ class TaskCardExpanded(QWidget):
 
     def delete_activity(self, item):
         """Delete a TaskEntry"""
-        print(f"Attempting to delete item: {item}")
+        self.logger.debug(f"Attempting to delete item: {item}")
         entry = item.data(Qt.UserRole)
-        print(f"found entry: {entry}")
+        self.logger.debug(f"found entry: {entry}")
         if entry:
             confirm = QMessageBox.question(
                 self, "Confirm Delete", 
@@ -1046,7 +1065,7 @@ class TaskCardExpanded(QWidget):
                 # Refresh the UI
                 self.display_activities()
         else:
-            print("failed to delete")
+            self.logger.debug("failed to delete")
 
     def edit_work_log(self, item):
         """Edit a TimeLog"""
@@ -1189,7 +1208,7 @@ class TaskCardExpanded(QWidget):
                     json.dump(tasks_data, f, indent=2)
 
                 self.taskDeleted.emit(task_title)
-                if hasattr(self, 'parent_view') and self.parent_view and hasattr(self.parent_view, 'overlay'):
+                if hasattr(self, 'parent_view') and self.parent_view and hasattr(self.parent_view, 'overlay') and self.parent_view.overlay is not None:
                     self.parent_view.overlay.hide()
                 self.close()
 
@@ -1224,6 +1243,33 @@ class TaskCardExpanded(QWidget):
                 if item['text'] == text:
                     item['checked'] = checked
                     break
+
+    def closeEvent(self, event):
+        """Clean up resources when widget closes"""
+        # Clean up calendar widget if exists
+        if self._calendar_widget is not None:
+            self._calendar_widget.close()
+            self._calendar_widget = None
+
+        # Clean up dialog container if exists
+        if self.dialog_container is not None:
+            self.dialog_container.close()
+            self.dialog_container.deleteLater()
+            self.dialog_container = None
+
+        # Clean up overlay if exists
+        if self.overlay is not None:
+            self.overlay.close()
+            self.overlay.deleteLater()
+            self.overlay = None
+
+        # Clean up settings menu if exists
+        if self.task_settings_menu is not None:
+            self.task_settings_menu.close()
+            self.task_settings_menu.deleteLater()
+            self.task_settings_menu = None
+
+        super().closeEvent(event)
 
     def closeWindow(self):
         self.logger.debug("Closing expanded card")

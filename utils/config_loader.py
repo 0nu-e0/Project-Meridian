@@ -27,6 +27,7 @@
 
 import yaml
 import os
+import logging
 from pathlib import Path
 from collections import defaultdict
 
@@ -112,13 +113,14 @@ class AppConfig:
     
     def _load_file(self, file_path):
         """Load a configuration file and update settings"""
+        logger = logging.getLogger(__name__)
         try:
             with open(file_path, 'r') as file:
                 config_data = yaml.safe_load(file)
                 if config_data:
                     self._update_from_dict(config_data)
         except Exception as e:
-            print(f"Error loading config file {file_path}: {e}")
+            logger.error(f"Error loading config file {file_path}: {e}")
     
     def _update_from_dict(self, config_dict):
         """Update configuration from dictionary"""
