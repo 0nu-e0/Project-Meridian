@@ -43,7 +43,7 @@ import qasync
 from PyQt5.QtCore import QEasingCurve, QEvent, QPropertyAnimation, QRect, QSize, Qt, QTimer
 from PyQt5.QtGui import QGuiApplication, QIcon, QPixmap, QResizeEvent
 from PyQt5.QtWidgets import (QApplication, QFrame, QGraphicsDropShadowEffect, QHBoxLayout,
-                             QLabel, QMainWindow, QPushButton, QSizePolicy, QSpacerItem,
+                             QLabel, QPushButton, QSizePolicy, QSpacerItem,
                              QStackedWidget, QVBoxLayout, QWidget)
 
 # Local application imports
@@ -76,13 +76,15 @@ def setup_logging():
 def get_logger(name=__name__):
     return logging.getLogger(name)
 
-class MainWindow(QMainWindow):
-
+class MainWindow(QWidget):
 
     def __init__(self):
         super().__init__()
         self.logger = logging.getLogger(__name__)
         logging.info("Application starting")
+
+        # Set window flags to make it act like a main window
+        self.setWindowFlags(Qt.Window)
 
         self.banner_header_label = ""
 
@@ -195,9 +197,8 @@ class MainWindow(QMainWindow):
         self.central_widget_animation = QPropertyAnimation(self.central_widget, b"geometry")
 
     def initCentralWidget(self):
-        self.central_widget = QWidget()
+        self.central_widget = QWidget(self)
         self.central_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.setCentralWidget(self.central_widget)
         self.main_layout = QVBoxLayout(self.central_widget)
         self.main_layout.setContentsMargins(LAYOUT_NO_SPACING, LAYOUT_NO_SPACING, LAYOUT_NO_SPACING, LAYOUT_NO_SPACING)
         self.main_layout.setSpacing(LAYOUT_NO_SPACING)
@@ -223,7 +224,7 @@ class MainWindow(QMainWindow):
         self.mindmaps_screen = MindMapScreen(logger=self.logger)
         self.mindmaps_screen.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
-        self.dashboard_screen.refreshPlanningUI.connect(self.planning_screen.refreshUI)
+        self.dashboard_screen.refreshPlanningUI.connect(self.planning_screen.refreshPlanningUI)
 
         self.stacked_widget.addWidget(self.dashboard_screen)
         self.stacked_widget.addWidget(self.welcome_screen)

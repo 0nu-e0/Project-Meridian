@@ -31,8 +31,8 @@ from functools import partial
 
 # Third-party imports
 from PyQt5.QtCore import QEvent, QObject, QSize, Qt, QTimer, pyqtSignal
-from PyQt5.QtGui import QResizeEvent
-from PyQt5.QtWidgets import (QComboBox, QGraphicsOpacityEffect, QGridLayout,
+from PyQt5.QtGui import QCursor, QResizeEvent
+from PyQt5.QtWidgets import (QApplication, QComboBox, QGraphicsOpacityEffect, QGridLayout,
                              QHBoxLayout, QSizePolicy, QSpacerItem, QVBoxLayout, QWidget)
 
 # Local application imports
@@ -54,10 +54,18 @@ class GridLayout(QWidget):
         self.grid_width = self.width()
         self.grid_title = grid_title
         self.taskCards = []
-        self.visibleCards = [] 
+        self.visibleCards = []
         self.num_columns = 1
         self.setAcceptDrops(True)
         self.currentlyDraggedCard = None
+        self.currently_expanded_card = None  # Track currently expanded card
+
+        # Timer to periodically check and collapse stuck cards
+        self.cleanup_timer = QTimer(self)
+        self.cleanup_timer.timeout.connect(self._cleanupExpandedCards)
+        self.cleanup_timer.setInterval(100)  # Check every 100ms
+        self.cleanup_timer.start()
+
         # Load tasks if not provided
         if tasks is not None:
             self.load_known_tasks(tasks)
@@ -85,18 +93,20 @@ class GridLayout(QWidget):
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
         if event.type() == QEvent.Enter:
             # opacity_effect1 = QGraphicsOpacityEffect()
-            # opacity_effect1.setOpacity(100) 
+            # opacity_effect1.setOpacity(100)
             # self.toggle_button.setGraphicsEffect(opacity_effect1)
             opacity_effect2 = QGraphicsOpacityEffect()
-            opacity_effect2.setOpacity(100) 
+            opacity_effect2.setOpacity(100)
             self.filter_button.setGraphicsEffect(opacity_effect2)
         elif event.type() == QEvent.Leave:
             # opacity_effect1 = QGraphicsOpacityEffect()
-            # opacity_effect1.setOpacity(0) 
+            # opacity_effect1.setOpacity(0)
             # self.toggle_button.setGraphicsEffect(opacity_effect1)
             opacity_effect2 = QGraphicsOpacityEffect()
-            opacity_effect2.setOpacity(0) 
+            opacity_effect2.setOpacity(0)
             self.filter_button.setGraphicsEffect(opacity_effect2)
+            # Collapse any expanded card when mouse leaves the grid
+            self.collapseAllCards()
         return super().eventFilter(watched, event)
 
     def initUI(self):
@@ -282,10 +292,58 @@ class GridLayout(QWidget):
 
     def handleCardHover(self, is_hovering, row):
         """Card hover handling - expansion is now automatic via enterEvent/leaveEvent"""
-        # The expandable card system handles hover state automatically
+        # Find the card that emitted this signal
+        sender_card = self.sender()
+
+        if is_hovering:
+            # If a different card is currently expanded, collapse it first
+            if self.currently_expanded_card and self.currently_expanded_card != sender_card:
+                if self.currently_expanded_card.expanded:
+                    self.currently_expanded_card.collapseCard()
+            # Update the currently expanded card reference
+            self.currently_expanded_card = sender_card
+        else:
+            # Card is collapsing
+            if self.currently_expanded_card == sender_card:
+                self.currently_expanded_card = None
+
         # Force layout update to accommodate expanded card height
         QTimer.singleShot(50, lambda: self.updateGeometry())
         QTimer.singleShot(50, lambda: self.parent().updateGeometry() if self.parent() else None)
+
+    def collapseAllCards(self):
+        """Collapse all expanded cards"""
+        if self.currently_expanded_card and self.currently_expanded_card.expanded:
+            self.currently_expanded_card.collapseCard()
+            self.currently_expanded_card = None
+
+    def _cleanupExpandedCards(self):
+        """Periodically check for and collapse stuck expanded cards"""
+        # Get current cursor position
+        cursor_pos = QCursor.pos()
+        widget_under_cursor = QApplication.widgetAt(cursor_pos)
+
+        # Check all visible cards
+        for card in self.visibleCards:
+            if not hasattr(card, 'expanded') or not card.expanded:
+                continue
+
+            # Check if mouse is over this card
+            is_mouse_over_card = (
+                widget_under_cursor is card or
+                (widget_under_cursor and card.isAncestorOf(widget_under_cursor))
+            )
+
+            # If card is expanded but mouse is not over it, collapse it
+            if not is_mouse_over_card:
+                # Double-check with geometry to be sure
+                card_global_rect = card.geometry()
+                card_global_rect.moveTopLeft(card.mapToGlobal(card_global_rect.topLeft()))
+                if not card_global_rect.contains(cursor_pos):
+                    card.collapseCard()
+                    # Update tracked card if needed
+                    if self.currently_expanded_card == card:
+                        self.currently_expanded_card = None
 
     # def handleCardClicked(self, task):
     #     print("handling card clicked in grid_layout.py")

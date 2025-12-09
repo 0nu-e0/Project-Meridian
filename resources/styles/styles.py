@@ -553,6 +553,92 @@ class AppStyles:
     @staticmethod
     def list_widget():
         return f"background-color: {AppColors.list}; border-radius: {AppPixelSizes.border_radius_sml}; "
+
+    @staticmethod
+    def day_column_list_today():
+        """Style for today's task list column in weekly planning view"""
+        return f"""
+            QListWidget {{
+                background-color: rgba(52, 152, 219, 0.08);
+                border: 2px solid #3498db;
+                border-radius: 5px;
+            }}
+            QListWidget::item {{
+                padding: 0px;
+                background-color: #2c3e50;
+                border: 1px solid #34495e;
+                border-radius: 4px;
+                margin: 3px 6px 3px 3px;
+            }}
+            QListWidget::item:hover {{
+                background-color: #34495e;
+                border: 1px solid #3498db;
+            }}
+            QListWidget::item:selected {{
+                background-color: #2980b9;
+                border: 1px solid #3498db;
+            }}
+            QScrollBar:vertical {{
+                border: {AppBorders.none};
+                background: transparent;
+                width: {AppPixelSizes.scroll_bar_width};
+            }}
+            QScrollBar::handle:vertical {{
+                background: {AppColors.scroll_bar_main};
+                min-height: {AppPixelSizes.scroll_bar_min_height};
+                border-radius: {AppPixelSizes.border_radius_xsml};
+            }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+                border: {AppBorders.none};
+                background: {AppColors.none};
+            }}
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{
+                background: {AppColors.none};
+            }}
+        """
+
+    @staticmethod
+    def day_column_list_regular():
+        """Style for regular (non-today) task list columns in weekly planning view"""
+        return f"""
+            QListWidget {{
+                background-color: #1e2a38;
+                border: 2px dashed #34495e;
+                border-radius: 5px;
+            }}
+            QListWidget::item {{
+                padding: 0px;
+                background-color: #2c3e50;
+                border: 1px solid #34495e;
+                border-radius: 4px;
+                margin: 3px 6px 3px 3px;
+            }}
+            QListWidget::item:hover {{
+                background-color: #34495e;
+                border: 1px solid #3498db;
+            }}
+            QListWidget::item:selected {{
+                background-color: #2980b9;
+                border: 1px solid #3498db;
+            }}
+            QScrollBar:vertical {{
+                border: {AppBorders.none};
+                background: transparent;
+                width: {AppPixelSizes.scroll_bar_width};
+            }}
+            QScrollBar::handle:vertical {{
+                background: {AppColors.scroll_bar_main};
+                min-height: {AppPixelSizes.scroll_bar_min_height};
+                border-radius: {AppPixelSizes.border_radius_xsml};
+            }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+                border: {AppBorders.none};
+                background: {AppColors.none};
+            }}
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{
+                background: {AppColors.none};
+            }}
+        """
     
     @staticmethod
     def list_hover_style():

@@ -76,9 +76,21 @@ class DashboardScreen(QWidget):
 
         self.initUI()
 
+        # Install event filter to handle mouse leaving the dashboard
+        self.installEventFilter(self)
+
     def loadGridLayouts(self):
         return DashboardConfigManager.get_all_grid_layouts()
-    
+
+    def eventFilter(self, obj, event):
+        """Handle events to collapse cards when mouse leaves dashboard"""
+        if event.type() == QEvent.Leave and obj == self:
+            # Collapse all expanded cards in all grids when mouse leaves dashboard
+            for grid_layout in self.grid_layouts:
+                if hasattr(grid_layout, 'collapseAllCards'):
+                    grid_layout.collapseAllCards()
+        return super().eventFilter(obj, event)
+
     def initUI(self):
         self.initCentralWidget()
         self.initBannerSpacer()
@@ -569,7 +581,6 @@ class DashboardScreen(QWidget):
         self.grid_layouts = []  # Clear the grid_layouts list before rebuilding
         self.iterrateGridLayouts()
         self.refreshPlanningUI.emit()
-
         self.closeExpandedCard()
 
     def clear_layout(self, layout):
