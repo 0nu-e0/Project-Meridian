@@ -186,14 +186,14 @@ class TaskCardExpanded(QWidget):
         main_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         left_layout = QVBoxLayout(main_widget)
         left_layout.setContentsMargins(15, 15, 0 , 0)
-        left_layout.addLayout(self.createTitleSection(), 1)
+        left_layout.addLayout(self.createTitleSection(), 0)
 
         # Add project/phase section if task has project_id or phase_id
         if hasattr(self.task, 'project_id') and (self.task.project_id or self.task.phase_id):
             left_layout.addLayout(self.createProjectPhaseSection())
 
-        left_layout.addLayout(self.createDescriptionSection(), 2)
-        left_layout.addWidget(self.createActivitySection(), 5)
+        left_layout.addLayout(self.createDescriptionSection(), 1)
+        left_layout.addWidget(self.createActivitySection(), 3)
 
         self.main_layout.addWidget(main_widget,stretch=3)
 
@@ -212,15 +212,34 @@ class TaskCardExpanded(QWidget):
         self.main_layout.addWidget(main_widget, stretch=2)
 
     def createTitleSection(self):
-        title_layout = QHBoxLayout()
-        title_layout.setContentsMargins(0, 0, 5, 0)
+        title_layout = QVBoxLayout()
+        title_layout.setContentsMargins(0, 0, 5, 8)
+        title_layout.setSpacing(0)
+
+        # Title input with modern styling
         self.title_edit = QLineEdit(self.task.title if self.task is not None else "")
-        self.title_edit.setPlaceholderText("Set task name")
-        self.title_edit.setStyleSheet(AppStyles.line_edit_norm())
-
+        self.title_edit.setPlaceholderText("Enter task name...")
+        self.title_edit.setStyleSheet("""
+            QLineEdit {
+                background-color: #2c3e50;
+                border: 2px solid #34495e;
+                border-radius: 6px;
+                padding: 10px 14px;
+                color: #ecf0f1;
+                font-size: 14px;
+                font-weight: bold;
+            }
+            QLineEdit:focus {
+                border: 2px solid #3498db;
+                background-color: #34495e;
+            }
+            QLineEdit::placeholder {
+                color: #7f8c8d;
+            }
+        """)
         self.title_edit.editingFinished.connect(self._on_title_edit_finished)
-
         title_layout.addWidget(self.title_edit)
+
         return title_layout
 
     def _on_title_edit_finished(self):
@@ -235,8 +254,8 @@ class TaskCardExpanded(QWidget):
     def createProjectPhaseSection(self):
         """Create section showing project and phase information"""
         section_layout = QHBoxLayout()
-        section_layout.setContentsMargins(0, 5, 5, 5)
-        section_layout.setSpacing(10)
+        section_layout.setContentsMargins(0, 0, 5, 10)
+        section_layout.setSpacing(8)
 
         # Load project and phase names
         project_name = None
@@ -256,30 +275,34 @@ class TaskCardExpanded(QWidget):
             if phase:
                 phase_name = phase.name
 
-        # Project label
+        # Project label with modern styling
         if project_name:
             project_label = QLabel(f"📁 {project_name}")
             project_label.setStyleSheet("""
                 QLabel {
-                    font-size: 12px;
-                    color: #7f8c8d;
-                    padding: 4px 8px;
-                    background-color: #ecf0f1;
-                    border-radius: 4px;
+                    font-size: 11px;
+                    color: #ecf0f1;
+                    padding: 6px 12px;
+                    background-color: rgba(52, 152, 219, 0.15);
+                    border: 1px solid #3498db;
+                    border-radius: 5px;
+                    font-weight: bold;
                 }
             """)
             section_layout.addWidget(project_label)
 
-        # Phase label
+        # Phase label with modern styling
         if phase_name:
             phase_label = QLabel(f"▸ {phase_name}")
             phase_label.setStyleSheet("""
                 QLabel {
-                    font-size: 12px;
-                    color: #7f8c8d;
-                    padding: 4px 8px;
-                    background-color: #e8f4f8;
-                    border-radius: 4px;
+                    font-size: 11px;
+                    color: #ecf0f1;
+                    padding: 6px 12px;
+                    background-color: rgba(39, 174, 96, 0.15);
+                    border: 1px solid #27ae60;
+                    border-radius: 5px;
+                    font-weight: bold;
                 }
             """)
             section_layout.addWidget(phase_label)
@@ -288,47 +311,129 @@ class TaskCardExpanded(QWidget):
         return section_layout
 
     def createStatusPrioritySection(self):
-        status_priority_layout = QHBoxLayout()
-        status_priority_layout.setContentsMargins(0, 0, 5, 0)
-        
-        status_widget = QWidget()
-        status_layout = QHBoxLayout(status_widget)
-        priority_widget = QWidget()
-        priority_layout = QHBoxLayout(priority_widget)
+        # Container with horizontal layout
+        container_layout = QVBoxLayout()
+        container_layout.setContentsMargins(0, 0, 5, 15)
+        container_layout.setSpacing(8)
 
-        # Status combo box
+        # Horizontal layout for Status and Priority side by side
+        status_priority_layout = QHBoxLayout()
+        status_priority_layout.setSpacing(10)
+
+        # Status section
+        status_widget = QWidget()
+        status_section = QVBoxLayout(status_widget)
+        status_section.setContentsMargins(0, 0, 0, 0)
+        status_section.setSpacing(6)
+
+        status_label = QLabel("Status")
+        status_label.setStyleSheet("""
+            QLabel {
+                color: #bdc3c7;
+                font-size: 11px;
+                font-weight: bold;
+            }
+        """)
+        status_section.addWidget(status_label)
+
         status_combo = QComboBox()
-        status_combo.setStyleSheet(AppStyles.combo_box_norm())
+        status_combo.setStyleSheet("""
+            QComboBox {
+                background-color: #2c3e50;
+                border: 2px solid #34495e;
+                border-radius: 5px;
+                padding: 8px 12px;
+                color: #ecf0f1;
+                font-size: 11px;
+            }
+            QComboBox:hover {
+                border: 2px solid #3498db;
+            }
+            QComboBox::drop-down {
+                width: 20px;
+                border: none;
+            }
+            QComboBox::down-arrow {
+                image: none;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-top: 5px solid #ecf0f1;
+                margin-right: 5px;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #2c3e50;
+                border: 2px solid #3498db;
+                selection-background-color: #3498db;
+                color: #ecf0f1;
+                padding: 4px;
+            }
+        """)
         status_combo.addItems([status.value for status in TaskStatus])
         status_combo.setCurrentText(self.task.status.value if self.task is not None else status_combo.itemText(0))
         status_combo.currentTextChanged.connect(self.updateTaskStatus)
         status_combo.setView(QListView())
+        status_section.addWidget(status_combo)
 
-        status_combo.setMinimumWidth(150)  # Ensure it has enough space
-        status_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+        # Priority section
+        priority_widget = QWidget()
+        priority_section = QVBoxLayout(priority_widget)
+        priority_section.setContentsMargins(0, 0, 0, 0)
+        priority_section.setSpacing(6)
 
-        # Priority combo box
+        priority_label = QLabel("Priority")
+        priority_label.setStyleSheet("""
+            QLabel {
+                color: #bdc3c7;
+                font-size: 11px;
+                font-weight: bold;
+            }
+        """)
+        priority_section.addWidget(priority_label)
+
         priority_combo = QComboBox()
-        priority_combo.setStyleSheet(AppStyles.combo_box_norm())
+        priority_combo.setStyleSheet("""
+            QComboBox {
+                background-color: #2c3e50;
+                border: 2px solid #34495e;
+                border-radius: 5px;
+                padding: 8px 12px;
+                color: #ecf0f1;
+                font-size: 11px;
+            }
+            QComboBox:hover {
+                border: 2px solid #3498db;
+            }
+            QComboBox::drop-down {
+                width: 20px;
+                border: none;
+            }
+            QComboBox::down-arrow {
+                image: none;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-top: 5px solid #ecf0f1;
+                margin-right: 5px;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #2c3e50;
+                border: 2px solid #3498db;
+                selection-background-color: #3498db;
+                color: #ecf0f1;
+                padding: 4px;
+            }
+        """)
         priority_combo.addItems([priority.name for priority in TaskPriority])
         priority_combo.setCurrentText(self.task.priority.name if self.task is not None else priority_combo.itemText(0))
         priority_combo.currentTextChanged.connect(self.updateTaskPriority)
         priority_combo.setView(QListView())
+        priority_section.addWidget(priority_combo)
 
-        priority_combo.setMinimumWidth(150)
-        priority_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+        # Add both to horizontal layout
+        status_priority_layout.addWidget(status_widget)
+        status_priority_layout.addWidget(priority_widget)
 
-        # Ensure layouts expand properly
-        status_layout.addWidget(status_combo, 1)
-        priority_layout.addWidget(priority_combo, 1)
-
-        status_layout.setAlignment(Qt.AlignLeft)
-        priority_layout.setAlignment(Qt.AlignRight)
-
-        status_priority_layout.addWidget(status_widget, 1)
-        status_priority_layout.addWidget(priority_widget, 1)
-
-        return status_priority_layout
+        container_layout.addLayout(status_priority_layout)
+        return container_layout
 
     def updateTaskStatus(self, new_status: str):
         if self.task is not None:
@@ -346,16 +451,42 @@ class TaskCardExpanded(QWidget):
 
     def createDescriptionSection(self):
         desc_layout = QVBoxLayout()
-        
+        desc_layout.setSpacing(6)
+
+        # Modern label
+        desc_label = QLabel("Description")
+        desc_label.setStyleSheet("""
+            QLabel {
+                color: #bdc3c7;
+                font-size: 11px;
+                font-weight: bold;
+                padding: 0px;
+            }
+        """)
+        desc_layout.addWidget(desc_label)
+
+        # Modern text edit with card styling
         self.desc_edit = QTextEdit(self.task.description if self.task is not None else "")
-        self.desc_edit.setStyleSheet(AppStyles.text_edit_norm())
-        self.desc_edit.setMinimumHeight(50)
-
-        # Connect the text changed signal to update description
+        self.desc_edit.setPlaceholderText("Add a description...")
+        self.desc_edit.setStyleSheet("""
+            QTextEdit {
+                background-color: #2c3e50;
+                border: 2px solid #34495e;
+                border-radius: 6px;
+                padding: 8px;
+                color: #ecf0f1;
+                font-size: 11px;
+                selection-background-color: #3498db;
+            }
+            QTextEdit:focus {
+                border: 2px solid #3498db;
+                background-color: #34495e;
+            }
+        """)
+        self.desc_edit.setMaximumHeight(80)
         self.desc_edit.textChanged.connect(self._on_description_changed)
-
-        desc_layout.addWidget(QLabel("Description:"))
         desc_layout.addWidget(self.desc_edit)
+
         return desc_layout
 
     def _on_description_changed(self):
@@ -471,18 +602,57 @@ class TaskCardExpanded(QWidget):
             self._calendar_widget = None
 
     def createCategorySection(self):
-        category_layout = QHBoxLayout()
+        category_layout = QVBoxLayout()
+        category_layout.setContentsMargins(0, 0, 5, 10)
+        category_layout.setSpacing(6)
+
+        category_label = QLabel("Category")
+        category_label.setStyleSheet("""
+            QLabel {
+                color: #bdc3c7;
+                font-size: 11px;
+                font-weight: bold;
+            }
+        """)
+        category_layout.addWidget(category_label)
+
         category_combo = QComboBox()
-        category_combo.setStyleSheet(AppStyles.combo_box_norm())
+        category_combo.setStyleSheet("""
+            QComboBox {
+                background-color: #2c3e50;
+                border: 2px solid #34495e;
+                border-radius: 5px;
+                padding: 8px 12px;
+                color: #ecf0f1;
+                font-size: 11px;
+            }
+            QComboBox:hover {
+                border: 2px solid #3498db;
+            }
+            QComboBox::drop-down {
+                width: 20px;
+                border: none;
+            }
+            QComboBox::down-arrow {
+                image: none;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-top: 5px solid #ecf0f1;
+                margin-right: 5px;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #2c3e50;
+                border: 2px solid #3498db;
+                selection-background-color: #3498db;
+                color: #ecf0f1;
+                padding: 4px;
+            }
+        """)
         category_combo.addItems([category.value for category in TaskCategory])
         category_combo.setCurrentText(self.task.category.value if self.task else category_combo.itemText(0))
         category_combo.setView(QListView())
-        self.logger.debug(f"category_combo: {category_combo.objectName()} - Address: {hex(id(category_combo))}")
-
-        # Connect the combo box change to the update method
         category_combo.currentTextChanged.connect(self.updateTaskCategory)
 
-        category_layout.addWidget(QLabel("Category:"))
         category_layout.addWidget(category_combo)
         return category_layout
 
@@ -508,48 +678,183 @@ class TaskCardExpanded(QWidget):
 
     def createButtonSection(self):
         layout = QHBoxLayout()
-        layout.setContentsMargins(0, 0, 0, 15)
+        layout.setContentsMargins(0, 10, 5, 15)
+        layout.setSpacing(8)
 
-        save_btn = QPushButton("Save")
-        cancel_btn = QPushButton("Cancel")
-        delete_btn = QPushButton("Delete")
-        settings_btn = QPushButton("Settings")
-
-        save_btn.setStyleSheet(AppStyles.save_button())
-        cancel_btn.setStyleSheet(AppStyles.save_button())
-        delete_btn.setStyleSheet(AppStyles.save_button())
-        settings_btn.setStyleSheet(AppStyles.save_button())
-
-        # Persist task and notify parent appropriately
+        # Save button (primary action)
+        save_btn = QPushButton("💾 Save")
+        save_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #27ae60;
+                border: 2px solid #27ae60;
+                border-radius: 6px;
+                padding: 10px 20px;
+                color: white;
+                font-size: 12px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #2ecc71;
+                border: 2px solid #2ecc71;
+            }
+            QPushButton:pressed {
+                background-color: #229954;
+            }
+        """)
         save_btn.clicked.connect(self._handleSaveClick)
+        layout.addWidget(save_btn)
 
+        # Cancel button
+        cancel_btn = QPushButton("✖ Cancel")
+        cancel_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #95a5a6;
+                border: 2px solid #95a5a6;
+                border-radius: 6px;
+                padding: 10px 20px;
+                color: white;
+                font-size: 12px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #7f8c8d;
+                border: 2px solid #7f8c8d;
+            }
+            QPushButton:pressed {
+                background-color: #5d6d7e;
+            }
+        """)
         cancel_btn.clicked.connect(self.cancelTaskChanges)
-        delete_btn.clicked.connect(self.deleteTask)
-        settings_btn.clicked.connect(self.settingsMenu)
+        layout.addWidget(cancel_btn)
 
-        for b in (save_btn, cancel_btn, delete_btn, settings_btn):
-            layout.addWidget(b)
+        # Delete button (warning action)
+        delete_btn = QPushButton("🗑 Delete")
+        delete_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #e74c3c;
+                border: 2px solid #e74c3c;
+                border-radius: 6px;
+                padding: 10px 20px;
+                color: white;
+                font-size: 12px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #c0392b;
+                border: 2px solid #c0392b;
+            }
+            QPushButton:pressed {
+                background-color: #a93226;
+            }
+        """)
+        delete_btn.clicked.connect(self.deleteTask)
+        layout.addWidget(delete_btn)
+
+        layout.addStretch()
+
+        # Settings button (secondary action)
+        settings_btn = QPushButton("⚙ Settings")
+        settings_btn.setStyleSheet("""
+            QPushButton {
+                background-color: transparent;
+                border: 2px solid #34495e;
+                border-radius: 6px;
+                padding: 10px 20px;
+                color: #ecf0f1;
+                font-size: 12px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #34495e;
+                border: 2px solid #3498db;
+            }
+            QPushButton:pressed {
+                background-color: #2c3e50;
+            }
+        """)
+        settings_btn.clicked.connect(self.settingsMenu)
+        layout.addWidget(settings_btn)
 
         return layout
         
     def createActivitySection(self):
         # Create a container widget for the activity section
         activity_widget = QWidget()
+        activity_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         activity_layout = QVBoxLayout(activity_widget)
-        
-        # Create tab widget
+        activity_layout.setContentsMargins(0, 0, 5, 15)
+        activity_layout.setSpacing(8)
+
+        # Activity section label
+        activity_label = QLabel("Activity")
+        activity_label.setStyleSheet("""
+            QLabel {
+                color: #bdc3c7;
+                font-size: 12px;
+                font-weight: bold;
+                padding-bottom: 4px;
+            }
+        """)
+        activity_layout.addWidget(activity_label)
+
+        # Create tab widget with modern styling
         tab_widget = QTabWidget()
-        tab_widget.setStyleSheet(AppStyles.tab_norm())
-        
+        tab_widget.setStyleSheet("""
+            QTabWidget::pane {
+                border: 2px solid #34495e;
+                border-radius: 6px;
+                background-color: #2c3e50;
+                top: -1px;
+            }
+            QTabBar::tab {
+                background-color: #34495e;
+                color: #95a5a6;
+                padding: 10px 24px;
+                min-width: 80px;
+                border: 2px solid #34495e;
+                border-bottom: none;
+                border-top-left-radius: 6px;
+                border-top-right-radius: 6px;
+                margin-right: 2px;
+                font-size: 11px;
+                font-weight: bold;
+            }
+            QTabBar::tab:selected {
+                background-color: #2c3e50;
+                color: #3498db;
+                border: 2px solid #3498db;
+                border-bottom: 2px solid #2c3e50;
+            }
+            QTabBar::tab:hover:!selected {
+                background-color: #2c3e50;
+                color: #bdc3c7;
+            }
+        """)
+
         # Comments tab
         comments_tab = QWidget()
         comments_layout = QVBoxLayout(comments_tab)
-        
-        # Add text entry for new comments
+        comments_layout.setContentsMargins(10, 10, 10, 10)
+        comments_layout.setSpacing(8)
+
+        # Add text entry for new comments with modern styling
         comment_input = QTextEdit()
-        comment_input.setPlaceholderText("Add a comment...")
-        comment_input.setMaximumHeight(100)
-        comment_input.setStyleSheet(AppStyles.text_edit_norm())
+        comment_input.setPlaceholderText("Write a comment...")
+        comment_input.setMaximumHeight(90)
+        comment_input.setStyleSheet("""
+            QTextEdit {
+                background-color: #34495e;
+                border: 2px solid #3498db;
+                border-radius: 5px;
+                padding: 8px;
+                color: #ecf0f1;
+                font-size: 11px;
+                selection-background-color: #3498db;
+            }
+            QTextEdit:focus {
+                border: 2px solid #5dade2;
+            }
+        """)
     
         # Create container for comment input and button
         comment_input_container = QWidget()
@@ -559,24 +864,55 @@ class TaskCardExpanded(QWidget):
         # Add post button in a horizontal layout to push it right
         button_container = QWidget()
         button_layout = QHBoxLayout(button_container)
-        button_layout.addStretch()  
-        post_button = QPushButton("Post Comment")
-        post_button.setStyleSheet(AppStyles.post_button())
+        button_layout.setContentsMargins(0, 0, 0, 0)
+        button_layout.addStretch()
+        post_button = QPushButton("💬 Post")
+        post_button.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                border: 2px solid #3498db;
+                border-radius: 5px;
+                padding: 6px 16px;
+                color: white;
+                font-size: 11px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #5dade2;
+                border: 2px solid #5dade2;
+            }
+            QPushButton:pressed {
+                background-color: #2980b9;
+            }
+        """)
         button_layout.addWidget(post_button)
-        
+
         comment_input_layout.addWidget(button_container)
         comments_layout.addWidget(comment_input_container)
         
-        # Add comments list view
-        self.comments_list = QListWidget() 
-        self.comments_list.setStyleSheet(AppStyles.list_style())
-        
-        comments_scroll_area = QScrollArea()
-        comments_scroll_area.setWidget(self.comments_list)
-        comments_scroll_area.setStyleSheet(AppStyles.scroll_area())
-        comments_scroll_area.setWidgetResizable(True)
-        
-        comments_layout.addWidget(comments_scroll_area)
+        # Add comments list view with modern styling
+        self.comments_list = QListWidget()
+        self.comments_list.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.comments_list.setWordWrap(True)
+        self.comments_list.setStyleSheet("""
+            QListWidget {
+                background-color: transparent;
+                border: none;
+                outline: none;
+            }
+            QListWidget::item {
+                background-color: #34495e;
+                border: 1px solid #3498db;
+                border-radius: 5px;
+                padding: 8px;
+                margin: 4px 0px;
+            }
+            QListWidget::item:hover {
+                background-color: #3e5467;
+            }
+        """)
+
+        comments_layout.addWidget(self.comments_list, 1)
 
         # Connect signals - pass the input widget
         post_button.clicked.connect(partial(self.add_comment, comment_input))
@@ -584,37 +920,104 @@ class TaskCardExpanded(QWidget):
         # Work Logs tab
         work_logs_tab = QWidget()
         work_logs_layout = QVBoxLayout(work_logs_tab)
-        
+        work_logs_layout.setContentsMargins(10, 10, 10, 10)
+        work_logs_layout.setSpacing(8)
+
         # Add new work log entry section
         log_entry = QWidget()
         log_layout = QHBoxLayout(log_entry)
-        
+        log_layout.setSpacing(8)
+
         hours_input = QSpinBox()
         hours_input.setMinimum(0)
         hours_input.setMaximum(24)
-        hours_input.setSuffix(" hours")
-        
+        hours_input.setSuffix(" hrs")
+        hours_input.setStyleSheet("""
+            QSpinBox {
+                background-color: #34495e;
+                border: 2px solid #3498db;
+                border-radius: 5px;
+                padding: 6px;
+                color: #ecf0f1;
+                font-size: 11px;
+            }
+            QSpinBox:focus {
+                border: 2px solid #5dade2;
+            }
+            QSpinBox::up-button, QSpinBox::down-button {
+                background-color: #3498db;
+                border-radius: 3px;
+            }
+            QSpinBox::up-arrow, QSpinBox::down-arrow {
+                width: 8px;
+                height: 8px;
+            }
+        """)
+
         log_description = QLineEdit()
         log_description.setPlaceholderText("Describe your work...")
-        log_description.setStyleSheet(AppStyles.log_line_edit())
-        
-        log_button = QPushButton("Log Work")
-        
+        log_description.setStyleSheet("""
+            QLineEdit {
+                background-color: #34495e;
+                border: 2px solid #3498db;
+                border-radius: 5px;
+                padding: 6px 10px;
+                color: #ecf0f1;
+                font-size: 11px;
+            }
+            QLineEdit:focus {
+                border: 2px solid #5dade2;
+            }
+        """)
+
+        log_button = QPushButton("⏱ Log")
+        log_button.setStyleSheet("""
+            QPushButton {
+                background-color: #27ae60;
+                border: 2px solid #27ae60;
+                border-radius: 5px;
+                padding: 6px 16px;
+                color: white;
+                font-size: 11px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #2ecc71;
+                border: 2px solid #2ecc71;
+            }
+            QPushButton:pressed {
+                background-color: #229954;
+            }
+        """)
+
         log_layout.addWidget(hours_input)
-        log_layout.addWidget(log_description)
+        log_layout.addWidget(log_description, 1)
         log_layout.addWidget(log_button)
         work_logs_layout.addWidget(log_entry)
         
-        # Add work logs list
-        self.work_logs_list = QListWidget()  
-        self.work_logs_list.setStyleSheet(AppStyles.log_list())
-        
-        work_scroll_area = QScrollArea()
-        work_scroll_area.setWidgetResizable(True)
-        work_scroll_area.setWidget(self.work_logs_list)
-        work_scroll_area.setStyleSheet(AppStyles.scroll_area())
-        
-        work_logs_layout.addWidget(work_scroll_area)
+        # Add work logs list with modern styling
+        self.work_logs_list = QListWidget()
+        self.work_logs_list.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.work_logs_list.setWordWrap(True)
+        self.work_logs_list.setStyleSheet("""
+            QListWidget {
+                background-color: transparent;
+                border: none;
+                outline: none;
+            }
+            QListWidget::item {
+                background-color: #34495e;
+                border: 1px solid #27ae60;
+                border-radius: 5px;
+                padding: 8px;
+                margin: 4px 0px;
+            }
+            QListWidget::item:hover {
+                background-color: #3e5467;
+            }
+        """)
+
+        work_logs_layout.addWidget(self.work_logs_list, 1)
 
         # Connect to work log method - pass both inputs
         log_button.clicked.connect(partial(self.add_work_log, hours_input, log_description))
@@ -1022,50 +1425,95 @@ class TaskCardExpanded(QWidget):
 
     def add_entry_to_list(self, entry, list_widget):
         """Add a TaskEntry to a list widget with proper formatting"""
+        # Create and set up list item first
+        item = QListWidgetItem()
+        list_widget.addItem(item)
+
+        # Create entry widget
         entry_widget = QWidget()
+        entry_widget.setStyleSheet("background-color: transparent;")
         entry_layout = QVBoxLayout(entry_widget)
-        
-        # Content label
+        entry_layout.setContentsMargins(12, 10, 12, 10)
+        entry_layout.setSpacing(8)
+
+        # Get available width from list widget
+        available_width = list_widget.viewport().width() - 50
+
+        # Content label with word wrap
         content_label = QLabel(entry.content)
         content_label.setWordWrap(True)
+        content_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+        content_label.setStyleSheet("""
+            QLabel {
+                color: #ecf0f1;
+                font-size: 11px;
+                padding: 0px;
+                line-height: 1.4;
+            }
+        """)
+        # Set fixed width for proper word wrapping calculation
+        content_label.setFixedWidth(available_width - 24)
+        entry_layout.addWidget(content_label)
 
-        # horizontal_widget = QWidget()
-        # horizontal_layout = QHBoxLayout(horizontal_widget)
-        
-        # Timestamp
-        timestamp_label = QLabel(entry.timestamp.strftime("%m/%d/%Y %H:%M"))
-        timestamp_label.setStyleSheet(AppStyles.time_stamp_label())
-        
-        # Action buttons
+        # Action buttons and timestamp
         actions_layout = QHBoxLayout()
+        actions_layout.setSpacing(10)
         actions_layout.setAlignment(Qt.AlignLeft)
-    
-        edit_label = QLabel("Edit")
-        delete_label = QLabel("Delete")
-        
+
+        edit_label = QLabel("✏ Edit")
+        delete_label = QLabel("🗑 Delete")
+
         for label in [edit_label, delete_label]:
-            label.setStyleSheet(AppStyles.label_edit_delete())
+            label.setStyleSheet("""
+                QLabel {
+                    color: #3498db;
+                    font-size: 10px;
+                    padding: 2px 4px;
+                }
+                QLabel:hover {
+                    color: #5dade2;
+                    text-decoration: underline;
+                }
+            """)
             label.setCursor(Qt.PointingHandCursor)
             label.setTextInteractionFlags(Qt.TextBrowserInteraction)
-        
+
+        # Timestamp
+        timestamp_label = QLabel(entry.timestamp.strftime("%m/%d/%Y %H:%M"))
+        timestamp_label.setStyleSheet("""
+            QLabel {
+                color: #7f8c8d;
+                font-size: 9px;
+                font-style: italic;
+            }
+        """)
+
         actions_layout.addWidget(edit_label)
         actions_layout.addWidget(delete_label)
+        actions_layout.addStretch()
         actions_layout.addWidget(timestamp_label)
-        
-        # Add widgets to layout
-        entry_layout.addWidget(content_label)
-        # entry_layout.addWidget(timestamp_label)
+
         entry_layout.addLayout(actions_layout)
-        
-        # Create and set up list item
-        item = QListWidgetItem()
-        item.setSizeHint(entry_widget.sizeHint())
-        list_widget.addItem(item)
+
+        # Set the widget to the item
         list_widget.setItemWidget(item, entry_widget)
-        
+
+        # Force layout to calculate wrapped text height
+        QApplication.processEvents()
+        content_label.adjustSize()
+
+        # Now get the proper height after word wrapping
+        content_height = content_label.sizeHint().height()
+        actions_height = 25  # height for actions row
+        margins_spacing = 20 + 8  # top/bottom margins + spacing between content and actions
+        total_height = content_height + actions_height + margins_spacing
+
+        # Set size hint for the list item with extra padding
+        item.setSizeHint(QSize(available_width, max(total_height, 60)))
+
         # Store reference to the entry
         item.setData(Qt.UserRole, entry)
-        
+
         # Connect action signals
         edit_label.mousePressEvent = lambda event, item=item: self.edit_activity(item)
         delete_label.mousePressEvent = lambda event, item=item: self.delete_activity(item)

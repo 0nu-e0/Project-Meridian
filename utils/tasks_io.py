@@ -47,7 +47,7 @@ def load_tasks_from_json(logger):
     app_config = AppConfig()
     json_file_path = app_config.tasks_file
 
-    # logger.info(f"Attempting to load tasks from: {json_file_path}")
+    logger.info(f"Attempting to load tasks from: {json_file_path}")
 
     # Check if file exists
     if not os.path.exists(json_file_path):
@@ -59,7 +59,7 @@ def load_tasks_from_json(logger):
         with open(json_file_path, 'r') as file:
             tasks_data = json.load(file)
 
-        # logger.info(f"Successfully loaded {len(tasks_data)} tasks from {json_file_path}")
+        logger.info(f"Successfully loaded {len(tasks_data)} tasks from {json_file_path}")
 
         # Convert each task data to Task object
         for task_key, task_info in tasks_data.items():

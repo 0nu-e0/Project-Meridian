@@ -825,9 +825,12 @@ class DropZoneWidget(QWidget):
         if task:
             # Create a styled widget for the scheduled task
             task_widget = QWidget()
+            task_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
             task_layout = QVBoxLayout(task_widget)
             task_layout.setContentsMargins(8, 6, 8, 6)
-            task_layout.setSpacing(4)
+            task_layout.setSpacing(6)
+            # Enable the layout to respect heightForWidth from child widgets
+            task_layout.setSizeConstraint(QVBoxLayout.SetMinimumSize)
 
             # Set border color based on completion status or priority
             border_color = self._getBorderColor(task)
@@ -839,15 +842,20 @@ class DropZoneWidget(QWidget):
                 }}
             """)
 
-            # Title
-            title_label = QLabel(task.title)
+            # Title - normalize whitespace and create label
+            # Normalize multiple spaces to single space and strip trailing/leading spaces
+            normalized_title = ' '.join(task.title.split())
+            title_label = QLabel(normalized_title)
             title_font = QFont()
             title_font.setPointSize(10)
             title_font.setBold(True)
             title_label.setFont(title_font)
             title_label.setWordWrap(True)
-            title_label.setMinimumHeight(20)  # Ensure minimum height
-            title_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+            # This is critical: QLabel with wordWrap needs Preferred horizontal policy
+            # and the layout needs to respect heightForWidth
+            title_label.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
+            # Don't set a fixed height - let it expand based on content
+            title_label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
             task_layout.addWidget(title_label)
 
             # Info row (priority + category)
@@ -884,6 +892,7 @@ class DropZoneWidget(QWidget):
                             padding-left: 4px;
                         """)
                         checklist_label.setWordWrap(True)
+                        checklist_label.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
                         task_layout.addWidget(checklist_label)
 
                     # Show count if there are more items
@@ -959,13 +968,28 @@ class DropZoneWidget(QWidget):
                     task_layout.addWidget(scroll_wrapper)
 
             # Set proper size policy and constraints
+            # Use Expanding horizontally so it fills the width, Minimum vertically to fit content
             task_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+
+            # Set a maximum width to prevent the widget from expanding beyond the list
+            # This will be dynamically updated, but set an initial constraint
+            task_widget.setMaximumWidth(16777215)  # Qt's QWIDGETSIZE_MAX
 
             # Add to list
             self.task_list.addItem(item)
             self.task_list.setItemWidget(item, task_widget)
 
-            # Let Qt calculate the height based on content
+            # Calculate size hint with proper width constraint
+            # The list widget's viewport width is the maximum width available
+            list_width = self.task_list.viewport().width()
+            if list_width > 0:
+                task_widget.setMaximumWidth(list_width - 10)  # Account for margins
+
+            # Force layout to recalculate with the width constraint
+            task_layout.activate()
+            task_widget.adjustSize()
+
+            # Now get the size hint which should have proper height for wrapped text
             item.setSizeHint(task_widget.sizeHint())
         else:
             # Fallback if task not found
@@ -1049,6 +1073,30 @@ class DropZoneWidget(QWidget):
     def clearTasks(self):
         """Clear all scheduled tasks and projects"""
         self.task_list.clear()
+
+    def resizeEvent(self, event):
+        """Handle resize to update item sizes"""
+        super().resizeEvent(event)
+        # Update all list items to recalculate their sizes based on new width
+        try:
+            list_width = self.task_list.viewport().width()
+            if list_width <= 0:
+                return
+
+            for i in range(self.task_list.count()):
+                item = self.task_list.item(i)
+                if not item:
+                    continue
+                widget = self.task_list.itemWidget(item)
+                if widget:
+                    # Set maximum width to prevent overflow
+                    widget.setMaximumWidth(list_width - 10)
+                    # Force the widget to recalculate its size
+                    widget.updateGeometry()
+                    item.setSizeHint(widget.sizeHint())
+        except RuntimeError:
+            # Item may have been deleted during iteration
+            pass
 
 
 class PlanningScreen(QWidget):

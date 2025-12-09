@@ -371,8 +371,12 @@ class GridLayout(QWidget):
                         # Remove from the layout
                         self.grid_layout.removeWidget(card)
 
-                        # Remove from our list
+                        # Remove from our lists
                         self.taskCards.pop(i)
+
+                        # Also remove from visibleCards if present
+                        if card in self.visibleCards:
+                            self.visibleCards.remove(card)
 
                         # Delete the widget
                         card.deleteLater()
