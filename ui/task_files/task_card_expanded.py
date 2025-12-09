@@ -187,6 +187,11 @@ class TaskCardExpanded(QWidget):
         left_layout = QVBoxLayout(main_widget)
         left_layout.setContentsMargins(15, 15, 0 , 0)
         left_layout.addLayout(self.createTitleSection(), 1)
+
+        # Add project/phase section if task has project_id or phase_id
+        if hasattr(self.task, 'project_id') and (self.task.project_id or self.task.phase_id):
+            left_layout.addLayout(self.createProjectPhaseSection())
+
         left_layout.addLayout(self.createDescriptionSection(), 2)
         left_layout.addWidget(self.createActivitySection(), 5)
 
@@ -226,6 +231,61 @@ class TaskCardExpanded(QWidget):
         """Update the task title in memory"""
         if self.task is not None:
             self.task.title = new_title
+
+    def createProjectPhaseSection(self):
+        """Create section showing project and phase information"""
+        section_layout = QHBoxLayout()
+        section_layout.setContentsMargins(0, 5, 5, 5)
+        section_layout.setSpacing(10)
+
+        # Load project and phase names
+        project_name = None
+        phase_name = None
+
+        if self.task.project_id:
+            from utils.projects_io import load_projects_from_json
+            projects = load_projects_from_json(self.logger)
+            project = projects.get(self.task.project_id)
+            if project:
+                project_name = project.title
+
+        if self.task.phase_id:
+            from utils.projects_io import load_phases_from_json
+            phases = load_phases_from_json(self.logger)
+            phase = phases.get(self.task.phase_id)
+            if phase:
+                phase_name = phase.name
+
+        # Project label
+        if project_name:
+            project_label = QLabel(f"📁 {project_name}")
+            project_label.setStyleSheet("""
+                QLabel {
+                    font-size: 12px;
+                    color: #7f8c8d;
+                    padding: 4px 8px;
+                    background-color: #ecf0f1;
+                    border-radius: 4px;
+                }
+            """)
+            section_layout.addWidget(project_label)
+
+        # Phase label
+        if phase_name:
+            phase_label = QLabel(f"▸ {phase_name}")
+            phase_label.setStyleSheet("""
+                QLabel {
+                    font-size: 12px;
+                    color: #7f8c8d;
+                    padding: 4px 8px;
+                    background-color: #e8f4f8;
+                    border-radius: 4px;
+                }
+            """)
+            section_layout.addWidget(phase_label)
+
+        section_layout.addStretch()
+        return section_layout
 
     def createStatusPrioritySection(self):
         status_priority_layout = QHBoxLayout()
