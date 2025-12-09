@@ -36,7 +36,7 @@ from uuid import uuid4
 from PyQt5.QtCore import QDate, QMimeData, Qt, pyqtSignal
 from PyQt5.QtGui import QDrag, QFont
 from PyQt5.QtWidgets import (QButtonGroup, QCalendarWidget, QGridLayout, QHBoxLayout,
-                             QLabel, QListWidget, QListWidgetItem, QPushButton, QRadioButton,
+                             QLabel, QListWidget, QListWidgetItem, QProgressBar, QPushButton, QRadioButton,
                              QScrollArea, QSizePolicy, QSplitter, QTextEdit, QVBoxLayout, QWidget)
 
 # Local application imports
@@ -128,10 +128,194 @@ class StyledTaskItem(QWidget):
         """
 
 
+class StyledProjectItem(QWidget):
+    """Custom styled widget for project list items in planning view"""
+
+    def __init__(self, project_data: dict, logger, parent=None):
+        super().__init__(parent)
+        self.project_data = project_data
+        self.project_id = project_data['project_id']
+        self.logger = logger
+        self.project = None
+        self.phases = []
+        self.current_phase = None
+        self.tasks = []
+
+        self.loadProjectData()
+        self.initUI()
+
+    def loadProjectData(self):
+        """Load full project, phases, and tasks data"""
+        from utils.projects_io import load_projects_from_json, load_phases_from_json
+        from utils.tasks_io import load_tasks_from_json
+
+        # Load project
+        projects = load_projects_from_json(self.logger)
+        self.project = projects.get(self.project_id)
+
+        if not self.project:
+            self.logger.error(f"Project {self.project_id} not found")
+            return
+
+        # Load phases for this project
+        all_phases = load_phases_from_json(self.logger)
+        self.phases = [
+            all_phases[phase_id]
+            for phase_id in self.project.phases
+            if phase_id in all_phases
+        ]
+        # Sort by order
+        self.phases.sort(key=lambda p: p.order)
+
+        # Find current phase (first incomplete phase)
+        for phase in self.phases:
+            if not phase.is_completed:
+                self.current_phase = phase
+                break
+
+        # If no current phase, use first phase or None
+        if not self.current_phase and self.phases:
+            self.current_phase = self.phases[0]
+
+        # Load tasks for current phase (limit to 3-5)
+        if self.current_phase:
+            all_tasks = load_tasks_from_json(self.logger)
+            phase_tasks = [
+                task for task in all_tasks.values()
+                if task.phase_id == self.current_phase.id
+            ]
+            # Sort by priority and take first 5
+            phase_tasks.sort(key=lambda t: t.priority.value, reverse=True)
+            self.tasks = phase_tasks[:5]
+
+    def initUI(self):
+        """Initialize the widget UI"""
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(6)
+
+        if not self.project:
+            # Error state
+            error_label = QLabel("Project not found")
+            error_label.setStyleSheet("color: #e74c3c; font-size: 11px;")
+            layout.addWidget(error_label)
+            return
+
+        # Header: folder icon + project title
+        header_layout = QHBoxLayout()
+        header_layout.setSpacing(6)
+
+        folder_label = QLabel("📁")
+        folder_label.setStyleSheet("font-size: 14px;")
+        header_layout.addWidget(folder_label)
+
+        title_label = QLabel(self.project.title)
+        title_font = QFont()
+        title_font.setPointSize(12)
+        title_font.setBold(True)
+        title_label.setFont(title_font)
+        title_label.setWordWrap(True)
+        title_label.setStyleSheet("color: #ecf0f1;")
+        header_layout.addWidget(title_label)
+
+        header_layout.addStretch()
+        layout.addLayout(header_layout)
+
+        # Current phase name
+        if self.current_phase:
+            phase_label = QLabel(f"→ {self.current_phase.name}")
+            phase_label.setStyleSheet("""
+                color: #3498db;
+                font-size: 10px;
+                font-weight: bold;
+                padding: 2px 0px;
+            """)
+            layout.addWidget(phase_label)
+
+        # Progress bar
+        progress_bar = QProgressBar()
+        progress = int(self.project.get_progress_percentage())
+        progress_bar.setValue(progress)
+        progress_bar.setFormat(f"{progress}%")
+        progress_bar.setFixedHeight(16)
+        progress_bar.setTextVisible(True)
+        progress_bar.setStyleSheet(f"""
+            QProgressBar {{
+                border: 1px solid #34495e;
+                border-radius: 3px;
+                text-align: center;
+                font-size: 9px;
+                font-weight: bold;
+                color: white;
+                background-color: #1a252f;
+            }}
+            QProgressBar::chunk {{
+                background-color: {self.project.color};
+                border-radius: 2px;
+            }}
+        """)
+        layout.addWidget(progress_bar)
+
+        # Tasks preview (3-5 tasks)
+        if self.tasks:
+            tasks_label = QLabel(f"Tasks ({len(self.tasks)}):")
+            tasks_label.setStyleSheet("color: #95a5a6; font-size: 9px; margin-top: 4px;")
+            layout.addWidget(tasks_label)
+
+            for task in self.tasks:
+                task_layout = QHBoxLayout()
+                task_layout.setSpacing(4)
+
+                # Status icon
+                status_icon = self._getStatusIcon(task.status)
+                icon_label = QLabel(status_icon)
+                icon_label.setStyleSheet("font-size: 10px; color: #95a5a6;")
+                task_layout.addWidget(icon_label)
+
+                # Task title (truncated)
+                task_title = task.title[:30] + "..." if len(task.title) > 30 else task.title
+                task_label = QLabel(task_title)
+                task_label.setStyleSheet("color: #bdc3c7; font-size: 9px;")
+                task_layout.addWidget(task_label)
+
+                task_layout.addStretch()
+                layout.addLayout(task_layout)
+        else:
+            no_tasks_label = QLabel("No tasks in current phase")
+            no_tasks_label.setStyleSheet("color: #7f8c8d; font-size: 9px; font-style: italic;")
+            layout.addWidget(no_tasks_label)
+
+        # Set overall styling with darker background
+        self.setStyleSheet("""
+            StyledProjectItem {
+                background-color: #1e2a35;
+                border-radius: 6px;
+                border: 1px solid #2c3e50;
+            }
+            StyledProjectItem:hover {
+                background-color: #243342;
+                border: 1px solid #3498db;
+            }
+        """)
+
+    def _getStatusIcon(self, status):
+        """Get icon for task status"""
+        from models.task import TaskStatus
+        status_icons = {
+            TaskStatus.INCOMPLETE: "○",
+            TaskStatus.IN_PROGRESS: "◐",
+            TaskStatus.COMPLETED: "●",
+            TaskStatus.BACKLOG: "◇",
+            TaskStatus.BLOCKED: "✖"
+        }
+        return status_icons.get(status, "○")
+
+
 class DraggableTaskList(QListWidget):
     """Custom QListWidget that supports drag operations with styled items"""
     taskClicked = pyqtSignal(str)  # task_id
     taskUnscheduled = pyqtSignal(str, str)  # schedule_id, task_id to unschedule
+    projectUnscheduled = pyqtSignal(str)  # schedule_id to unschedule
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -162,20 +346,25 @@ class DraggableTaskList(QListWidget):
             self.taskClicked.emit(task_id)
 
     def startDrag(self, supportedActions):
-        """Override to implement custom drag with task data"""
+        """Override to implement custom drag with task/project data"""
         item = self.currentItem()
         if not item:
             return
 
-        task_id = item.data(Qt.UserRole)
-        task_title = item.data(Qt.UserRole + 1)
+        item_id = item.data(Qt.UserRole)
+        item_title = item.data(Qt.UserRole + 1)
+        item_type = item.data(Qt.UserRole + 2)  # 'project' or None (task)
 
-        if not task_id or not task_title:
+        if not item_id or not item_title:
             return
 
         drag = QDrag(self)
         mime_data = QMimeData()
-        mime_data.setText(f"{task_id}|{task_title}")
+        # Include type in mime data
+        if item_type == 'project':
+            mime_data.setText(f"{item_id}|{item_title}|project")
+        else:
+            mime_data.setText(f"{item_id}|{item_title}|task")
         drag.setMimeData(mime_data)
         drag.exec_(Qt.CopyAction)
 
@@ -246,23 +435,29 @@ class DraggableTaskList(QListWidget):
             print(f"Drop data: {data}")  # Debug
             parts = data.split('|')
 
-            # Handle both old format (2 parts) and new format (4 parts)
+            # Handle different formats: old (2), medium (4), new (5)
             if len(parts) >= 2:
-                task_id = parts[0]
-                task_title = parts[1]
+                item_id = parts[0]
+                item_title = parts[1]
                 schedule_id = parts[2] if len(parts) >= 3 else ""
                 date_str = parts[3] if len(parts) >= 4 else ""
+                item_type = parts[4] if len(parts) >= 5 else "task"  # Default to task
 
-                print(f"Emitting taskUnscheduled for schedule_id: {schedule_id}, task_id: {task_id}")  # Debug
+                print(f"Unscheduling {item_type}: schedule_id={schedule_id}, id={item_id}")  # Debug
 
-                # If we have a schedule_id, unschedule only that specific instance
-                if schedule_id:
-                    self.taskUnscheduled.emit(schedule_id, task_id)
+                # Handle unscheduling based on type
+                if item_type == 'project':
+                    if schedule_id:
+                        self.projectUnscheduled.emit(schedule_id)
+                    event.acceptProposedAction()
                 else:
-                    # Old behavior - emit empty schedule_id (will unschedule all)
-                    self.taskUnscheduled.emit("", task_id)
-
-                event.acceptProposedAction()
+                    # Task unscheduling
+                    if schedule_id:
+                        self.taskUnscheduled.emit(schedule_id, item_id)
+                    else:
+                        # Old behavior - emit empty schedule_id (will unschedule all)
+                        self.taskUnscheduled.emit("", item_id)
+                    event.acceptProposedAction()
             else:
                 print(f"Invalid data format: {parts}")  # Debug
         else:
@@ -374,7 +569,9 @@ class WeeklyViewWidget(QWidget):
             drop_zone = DropZoneWidget(date, is_today=is_today)
             if self.planning_screen:
                 drop_zone.taskDropped.connect(self.planning_screen.onTaskDropped)
+                drop_zone.projectDropped.connect(self.planning_screen.onProjectDropped)
                 drop_zone.taskClicked.connect(self.planning_screen.onTaskClickedFromSchedule)
+                drop_zone.projectClicked.connect(self.planning_screen.onProjectClickedFromSchedule)
             self.drop_zones.append(drop_zone)
             self.days_layout.addWidget(drop_zone, 1, col)
 
@@ -461,7 +658,9 @@ class DailyViewWidget(QWidget):
         self.drop_zone = DropZoneWidget(self.current_date, is_today=is_today)
         if self.planning_screen:
             self.drop_zone.taskDropped.connect(self.planning_screen.onTaskDropped)
+            self.drop_zone.projectDropped.connect(self.planning_screen.onProjectDropped)
             self.drop_zone.taskClicked.connect(self.planning_screen.onTaskClickedFromSchedule)
+            self.drop_zone.projectClicked.connect(self.planning_screen.onProjectClickedFromSchedule)
         self.drop_zone_container.addWidget(self.drop_zone)
 
     def previousDay(self):
@@ -480,13 +679,16 @@ class DailyViewWidget(QWidget):
 class DropZoneWidget(QWidget):
     """Widget that accepts task drops and displays scheduled tasks"""
     taskDropped = pyqtSignal(QDate, str, str)  # date, task_id, task_title
+    projectDropped = pyqtSignal(QDate, str, str)  # date, project_id, project_title
     taskClicked = pyqtSignal(str)  # task_id
+    projectClicked = pyqtSignal(str)  # project_id
 
     def __init__(self, date: QDate, is_today: bool = False, parent=None):
         super().__init__(parent)
         self.date = date
         self.is_today = is_today
         self.scheduled_tasks = []
+        self.scheduled_projects = []
         self.setAcceptDrops(True)
         self.setMinimumHeight(150)
         self.setMaximumHeight(600)  # Limit height to make scrolling work
@@ -519,48 +721,59 @@ class DropZoneWidget(QWidget):
                 self.setDragEnabled(True)
 
             def startDrag(self, _supportedActions):
-                """Override to provide task data for dragging"""
+                """Override to provide task/project data for dragging"""
                 item = self.currentItem()
                 if not item:
                     return
 
-                task_id = item.data(Qt.UserRole)
-                if not task_id:
+                item_id = item.data(Qt.UserRole)
+                if not item_id:
                     return
 
-                # Get schedule_id and date from item data
+                # Get schedule_id, date, and type from item data
                 schedule_id = item.data(Qt.UserRole + 2) or ""
                 date_str = item.data(Qt.UserRole + 3) or ""
+                item_type = item.data(Qt.UserRole + 4) or "task"  # Default to task
 
-                # Get task title from the item
+                # Get title from the item
                 parent_widget = self.parent()
+                item_title = ""
                 while parent_widget:
                     if isinstance(parent_widget, DropZoneWidget):
-                        # Get task object to get title
-                        task = parent_widget._getTaskById(task_id)
-                        if task:
-                            task_title = task.title
+                        if item_type == 'project':
+                            # For projects, title is already in UserRole + 1
+                            item_title = item.data(Qt.UserRole + 1) or "Unknown Project"
                         else:
-                            task_title = item.text()
+                            # For tasks, try to get from task object
+                            task = parent_widget._getTaskById(item_id)
+                            if task:
+                                item_title = task.title
+                            else:
+                                item_title = item.text()
                         break
                     parent_widget = parent_widget.parent()
                 else:
-                    task_title = item.text() if item.text() else "Unknown Task"
+                    item_title = item.text() if item.text() else "Unknown Item"
 
                 drag = QDrag(self)
                 mime_data = QMimeData()
-                # Include schedule_id and date in the drag data
-                mime_data.setText(f"{task_id}|{task_title}|{schedule_id}|{date_str}")
+                # Include schedule_id, date, and type in the drag data
+                mime_data.setText(f"{item_id}|{item_title}|{schedule_id}|{date_str}|{item_type}")
                 drag.setMimeData(mime_data)
                 drag.exec_(Qt.CopyAction)
 
         return DraggableScheduledList()
 
     def _onTaskClicked(self, item):
-        """Handle task click"""
-        task_id = item.data(Qt.UserRole)
-        if task_id:
-            self.taskClicked.emit(task_id)
+        """Handle task or project click"""
+        item_id = item.data(Qt.UserRole)
+        item_type = item.data(Qt.UserRole + 2)
+
+        if item_id:
+            if item_type == 'project':
+                self.projectClicked.emit(item_id)
+            else:
+                self.taskClicked.emit(item_id)
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasText():
@@ -582,8 +795,19 @@ class DropZoneWidget(QWidget):
             data = event.mimeData().text()
             parts = data.split('|')
             if len(parts) == 2:
-                task_id, task_title = parts
-                self.taskDropped.emit(self.date, task_id, task_title)
+                item_id, item_title = parts
+                # Check if this is a project or task by looking at the source item
+                # Projects are marked with Qt.UserRole + 2 = 'project' in the source list
+                # For now, we'll emit taskDropped and handle project detection in the parent
+                self.taskDropped.emit(self.date, item_id, item_title)
+                event.acceptProposedAction()
+            elif len(parts) == 3:
+                # New format: id|title|type (where type is 'project' or 'task')
+                item_id, item_title, item_type = parts
+                if item_type == 'project':
+                    self.projectDropped.emit(self.date, item_id, item_title)
+                else:
+                    self.taskDropped.emit(self.date, item_id, item_title)
                 event.acceptProposedAction()
 
     def addScheduledTask(self, task_id: str, task_title: str, show_checklist: bool = False, schedule_id: str = None):
@@ -795,8 +1019,35 @@ class DropZoneWidget(QWidget):
             font-weight: bold;
         """
 
+    def addScheduledProject(self, project_data: dict, schedule_id: str = None):
+        """Add a project to this day's schedule"""
+        item = QListWidgetItem()
+        item.setData(Qt.UserRole, project_data['project_id'])
+        item.setData(Qt.UserRole + 1, project_data['title'])
+        # Store schedule_id and date for unscheduling (same positions as tasks)
+        if schedule_id:
+            item.setData(Qt.UserRole + 2, schedule_id)
+        item.setData(Qt.UserRole + 3, self.date.toString(Qt.ISODate))
+        item.setData(Qt.UserRole + 4, 'project')  # Mark as project
+
+        # Create StyledProjectItem widget
+        widget = StyledProjectItem(project_data, self._getLogger())
+        item.setSizeHint(widget.sizeHint())
+
+        self.task_list.addItem(item)
+        self.task_list.setItemWidget(item, widget)
+
+    def _getLogger(self):
+        """Get logger from parent PlanningScreen"""
+        parent_widget = self.parent()
+        while parent_widget:
+            if isinstance(parent_widget, PlanningScreen):
+                return parent_widget.logger
+            parent_widget = parent_widget.parent()
+        return None
+
     def clearTasks(self):
-        """Clear all scheduled tasks"""
+        """Clear all scheduled tasks and projects"""
         self.task_list.clear()
 
 
@@ -810,6 +1061,7 @@ class PlanningScreen(QWidget):
         self.logger = logger
         self.all_tasks: List[Task] = []
         self.scheduled_tasks: Dict[str, ScheduledTask] = {}
+        self.scheduled_projects: Dict[str, dict] = {}  # schedule_id -> project data
         self.current_view = "weekly"
 
         # For task detail dialog
@@ -818,6 +1070,7 @@ class PlanningScreen(QWidget):
 
         self.initUI()
         self.loadScheduledTasks()
+        self.loadScheduledProjects()
         self.loadTasks()
         self.refreshScheduledTasks()
 
@@ -826,6 +1079,7 @@ class PlanningScreen(QWidget):
         print("PlanningScreen.refreshPlanningUI called!")  # Debug
         self.task_list.clear()
         self.loadScheduledTasks()
+        self.loadScheduledProjects()
         self.loadTasks()
         self.refreshScheduledTasks()
 
@@ -887,6 +1141,7 @@ class PlanningScreen(QWidget):
         self.task_list = DraggableTaskList()
         self.task_list.taskClicked.connect(self.onTaskClickedFromList)
         self.task_list.taskUnscheduled.connect(self.onTaskUnscheduled)
+        self.task_list.projectUnscheduled.connect(self.onProjectUnscheduled)
         layout.addWidget(self.task_list)
 
         return panel
@@ -1083,6 +1338,45 @@ class PlanningScreen(QWidget):
             self.task_list.addItem(item)
             self.task_list.setItemWidget(item, widget)
 
+        # Add Projects section
+        if self.scheduled_projects:
+            # Add separator
+            project_separator_item = QListWidgetItem()
+            project_separator_widget = QWidget()
+            project_separator_widget.setStyleSheet("background-color: transparent;")
+            project_separator_layout = QVBoxLayout(project_separator_widget)
+            project_separator_layout.setContentsMargins(0, 15, 0, 5)
+            project_separator_layout.setSpacing(5)
+
+            # Create separator line
+            separator_line = QWidget()
+            separator_line.setFixedHeight(2)
+            separator_line.setStyleSheet("background-color: #27ae60;")  # Green for projects
+            project_separator_layout.addWidget(separator_line)
+
+            # Add label
+            projects_label = QLabel("📁 Projects")
+            projects_label.setStyleSheet("color: #27ae60; font-size: 12px; font-weight: bold; padding: 5px; background-color: transparent;")
+            projects_label.setAlignment(Qt.AlignLeft)
+            project_separator_layout.addWidget(projects_label)
+
+            project_separator_item.setSizeHint(project_separator_widget.sizeHint())
+            self.task_list.addItem(project_separator_item)
+            self.task_list.setItemWidget(project_separator_item, project_separator_widget)
+
+            # Add project items
+            for schedule_id, project_data in self.scheduled_projects.items():
+                item = QListWidgetItem()
+                item.setData(Qt.UserRole, project_data['project_id'])
+                item.setData(Qt.UserRole + 1, project_data['title'])
+                item.setData(Qt.UserRole + 2, 'project')  # Mark as project
+
+                widget = StyledProjectItem(project_data, self.logger)
+                item.setSizeHint(widget.sizeHint())
+
+                self.task_list.addItem(item)
+                self.task_list.setItemWidget(item, widget)
+
     def loadScheduledTasks(self):
         """Load scheduled tasks from JSON"""
         app_config = AppConfig()
@@ -1108,6 +1402,24 @@ class PlanningScreen(QWidget):
         except Exception as e:
             self.logger.error(f"Error loading scheduled tasks: {e}")
 
+    def loadScheduledProjects(self):
+        """Load scheduled projects from JSON"""
+        from utils.projects_io import load_scheduled_projects
+
+        scheduled_projects_data = load_scheduled_projects(self.logger)
+        self.scheduled_projects = {}
+
+        for schedule_id, project_data in scheduled_projects_data.items():
+            # Store with QDate for consistency
+            self.scheduled_projects[schedule_id] = {
+                'project_id': project_data['project_id'],
+                'title': project_data['title'],
+                'scheduled_date': QDate.fromString(project_data['scheduled_date'], Qt.ISODate),
+                'schedule_id': schedule_id
+            }
+
+        self.refreshScheduledTasks()  # This also refreshes projects
+
     def saveScheduledTasks(self):
         """Save scheduled tasks to JSON"""
         app_config = AppConfig()
@@ -1128,7 +1440,7 @@ class PlanningScreen(QWidget):
             self.logger.error(f"Error saving scheduled tasks: {e}")
 
     def refreshScheduledTasks(self):
-        """Refresh all drop zones with scheduled tasks"""
+        """Refresh all drop zones with scheduled tasks and projects"""
         # Clear all drop zones
         if self.daily_view.drop_zone:
             self.daily_view.drop_zone.clearTasks()
@@ -1156,6 +1468,25 @@ class PlanningScreen(QWidget):
                         scheduled_task.task_id,
                         scheduled_task.task_title,
                         show_checklist=True,
+                        schedule_id=schedule_id
+                    )
+
+        # Add scheduled projects to appropriate drop zones
+        for schedule_id, project_data in self.scheduled_projects.items():
+            date = project_data['scheduled_date']
+
+            # Daily view
+            if self.daily_view.drop_zone and self.daily_view.drop_zone.date == date:
+                self.daily_view.drop_zone.addScheduledProject(
+                    project_data,
+                    schedule_id=schedule_id
+                )
+
+            # Weekly view
+            for drop_zone in self.weekly_view.drop_zones:
+                if drop_zone.date == date:
+                    drop_zone.addScheduledProject(
+                        project_data,
                         schedule_id=schedule_id
                     )
 
@@ -1188,6 +1519,74 @@ class PlanningScreen(QWidget):
         task = self.getTaskById(task_id)
         if task:
             self.showTaskDetail(task)
+
+    def onProjectDropped(self, date: QDate, project_id: str, project_title: str):
+        """Handle project drop event"""
+        from utils.projects_io import schedule_project
+
+        self.logger.info(f"onProjectDropped called: date={date.toString()}, project_id={project_id}, title={project_title}")
+
+        # Schedule the project
+        date_string = date.toString("yyyy-MM-dd")
+        schedule_id = schedule_project(project_id, date_string, self.logger)
+
+        if schedule_id:
+            # Reload scheduled projects
+            self.loadScheduledProjects()
+            # Refresh views
+            self.refreshScheduledTasks()
+            self.logger.info(f"Successfully scheduled project '{project_title}' for {date.toString()}")
+        else:
+            self.logger.error(f"Failed to schedule project '{project_title}'")
+
+    def onProjectClickedFromSchedule(self, project_id: str):
+        """Handle project click from schedule - open project detail view"""
+        from ui.project_files.project_detail_view import ProjectDetailView
+
+        self.logger.info(f"Project clicked from schedule: {project_id}")
+
+        # Create overlay to dim background
+        self.overlay = QWidget(self)
+        self.overlay.setStyleSheet("background-color: rgba(0, 0, 0, 128);")
+        self.overlay.setGeometry(self.rect())
+        self.overlay.show()
+        self.overlay.raise_()
+
+        # Create dialog container
+        dialog_container = QWidget(self)
+        dialog_container.setStyleSheet("background-color: transparent;")
+        dialog_container.setGeometry(self.rect())
+        dialog_container.show()
+        dialog_container.raise_()
+
+        # Create project detail view
+        project_detail = ProjectDetailView(project_id, self.logger, parent=dialog_container)
+        project_detail.backClicked.connect(lambda: self.closeProjectDetail(dialog_container, project_detail))
+
+        # Size and position
+        width = int(self.width() * 0.8)
+        height = int(self.height() * 0.9)
+        x = (self.width() - width) // 2
+        y = (self.height() - height) // 2
+        project_detail.setGeometry(x, y, width, height)
+        project_detail.show()
+        project_detail.raise_()
+
+    def closeProjectDetail(self, dialog_container, project_detail):
+        """Close project detail view"""
+        if project_detail:
+            project_detail.close()
+            project_detail.deleteLater()
+        if dialog_container:
+            dialog_container.close()
+            dialog_container.deleteLater()
+        if hasattr(self, 'overlay') and self.overlay:
+            self.overlay.close()
+            self.overlay.deleteLater()
+            self.overlay = None
+        # Refresh in case changes were made
+        self.loadScheduledProjects()
+        self.refreshScheduledTasks()
 
     def onTaskUnscheduled(self, schedule_id: str, task_id: str):
         """Handle task being dragged back to the left panel to unschedule"""
@@ -1239,6 +1638,27 @@ class PlanningScreen(QWidget):
 
         # Refresh scheduled tasks for the new date
         self.refreshScheduledTasks()
+
+    def onProjectUnscheduled(self, schedule_id: str):
+        """Handle project being dragged back to the left panel to unschedule"""
+        from utils.projects_io import unschedule_project
+
+        self.logger.info(f"onProjectUnscheduled called for schedule_id: {schedule_id}")
+
+        if not schedule_id:
+            self.logger.warning("No schedule_id provided for project unscheduling")
+            return
+
+        # Unschedule the project
+        success = unschedule_project(schedule_id, self.logger)
+
+        if success:
+            # Reload and refresh
+            self.loadScheduledProjects()
+            self.refreshScheduledTasks()
+            self.logger.info(f"Successfully unscheduled project with schedule_id: {schedule_id}")
+        else:
+            self.logger.error(f"Failed to unschedule project with schedule_id: {schedule_id}")
 
     def getTaskById(self, task_id: str) -> Optional[Task]:
         """Get task object by ID"""
