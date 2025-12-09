@@ -88,10 +88,12 @@ def load_tasks_from_json(logger):
 
             if 'category' in task_info:
                 category_value = task_info['category'].replace(" ", "_").upper()
-                # print(f"category values: {category_value}")
-                # if task.title == "Argon Cylinder Changing Procedure":
-                #     category_value = "ARCHIVED"
                 task.category = TaskCategory[category_value]
+            else:
+                task.category = TaskCategory.FEATURE
+
+            if task.category == TaskCategory.ARCHIVED:
+                task.archived = True
 
             # Set numeric values
             if 'percentage_complete' in task_info:
@@ -393,6 +395,10 @@ def save_task_to_json(task, logger):
         }
 
         logger.debug(f"Saving update: {task_data['category']}")
+
+        if task_data['category'] == 'ARCHIVED':
+                task_data['archived'] = True
+        
 
         # Clean up None values for cleaner JSON
         task_data = {k: v for k, v in task_data.items() if v is not None}

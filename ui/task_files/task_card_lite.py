@@ -96,6 +96,14 @@ class TaskCardLite(QWidget):
         self.animation = None
         self.detail_container = None
 
+        # Timer for periodic collapse checks
+        self.collapse_check_timer = QTimer(self)
+        self.collapse_check_timer.timeout.connect(self._periodicCollapseCheck)
+        self.collapse_check_timer.setInterval(50)  # Check every 50ms when expanded
+
+        # Enable mouse tracking to detect when mouse leaves
+        self.setMouseTracking(True)
+
         # Add shadow effect
         self.shadow = QGraphicsDropShadowEffect(self)
         self.shadow.setColor(QColor(AppColors.accent_background_color_dark))
@@ -127,19 +135,84 @@ class TaskCardLite(QWidget):
         """Expand card smoothly when mouse enters"""
         if not self.expanded:
             self.expandCard()
+        # Stop any pending collapse checks
+        self.collapse_check_timer.stop()
         super().enterEvent(event)
 
     def leaveEvent(self, event: QEvent) -> None:
         """Collapse card smoothly when mouse leaves"""
         if self.expanded:
-            QTimer.singleShot(100, self._checkCollapseCard)
+            # Start periodic checks immediately
+            self.collapse_check_timer.start()
+            # Also schedule immediate check
+            QTimer.singleShot(50, self._checkCollapseCard)
         super().leaveEvent(event)
 
     def _checkCollapseCard(self) -> None:
         """Check if mouse has truly left the card before collapsing"""
-        widget_under_cursor = QApplication.widgetAt(QCursor.pos())
-        if widget_under_cursor is self or self.isAncestorOf(widget_under_cursor):
-            return  # Mouse still over card, don't collapse
+        if not self.expanded:
+            self.collapse_check_timer.stop()
+            return
+
+        # Get the widget under the cursor
+        cursor_pos = QCursor.pos()
+        widget_under_cursor = QApplication.widgetAt(cursor_pos)
+
+        # Check if the cursor is outside the application window
+        app_widget = QApplication.activeWindow()
+        if app_widget:
+            global_rect = app_widget.geometry()
+            if not global_rect.contains(cursor_pos):
+                # Mouse is outside the application window, collapse immediately
+                self.collapse_check_timer.stop()
+                self.collapseCard()
+                return
+
+        # Check if mouse is still over this card or its children
+        if widget_under_cursor is self or (widget_under_cursor and self.isAncestorOf(widget_under_cursor)):
+            # Mouse is back over the card, stop checking
+            self.collapse_check_timer.stop()
+            return
+
+        # Mouse has left the card
+        self.collapse_check_timer.stop()
+        self.collapseCard()
+
+    def _periodicCollapseCheck(self) -> None:
+        """Periodic check to ensure card collapses when mouse is not over it"""
+        if not self.expanded:
+            self.collapse_check_timer.stop()
+            return
+
+        # Get current cursor position
+        cursor_pos = QCursor.pos()
+
+        # Check if cursor is outside application window
+        app_widget = QApplication.activeWindow()
+        if app_widget:
+            global_rect = app_widget.geometry()
+            if not global_rect.contains(cursor_pos):
+                self.collapse_check_timer.stop()
+                self.collapseCard()
+                return
+
+        # Get widget under cursor
+        widget_under_cursor = QApplication.widgetAt(cursor_pos)
+
+        # Check if mouse is over this card or any of its children
+        if widget_under_cursor is self or (widget_under_cursor and self.isAncestorOf(widget_under_cursor)):
+            # Still hovering, keep checking
+            return
+
+        # Check if card geometry contains the cursor (in case widgetAt fails)
+        card_global_rect = self.geometry()
+        card_global_rect.moveTopLeft(self.mapToGlobal(card_global_rect.topLeft()))
+        if card_global_rect.contains(cursor_pos):
+            # Still hovering, keep checking
+            return
+
+        # Mouse is definitely not over the card, collapse it
+        self.collapse_check_timer.stop()
         self.collapseCard()
     
     def expandCard(self) -> None:
@@ -221,6 +294,9 @@ class TaskCardLite(QWidget):
         """Collapse card back to compact view with smooth animation"""
         if not self.expanded or self.animation and self.animation.state() == QPropertyAnimation.Running:
             return
+
+        # Stop the periodic collapse check timer
+        self.collapse_check_timer.stop()
 
         self.expanded = False
         self.shadow.setBlurRadius(15)

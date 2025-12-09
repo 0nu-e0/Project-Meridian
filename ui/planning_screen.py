@@ -37,10 +37,10 @@ from PyQt5.QtCore import QDate, QMimeData, Qt, pyqtSignal
 from PyQt5.QtGui import QDrag, QFont
 from PyQt5.QtWidgets import (QButtonGroup, QCalendarWidget, QGridLayout, QHBoxLayout,
                              QLabel, QListWidget, QListWidgetItem, QPushButton, QRadioButton,
-                             QSizePolicy, QSplitter, QVBoxLayout, QWidget)
+                             QScrollArea, QSizePolicy, QSplitter, QTextEdit, QVBoxLayout, QWidget)
 
 # Local application imports
-from models.task import Task, TaskPriority
+from models.task import Task, TaskPriority, TaskCategory
 from resources.styles import AppStyles
 from ui.task_files.task_card_expanded import TaskCardExpanded
 from utils.app_config import AppConfig
@@ -131,7 +131,7 @@ class StyledTaskItem(QWidget):
 class DraggableTaskList(QListWidget):
     """Custom QListWidget that supports drag operations with styled items"""
     taskClicked = pyqtSignal(str)  # task_id
-    taskUnscheduled = pyqtSignal(str)  # task_id to unschedule
+    taskUnscheduled = pyqtSignal(str, str)  # schedule_id, task_id to unschedule
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -199,6 +199,11 @@ class DraggableTaskList(QListWidget):
                 }
             """)
 
+    def dragMoveEvent(self, event):
+        """Accept drag move events from scheduled tasks"""
+        if event.mimeData().hasText():
+            event.acceptProposedAction()
+
     def dragLeaveEvent(self, _event):
         """Reset styling when drag leaves"""
         self.setStyleSheet("""
@@ -240,11 +245,23 @@ class DraggableTaskList(QListWidget):
             data = event.mimeData().text()
             print(f"Drop data: {data}")  # Debug
             parts = data.split('|')
-            if len(parts) == 2:
-                task_id, task_title = parts
-                print(f"Emitting taskUnscheduled for: {task_id}")  # Debug
-                # Emit signal to unschedule this task
-                self.taskUnscheduled.emit(task_id)
+
+            # Handle both old format (2 parts) and new format (4 parts)
+            if len(parts) >= 2:
+                task_id = parts[0]
+                task_title = parts[1]
+                schedule_id = parts[2] if len(parts) >= 3 else ""
+                date_str = parts[3] if len(parts) >= 4 else ""
+
+                print(f"Emitting taskUnscheduled for schedule_id: {schedule_id}, task_id: {task_id}")  # Debug
+
+                # If we have a schedule_id, unschedule only that specific instance
+                if schedule_id:
+                    self.taskUnscheduled.emit(schedule_id, task_id)
+                else:
+                    # Old behavior - emit empty schedule_id (will unschedule all)
+                    self.taskUnscheduled.emit("", task_id)
+
                 event.acceptProposedAction()
             else:
                 print(f"Invalid data format: {parts}")  # Debug
@@ -316,17 +333,45 @@ class WeeklyViewWidget(QWidget):
 
         # Create 5 columns (Mon-Fri)
         days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+        today = QDate.currentDate()
+
         for col, day_name in enumerate(days):
             date = self.current_week_start.addDays(col)
+            is_today = date == today
 
             # Day header
             header = QLabel(f"{day_name}\n{date.toString('MMM d')}")
             header.setAlignment(Qt.AlignCenter)
-            header.setStyleSheet(AppStyles.label_bold())
+            header.setMaximumHeight(50)  # Limit header height
+
+            # Apply special styling for today
+            if is_today:
+                header.setStyleSheet("""
+                    QLabel {
+                        color: #3498db;
+                        font-weight: bold;
+                        font-size: 12px;
+                        background-color: rgba(52, 152, 219, 0.15);
+                        border: 2px solid #3498db;
+                        border-radius: 5px;
+                        padding: 4px;
+                        max-height: 50px;
+                    }
+                """)
+            else:
+                header.setStyleSheet("""
+                    QLabel {
+                        font-weight: bold;
+                        font-size: 12px;
+                        padding: 4px;
+                        max-height: 50px;
+                    }
+                """)
+
             self.days_layout.addWidget(header, 0, col)
 
             # Drop zone
-            drop_zone = DropZoneWidget(date)
+            drop_zone = DropZoneWidget(date, is_today=is_today)
             if self.planning_screen:
                 drop_zone.taskDropped.connect(self.planning_screen.onTaskDropped)
                 drop_zone.taskClicked.connect(self.planning_screen.onTaskClickedFromSchedule)
@@ -394,11 +439,26 @@ class DailyViewWidget(QWidget):
             if child.widget():
                 child.widget().deleteLater()
 
-        # Update label
-        self.date_label.setText(self.current_date.toString('dddd, MMMM d, yyyy'))
+        # Check if current date is today
+        is_today = self.current_date == QDate.currentDate()
+
+        # Update label with special styling for today
+        if is_today:
+            self.date_label.setText(f"{self.current_date.toString('dddd, MMMM d, yyyy')} (Today)")
+            self.date_label.setStyleSheet("""
+                QLabel {
+                    color: #3498db;
+                    font-weight: bold;
+                    font-size: 16px;
+                }
+            """)
+        else:
+            self.date_label.setText(self.current_date.toString('dddd, MMMM d, yyyy'))
+            from resources.styles import AppStyles
+            self.date_label.setStyleSheet(AppStyles.label_lgfnt_bold())
 
         # Create drop zone
-        self.drop_zone = DropZoneWidget(self.current_date)
+        self.drop_zone = DropZoneWidget(self.current_date, is_today=is_today)
         if self.planning_screen:
             self.drop_zone.taskDropped.connect(self.planning_screen.onTaskDropped)
             self.drop_zone.taskClicked.connect(self.planning_screen.onTaskClickedFromSchedule)
@@ -422,12 +482,14 @@ class DropZoneWidget(QWidget):
     taskDropped = pyqtSignal(QDate, str, str)  # date, task_id, task_title
     taskClicked = pyqtSignal(str)  # task_id
 
-    def __init__(self, date: QDate, parent=None):
+    def __init__(self, date: QDate, is_today: bool = False, parent=None):
         super().__init__(parent)
         self.date = date
+        self.is_today = is_today
         self.scheduled_tasks = []
         self.setAcceptDrops(True)
         self.setMinimumHeight(150)
+        self.setMaximumHeight(600)  # Limit height to make scrolling work
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
         self.layout = QVBoxLayout(self)
@@ -436,30 +498,16 @@ class DropZoneWidget(QWidget):
 
         # Custom list widget for dragging
         self.task_list = self._createDraggableList()
-        self.task_list.setStyleSheet("""
-            QListWidget {
-                background-color: #1e2a38;
-                border: 2px dashed #34495e;
-                border-radius: 5px;
-            }
-            QListWidget::item {
-                padding: 0px;
-                background-color: #2c3e50;
-                border: 1px solid #34495e;
-                border-radius: 4px;
-                margin: 3px;
-                min-height: 55px;
-            }
-            QListWidget::item:hover {
-                background-color: #34495e;
-                border: 1px solid #3498db;
-            }
-            QListWidget::item:selected {
-                background-color: #2980b9;
-                border: 1px solid #3498db;
-            }
-        """)
+
+        # Apply special styling for today's drop zone
+        if self.is_today:
+            self.task_list.setStyleSheet(AppStyles.day_column_list_today())
+        else:
+            self.task_list.setStyleSheet(AppStyles.day_column_list_regular())
         self.task_list.setSpacing(4)
+        self.task_list.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.task_list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.task_list.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.task_list.itemClicked.connect(self._onTaskClicked)
         self.layout.addWidget(self.task_list)
 
@@ -480,6 +528,10 @@ class DropZoneWidget(QWidget):
                 if not task_id:
                     return
 
+                # Get schedule_id and date from item data
+                schedule_id = item.data(Qt.UserRole + 2) or ""
+                date_str = item.data(Qt.UserRole + 3) or ""
+
                 # Get task title from the item
                 parent_widget = self.parent()
                 while parent_widget:
@@ -497,7 +549,8 @@ class DropZoneWidget(QWidget):
 
                 drag = QDrag(self)
                 mime_data = QMimeData()
-                mime_data.setText(f"{task_id}|{task_title}")
+                # Include schedule_id and date in the drag data
+                mime_data.setText(f"{task_id}|{task_title}|{schedule_id}|{date_str}")
                 drag.setMimeData(mime_data)
                 drag.exec_(Qt.CopyAction)
 
@@ -533,13 +586,17 @@ class DropZoneWidget(QWidget):
                 self.taskDropped.emit(self.date, task_id, task_title)
                 event.acceptProposedAction()
 
-    def addScheduledTask(self, task_id: str, task_title: str, show_checklist: bool = False):
+    def addScheduledTask(self, task_id: str, task_title: str, show_checklist: bool = False, schedule_id: str = None):
         """Add a task to this day's schedule with enhanced display"""
         # Get the full task object to show more details
         task = self._getTaskById(task_id)
 
         item = QListWidgetItem()
         item.setData(Qt.UserRole, task_id)
+        # Store schedule_id and date for unscheduling
+        if schedule_id:
+            item.setData(Qt.UserRole + 2, schedule_id)  # Store schedule_id
+        item.setData(Qt.UserRole + 3, self.date.toString(Qt.ISODate))  # Store date
 
         if task:
             # Create a styled widget for the scheduled task
@@ -565,6 +622,8 @@ class DropZoneWidget(QWidget):
             title_font.setBold(True)
             title_label.setFont(title_font)
             title_label.setWordWrap(True)
+            title_label.setMinimumHeight(20)  # Ensure minimum height
+            title_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
             task_layout.addWidget(title_label)
 
             # Info row (priority + category)
@@ -609,9 +668,81 @@ class DropZoneWidget(QWidget):
                         more_label.setStyleSheet("color: #7f8c8d; font-size: 8px; font-style: italic;")
                         task_layout.addWidget(more_label)
 
-            item.setSizeHint(task_widget.sizeHint())
+            # Add comments section
+            if hasattr(task, 'entries') and task.entries:
+                # Filter only comment entries
+                comments = [entry for entry in task.entries if entry.entry_type == "comment"]
+
+                if comments:
+                    # Comments header
+                    comments_header = QLabel("Comments:")
+                    comments_header.setStyleSheet("""
+                        color: #95a5a6;
+                        font-size: 11px;
+                        font-weight: bold;
+                        margin-top: 4px;
+                    """)
+                    task_layout.addWidget(comments_header)
+
+                    # Wrapper to isolate scroll area from parent border
+                    scroll_wrapper = QWidget()
+                    scroll_wrapper.setStyleSheet("QWidget { border: none; }")
+                    scroll_wrapper_layout = QVBoxLayout(scroll_wrapper)
+                    scroll_wrapper_layout.setContentsMargins(0, 0, 0, 0)
+                    scroll_wrapper_layout.setSpacing(0)
+
+                    # Scrollable comments area
+                    comments_scroll = QScrollArea()
+                    comments_scroll.setWidgetResizable(True)
+                    comments_scroll.setMaximumHeight(60)  # Limit height to keep cards compact
+                    comments_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+                    comments_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+                    comments_scroll.setStyleSheet(AppStyles.scroll_area())
+
+                    # Container for comments
+                    comments_container = QWidget()
+                    comments_layout = QVBoxLayout(comments_container)
+                    comments_layout.setContentsMargins(4, 4, 4, 4)
+                    comments_layout.setSpacing(3)
+
+                    # Show recent comments (last 3)
+                    recent_comments = comments[-3:]
+                    for entry in recent_comments:
+                        comment_label = QLabel(f"• {entry.content}")
+                        comment_label.setStyleSheet("""
+                            color: #bdc3c7;
+                            font-size: 10px;
+                            padding: 2px;
+                        """)
+                        comment_label.setWordWrap(True)
+                        comment_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+                        comments_layout.addWidget(comment_label)
+
+                    # Show count if there are more comments
+                    if len(comments) > 3:
+                        more_comments_label = QLabel(f"+{len(comments) - 3} more comment(s)")
+                        more_comments_label.setStyleSheet("""
+                            color: #7f8c8d;
+                            font-size: 7px;
+                            font-style: italic;
+                            padding: 2px;
+                        """)
+                        comments_layout.addWidget(more_comments_label)
+
+                    comments_layout.addStretch()
+                    comments_scroll.setWidget(comments_container)
+                    scroll_wrapper_layout.addWidget(comments_scroll)
+                    task_layout.addWidget(scroll_wrapper)
+
+            # Set proper size policy and constraints
+            task_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+
+            # Add to list
             self.task_list.addItem(item)
             self.task_list.setItemWidget(item, task_widget)
+
+            # Let Qt calculate the height based on content
+            item.setSizeHint(task_widget.sizeHint())
         else:
             # Fallback if task not found
             item.setText(task_title)
@@ -691,6 +822,7 @@ class PlanningScreen(QWidget):
 
     def refreshPlanningUI(self):
         """Refresh the planning UI"""
+        print("PlanningScreen.refreshPlanningUI called!")  # Debug
         self.task_list.clear()
         self.loadTasks()
         self.refreshScheduledTasks()
@@ -717,7 +849,7 @@ class PlanningScreen(QWidget):
         splitter.addWidget(right_panel)
 
         # Set initial sizes (30% left, 70% right)
-        splitter.setSizes([300, 700])
+        splitter.setSizes([250, 750])
 
         main_layout.addWidget(splitter)
 
@@ -742,6 +874,7 @@ class PlanningScreen(QWidget):
         panel = QWidget()
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(15, 15, 15, 15)
+        panel.setStyleSheet(AppStyles.scroll_area())
 
         # Title
         title = QLabel("Priority Tasks")
@@ -853,27 +986,29 @@ class PlanningScreen(QWidget):
             self.current_view = "monthly"
 
     def loadTasks(self):
-        """Load all tasks and filter for high/medium priority"""
+        """Load only non-archived tasks into the left panel"""
+        self.task_list.clear()
+
         tasks_dict = load_tasks_from_json(self.logger)
         self.all_tasks = list(tasks_dict.values())
 
         # Filter for priority tasks
-        priority_tasks = [
-            task for task in self.all_tasks
-            if task.priority in [TaskPriority.HIGH, TaskPriority.MEDIUM, TaskPriority.CRITICAL]
-        ]
+        priority_tasks = sorted(
+            (task for task in self.all_tasks if not task.archived),
+            key=lambda t: t.priority.value,
+            reverse=True  # highest priority first
+        )
 
-        # Populate list with styled items
         for task in priority_tasks:
             item = QListWidgetItem()
             item.setData(Qt.UserRole, task.id)
             item.setData(Qt.UserRole + 1, task.title)
 
-            styled_widget = StyledTaskItem(task)
-            item.setSizeHint(styled_widget.sizeHint())
+            widget = StyledTaskItem(task)
+            item.setSizeHint(widget.sizeHint())
 
             self.task_list.addItem(item)
-            self.task_list.setItemWidget(item, styled_widget)
+            self.task_list.setItemWidget(item, widget)
 
     def loadScheduledTasks(self):
         """Load scheduled tasks from JSON"""
@@ -929,7 +1064,7 @@ class PlanningScreen(QWidget):
             drop_zone.clearTasks()
 
         # Add scheduled tasks to appropriate drop zones
-        for scheduled_task in self.scheduled_tasks.values():
+        for schedule_id, scheduled_task in self.scheduled_tasks.items():
             date = scheduled_task.scheduled_date
 
             # Daily view - no checklist
@@ -937,7 +1072,8 @@ class PlanningScreen(QWidget):
                 self.daily_view.drop_zone.addScheduledTask(
                     scheduled_task.task_id,
                     scheduled_task.task_title,
-                    show_checklist=False
+                    show_checklist=False,
+                    schedule_id=schedule_id
                 )
 
             # Weekly view - show checklist
@@ -946,7 +1082,8 @@ class PlanningScreen(QWidget):
                     drop_zone.addScheduledTask(
                         scheduled_task.task_id,
                         scheduled_task.task_title,
-                        show_checklist=True
+                        show_checklist=True,
+                        schedule_id=schedule_id
                     )
 
     def onTaskDropped(self, date: QDate, task_id: str, task_title: str):
@@ -978,26 +1115,35 @@ class PlanningScreen(QWidget):
         if task:
             self.showTaskDetail(task)
 
-    def onTaskUnscheduled(self, task_id: str):
+    def onTaskUnscheduled(self, schedule_id: str, task_id: str):
         """Handle task being dragged back to the left panel to unschedule"""
-        self.logger.info(f"onTaskUnscheduled called for task_id: {task_id}")
+        self.logger.info(f"onTaskUnscheduled called for schedule_id: {schedule_id}, task_id: {task_id}")
         self.logger.info(f"Current scheduled tasks before removal: {len(self.scheduled_tasks)}")
 
-        # Find and remove all scheduled instances of this task
         schedules_to_remove = []
-        for schedule_id, scheduled_task in self.scheduled_tasks.items():
-            if scheduled_task.task_id == task_id:
+
+        if schedule_id:
+            # Remove only the specific scheduled instance
+            if schedule_id in self.scheduled_tasks:
                 schedules_to_remove.append(schedule_id)
-                self.logger.info(f"Found schedule to remove: {schedule_id} for task {task_id}")
+                self.logger.info(f"Found specific schedule to remove: {schedule_id}")
+            else:
+                self.logger.warning(f"Schedule ID {schedule_id} not found in scheduled tasks")
+        else:
+            # Fallback: Find and remove all scheduled instances of this task (old behavior)
+            for sched_id, scheduled_task in self.scheduled_tasks.items():
+                if scheduled_task.task_id == task_id:
+                    schedules_to_remove.append(sched_id)
+                    self.logger.info(f"Found schedule to remove: {sched_id} for task {task_id}")
 
         if not schedules_to_remove:
-            self.logger.warning(f"No schedules found for task {task_id}")
+            self.logger.warning(f"No schedules found to remove")
             return
 
         # Remove the schedules
-        for schedule_id in schedules_to_remove:
-            del self.scheduled_tasks[schedule_id]
-            self.logger.info(f"Removed schedule: {schedule_id}")
+        for sched_id in schedules_to_remove:
+            del self.scheduled_tasks[sched_id]
+            self.logger.info(f"Removed schedule: {sched_id}")
 
         # Save and refresh
         self.logger.info("Saving scheduled tasks...")
@@ -1006,7 +1152,7 @@ class PlanningScreen(QWidget):
         self.logger.info("Refreshing scheduled tasks display...")
         self.refreshScheduledTasks()
 
-        self.logger.info(f"Task {task_id} unscheduled. Remaining scheduled tasks: {len(self.scheduled_tasks)}")
+        self.logger.info(f"Unscheduled {len(schedules_to_remove)} instance(s). Remaining scheduled tasks: {len(self.scheduled_tasks)}")
 
     def onMonthlyDateClicked(self, date: QDate):
         """Handle date click in monthly calendar"""
@@ -1061,6 +1207,7 @@ class PlanningScreen(QWidget):
         # Connect close signals
         self.task_detail_dialog.cancelTask.connect(self.closeTaskDetail)
         self.task_detail_dialog.saveCompleted.connect(self.onTaskSaved)
+        self.task_detail_dialog.newTaskUpdate.connect(self.onTaskSaved)
 
         self.task_detail_dialog.show()
         self.task_detail_dialog.raise_()
