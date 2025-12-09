@@ -817,13 +817,15 @@ class PlanningScreen(QWidget):
         self.overlay = None
 
         self.initUI()
-        self.loadTasks()
         self.loadScheduledTasks()
+        self.loadTasks()
+        self.refreshScheduledTasks()
 
     def refreshPlanningUI(self):
         """Refresh the planning UI"""
         print("PlanningScreen.refreshPlanningUI called!")  # Debug
         self.task_list.clear()
+        self.loadScheduledTasks()
         self.loadTasks()
         self.refreshScheduledTasks()
 
@@ -992,14 +994,85 @@ class PlanningScreen(QWidget):
         tasks_dict = load_tasks_from_json(self.logger)
         self.all_tasks = list(tasks_dict.values())
 
+        # Get current week date range (Monday to Friday)
+        today = QDate.currentDate()
+        days_since_monday = (today.dayOfWeek() - 1) % 7
+        week_start = today.addDays(-days_since_monday)
+        week_end = week_start.addDays(4)  # Friday
+
+        # Get set of task IDs scheduled for current week
+        current_week_task_ids = set()
+        for scheduled_task in self.scheduled_tasks.values():
+            if week_start <= scheduled_task.scheduled_date <= week_end:
+                current_week_task_ids.add(scheduled_task.task_id)
+
         # Filter for priority tasks
-        priority_tasks = sorted(
+        all_priority_tasks = sorted(
             (task for task in self.all_tasks if not task.archived),
             key=lambda t: t.priority.value,
             reverse=True  # highest priority first
         )
 
-        for task in priority_tasks:
+        # Separate tasks into current week and others
+        current_week_tasks = [task for task in all_priority_tasks if task.id in current_week_task_ids]
+        other_tasks = [task for task in all_priority_tasks if task.id not in current_week_task_ids]
+
+        # Add "Weekly Tasks" header if we have current week tasks
+        if current_week_tasks:
+            header_item = QListWidgetItem()
+            header_widget = QWidget()
+            header_widget.setStyleSheet("background-color: transparent;")
+            header_layout = QVBoxLayout(header_widget)
+            header_layout.setContentsMargins(0, 5, 0, 5)
+
+            header_label = QLabel("Weekly Tasks")
+            header_label.setStyleSheet("color: #3498db; font-size: 12px; font-weight: bold; padding: 5px; background-color: transparent;")
+            header_label.setAlignment(Qt.AlignLeft)
+            header_layout.addWidget(header_label)
+
+            header_item.setSizeHint(header_widget.sizeHint())
+            self.task_list.addItem(header_item)
+            self.task_list.setItemWidget(header_item, header_widget)
+
+        # Add current week tasks first
+        for task in current_week_tasks:
+            item = QListWidgetItem()
+            item.setData(Qt.UserRole, task.id)
+            item.setData(Qt.UserRole + 1, task.title)
+
+            widget = StyledTaskItem(task)
+            item.setSizeHint(widget.sizeHint())
+
+            self.task_list.addItem(item)
+            self.task_list.setItemWidget(item, widget)
+
+        # Add separator if we have both current week tasks and other tasks
+        if current_week_tasks and other_tasks:
+            separator_item = QListWidgetItem()
+            separator_widget = QWidget()
+            separator_widget.setStyleSheet("background-color: transparent;")
+            separator_layout = QVBoxLayout(separator_widget)
+            separator_layout.setContentsMargins(0, 10, 0, 5)
+            separator_layout.setSpacing(5)
+
+            # Create separator line
+            separator_line = QWidget()
+            separator_line.setFixedHeight(2)
+            separator_line.setStyleSheet("background-color: #3498db;")
+            separator_layout.addWidget(separator_line)
+
+            # Add label
+            separator_label = QLabel("Other Tasks")
+            separator_label.setStyleSheet("color: #3498db; font-size: 12px; font-weight: bold; padding: 5px; background-color: transparent;")
+            separator_label.setAlignment(Qt.AlignLeft)
+            separator_layout.addWidget(separator_label)
+
+            separator_item.setSizeHint(separator_widget.sizeHint())
+            self.task_list.addItem(separator_item)
+            self.task_list.setItemWidget(separator_item, separator_widget)
+
+        # Add other tasks
+        for task in other_tasks:
             item = QListWidgetItem()
             item.setData(Qt.UserRole, task.id)
             item.setData(Qt.UserRole + 1, task.title)
@@ -1097,8 +1170,9 @@ class PlanningScreen(QWidget):
         self.logger.info(f"Created scheduled task with ID: {scheduled_task.schedule_id}")
         self.logger.info(f"Total scheduled tasks: {len(self.scheduled_tasks)}")
 
-        # Save first, then refresh views
+        # Save first, then refresh views and task list
         self.saveScheduledTasks()
+        self.loadTasks()  # Refresh the left panel task list
         self.refreshScheduledTasks()
 
         self.logger.info(f"Successfully scheduled task '{task_title}' for {date.toString()}")
@@ -1149,7 +1223,8 @@ class PlanningScreen(QWidget):
         self.logger.info("Saving scheduled tasks...")
         self.saveScheduledTasks()
 
-        self.logger.info("Refreshing scheduled tasks display...")
+        self.logger.info("Refreshing task list and scheduled tasks display...")
+        self.loadTasks()  # Refresh the left panel task list
         self.refreshScheduledTasks()
 
         self.logger.info(f"Unscheduled {len(schedules_to_remove)} instance(s). Remaining scheduled tasks: {len(self.scheduled_tasks)}")
