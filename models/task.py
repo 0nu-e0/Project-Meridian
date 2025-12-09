@@ -87,6 +87,7 @@ class Task(QObject):
         # Unique identifiers
         self.id = str(uuid4())
         self.project_id = project_id
+        self.phase_id: Optional[str] = None  # Phase within project
         
         # Basic information
         self.title = title
@@ -203,6 +204,42 @@ class Task(QObject):
         total_duration = (self.due_date - self.creation_date).days
         remaining_duration = (self.due_date - datetime.now()).days
         return (remaining_duration / total_duration) * (100 - self.percentage_complete)
+
+    def get_project(self):
+        """
+        Get the project this task belongs to.
+
+        Returns:
+            Project object if project_id is set, None otherwise
+        """
+        if not self.project_id:
+            return None
+
+        from utils.projects_io import load_projects_from_json
+        from logging import getLogger
+
+        logger = getLogger(__name__)
+        projects = load_projects_from_json(logger)
+
+        return projects.get(self.project_id)
+
+    def get_phase(self):
+        """
+        Get the phase this task belongs to.
+
+        Returns:
+            Phase object if phase_id is set, None otherwise
+        """
+        if not self.phase_id:
+            return None
+
+        from utils.projects_io import load_phases_from_json
+        from logging import getLogger
+
+        logger = getLogger(__name__)
+        phases = load_phases_from_json(logger)
+
+        return phases.get(self.phase_id)
 
 class TimeLog:
     def __init__(self, hours: float, user_id: str, description: str = ""):

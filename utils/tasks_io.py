@@ -77,6 +77,9 @@ def load_tasks_from_json(logger):
             if 'id' in task_info:
                 task.id = task_info['id']
 
+            # Set phase_id if available
+            task.phase_id = task_info.get('phase_id', None)
+
             # Set enum values
             if 'status' in task_info:
                 status_value = task_info['status'].replace(" ", "_").upper()
@@ -317,6 +320,7 @@ def save_task_to_json(task, logger):
             'title': getattr(task, 'title', "New Task"),
             'description': getattr(task, 'description', ""),
             'project_id': getattr(task, 'project_id', None),
+            'phase_id': getattr(task, 'phase_id', None),
             'category': task.category.name if hasattr(task, 'category') and task.category else TaskCategory.FEATURE.name,
             'creation_date': getattr(task, 'creation_date', datetime.now()).strftime('%Y-%m-%d, %H:%M:%S'),
             'start_date': task.start_date.strftime('%Y-%m-%d, %H:%M:%S') if getattr(task, 'start_date', None) else None,

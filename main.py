@@ -56,6 +56,7 @@ from ui.dashboard_screen import DashboardScreen
 from ui.mindmap_screen import MindMapScreen
 from ui.notes_screen import NotesScreen
 from ui.planning_screen import PlanningScreen
+from ui.projects_screen import ProjectsScreen
 from ui.welcome_screen import WelcomeScreen
 from utils.dashboard_config import DashboardConfigManager
 from utils.directory_finder import resource_path
@@ -218,6 +219,9 @@ class MainWindow(QWidget):
         self.planning_screen = PlanningScreen(logger=self.logger)
         self.planning_screen.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
+        self.projects_screen = ProjectsScreen(logger=self.logger)
+        self.projects_screen.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
         self.notes_screen = NotesScreen(logger=self.logger)
         self.notes_screen.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
@@ -229,6 +233,7 @@ class MainWindow(QWidget):
         self.stacked_widget.addWidget(self.dashboard_screen)
         self.stacked_widget.addWidget(self.welcome_screen)
         self.stacked_widget.addWidget(self.planning_screen)
+        self.stacked_widget.addWidget(self.projects_screen)
         self.stacked_widget.addWidget(self.notes_screen)
         self.stacked_widget.addWidget(self.mindmaps_screen)
         self.stacked_widget.setCurrentWidget(self.welcome_screen)
@@ -350,7 +355,8 @@ class MainWindow(QWidget):
             "dashboard_screen": self.dashboard_screen,
             "planning_screen": self.planning_screen,
             "notes_screen": self.notes_screen,
-            "mindmaps_screen": self.mindmaps_screen
+            "mindmaps_screen": self.mindmaps_screen,
+            "projects_screen": self.projects_screen
         }
 
         targetWidget = screen_to_widget_mapping.get(screen)

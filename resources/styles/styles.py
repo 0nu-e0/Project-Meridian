@@ -789,8 +789,8 @@ class AppStyles:
     @staticmethod
     def line_edit_norm():
         return f"""
-            QLineEdit {{border: {AppBorders.line_edit_norm}; border-radius: {AppPixelSizes.border_radius_xsml}; padding: {AppPixelSizes.border_radius_xsml}; 
-                color: {AppColors.white}; font-size: {AppPixelSizes.font_norm}; font-style: {AppFontStyle.norm}; }}
+            QLineEdit {{border: {AppBorders.line_edit_norm}; border-radius: {AppPixelSizes.border_radius_xsml}; padding: {AppPixelSizes.border_radius_xsml};
+                background-color: {AppColors.white}; color: {AppColors.label_font_color_dark}; font-size: {AppPixelSizes.font_norm}; font-style: {AppFontStyle.norm}; }}
             QLineEdit:focus {{ border: {AppBorders.line_edit_focus}; }}
         """
     
@@ -821,8 +821,8 @@ class AppStyles:
     @staticmethod
     def text_edit_norm():
         return f"""
-            QTextEdit {{border: {AppBorders.text_edit_norm}; border-radius: {AppPixelSizes.border_radius_xsml}; padding: {AppPixelSizes.border_radius_xsml}; 
-                background-color: {AppColors.black}; color: {AppColors.white}; font-size: {AppPixelSizes.font_norm}; font-style: {AppFontStyle.norm}; }}
+            QTextEdit {{border: {AppBorders.text_edit_norm}; border-radius: {AppPixelSizes.border_radius_xsml}; padding: {AppPixelSizes.border_radius_xsml};
+                background-color: {AppColors.white}; color: {AppColors.label_font_color_dark}; font-size: {AppPixelSizes.font_norm}; font-style: {AppFontStyle.norm}; }}
             QTextEdit:focus {{ border: {AppBorders.text_edit_focus}; }}
         """
     
