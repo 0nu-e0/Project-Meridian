@@ -36,11 +36,11 @@ def migrate_data_if_needed():
             # Get full source path
             source_path = resource_path(source_rel_path)
             
-            # logger.info(f"Checking for legacy file: {source_path}")
+            logger.info(f"Checking for legacy file: {source_path}")
             
             # Check if source file exists
             if not os.path.exists(source_path):
-                # logger.info(f"No legacy file found at {source_path}")
+                logger.info(f"No legacy file found at {source_path}")
                 continue
                 
             # Ensure destination directory exists
@@ -49,12 +49,12 @@ def migrate_data_if_needed():
             
             # Check if destination file already exists
             if os.path.exists(dest_path):
-                # logger.info(f"Destination file already exists at {dest_path}")
+                logger.info(f"Destination file already exists at {dest_path}")
                 # Backup the source file and skip migration
                 backup_path = source_path + ".backup"
                 shutil.copy2(source_path, backup_path)
                 os.remove(source_path)
-                # logger.info(f"Legacy file backed up to {backup_path} and removed")
+                logger.info(f"Legacy file backed up to {backup_path} and removed")
                 continue
             
             # Copy the file based on its type
@@ -74,7 +74,7 @@ def migrate_data_if_needed():
                 # For other files, just copy directly
                 shutil.copy2(source_path, dest_path)
             
-            # logger.info(f"Successfully migrated {file_type} file to {dest_path}")
+            logger.info(f"Successfully migrated {file_type} file to {dest_path}")
             
             # Backup and remove the source file
             backup_path = source_path + ".backup"
