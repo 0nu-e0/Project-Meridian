@@ -83,6 +83,9 @@ class Project(QObject):
         self.color = color
         self.archived = False
 
+        # Cache for loaded tasks to avoid redundant file I/O
+        self._cached_tasks = None
+
     def to_dict(self) -> dict:
         """Serialize project to dictionary for JSON storage"""
         return {
@@ -131,6 +134,38 @@ class Project(QObject):
 
         return project
 
+    def _get_project_tasks(self, logger=None):
+        """
+        Get all tasks belonging to this project with caching.
+
+        Args:
+            logger: Optional logger instance
+
+        Returns:
+            List of Task objects belonging to this project
+        """
+        if self._cached_tasks is None:
+            from utils.tasks_io import load_tasks_from_json
+            from logging import getLogger
+
+            if logger is None:
+                logger = getLogger(__name__)
+
+            all_tasks = load_tasks_from_json(logger)
+            self._cached_tasks = [task for task in all_tasks.values() if task.project_id == self.id]
+
+        return self._cached_tasks
+
+    def invalidate_task_cache(self):
+        """
+        Invalidate the cached tasks, forcing a reload on next access.
+        Call this when tasks are added, modified, or deleted.
+        """
+        self._cached_tasks = None
+        # Also invalidate the global cache
+        from utils.tasks_io import invalidate_tasks_cache
+        invalidate_tasks_cache()
+
     def get_progress_percentage(self) -> float:
         """
         Calculate overall project completion percentage based on tasks.
@@ -138,14 +173,7 @@ class Project(QObject):
         Returns:
             Float between 0.0 and 100.0
         """
-        from utils.tasks_io import load_tasks_from_json
-        from logging import getLogger
-
-        logger = getLogger(__name__)
-        tasks = load_tasks_from_json(logger)
-
-        # Get all tasks belonging to this project
-        project_tasks = [task for task in tasks.values() if task.project_id == self.id]
+        project_tasks = self._get_project_tasks()
 
         if not project_tasks:
             return 0.0
@@ -160,13 +188,7 @@ class Project(QObject):
         Returns:
             Integer count of tasks
         """
-        from utils.tasks_io import load_tasks_from_json
-        from logging import getLogger
-
-        logger = getLogger(__name__)
-        tasks = load_tasks_from_json(logger)
-
-        project_tasks = [task for task in tasks.values() if task.project_id == self.id]
+        project_tasks = self._get_project_tasks()
         return len(project_tasks)
 
     def get_completed_tasks(self) -> int:
@@ -176,13 +198,7 @@ class Project(QObject):
         Returns:
             Integer count of completed tasks
         """
-        from utils.tasks_io import load_tasks_from_json
-        from logging import getLogger
-
-        logger = getLogger(__name__)
-        tasks = load_tasks_from_json(logger)
-
-        project_tasks = [task for task in tasks.values() if task.project_id == self.id]
+        project_tasks = self._get_project_tasks()
         completed_tasks = sum(1 for task in project_tasks if task.status == TaskStatus.COMPLETED)
         return completed_tasks
 
@@ -211,13 +227,7 @@ class Project(QObject):
         Returns:
             Dictionary mapping TaskStatus to count
         """
-        from utils.tasks_io import load_tasks_from_json
-        from logging import getLogger
-
-        logger = getLogger(__name__)
-        tasks = load_tasks_from_json(logger)
-
-        project_tasks = [task for task in tasks.values() if task.project_id == self.id]
+        project_tasks = self._get_project_tasks()
 
         status_counts = {status: 0 for status in TaskStatus}
         for task in project_tasks:

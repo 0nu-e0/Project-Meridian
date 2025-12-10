@@ -27,6 +27,7 @@
 
 import os
 import json
+import logging
 from typing import Dict, Optional
 from datetime import datetime
 from utils.app_config import AppConfig
@@ -643,3 +644,158 @@ def unschedule_project(schedule_id: str, logger):
     except Exception as e:
         logger.error(f"Error unscheduling project: {e}")
         return False
+
+
+def export_project_to_json(project_id: str, export_path: str, logger: logging.Logger) -> bool:
+    """
+    Export a project with all its phases and tasks to a JSON file.
+
+    Args:
+        project_id: ID of the project to export
+        export_path: Path to save the export file
+        logger: Logger instance
+
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        # Load project
+        projects = load_projects_from_json(logger)
+        if project_id not in projects:
+            logger.error(f"Project {project_id} not found")
+            return False
+
+        project = projects[project_id]
+
+        # Load phases
+        all_phases = load_phases_from_json(logger)
+        project_phases = []
+        for phase_id in project.phases:
+            if phase_id in all_phases:
+                project_phases.append(all_phases[phase_id].to_dict())
+
+        # Load tasks
+        from utils.tasks_io import load_tasks_from_json
+        all_tasks = load_tasks_from_json(logger)
+        project_tasks = []
+        for task in all_tasks.values():
+            if task.project_id == project_id:
+                project_tasks.append(task.to_dict())
+
+        # Create export data structure
+        export_data = {
+            "project": project.to_dict(),
+            "phases": project_phases,
+            "tasks": project_tasks,
+            "export_date": datetime.now().isoformat(),
+            "version": "1.0"
+        }
+
+        # Write to file
+        with open(export_path, 'w', encoding='utf-8') as f:
+            json.dump(export_data, f, indent=2, ensure_ascii=False)
+
+        logger.info(f"Exported project '{project.title}' to {export_path}")
+        return True
+
+    except Exception as e:
+        logger.error(f"Error exporting project: {e}")
+        return False
+
+
+def import_project_from_json(import_path: str, logger: logging.Logger) -> Optional[str]:
+    """
+    Import a project from a JSON file.
+
+    Args:
+        import_path: Path to the import file
+        logger: Logger instance
+
+    Returns:
+        New project ID if successful, None otherwise
+    """
+    try:
+        # Read import file
+        with open(import_path, 'r', encoding='utf-8') as f:
+            import_data = json.load(f)
+
+        # Validate format
+        if "project" not in import_data or "phases" not in import_data:
+            logger.error("Invalid import file format")
+            return None
+
+        # Generate new IDs to avoid conflicts
+        old_to_new_project_id = {}
+        old_to_new_phase_id = {}
+        old_to_new_task_id = {}
+
+        # Import project with new ID
+        from models.project import Project
+        project_data = import_data["project"]
+        old_project_id = project_data["id"]
+        new_project_id = str(uuid.uuid4())
+        old_to_new_project_id[old_project_id] = new_project_id
+
+        # Update project data
+        project_data["id"] = new_project_id
+        project_data["creation_date"] = datetime.now().isoformat()
+        project_data["title"] = project_data["title"] + " (Imported)"
+        project_data["phases"] = []  # Will update with new phase IDs
+
+        project = Project.from_dict(project_data)
+
+        # Import phases with new IDs
+        phases = {}
+        for phase_data in import_data["phases"]:
+            old_phase_id = phase_data["id"]
+            new_phase_id = str(uuid.uuid4())
+            old_to_new_phase_id[old_phase_id] = new_phase_id
+
+            phase_data["id"] = new_phase_id
+            phase_data["project_id"] = new_project_id
+
+            from models.phase import Phase
+            phase = Phase.from_dict(phase_data)
+            phase.task_ids = []  # Will update with new task IDs
+            phases[new_phase_id] = phase
+            project.phases.append(new_phase_id)
+
+        # Import tasks with new IDs
+        from models.task import Task
+        from utils.tasks_io import save_task_to_json
+        for task_data in import_data.get("tasks", []):
+            old_task_id = task_data["id"]
+            new_task_id = str(uuid.uuid4())
+            old_to_new_task_id[old_task_id] = new_task_id
+
+            task_data["id"] = new_task_id
+            task_data["project_id"] = new_project_id
+
+            # Update phase_id if exists
+            if task_data.get("phase_id") and task_data["phase_id"] in old_to_new_phase_id:
+                old_phase_id = task_data["phase_id"]
+                new_phase_id = old_to_new_phase_id[old_phase_id]
+                task_data["phase_id"] = new_phase_id
+
+                # Add task to phase
+                if new_phase_id in phases:
+                    phases[new_phase_id].task_ids.append(new_task_id)
+
+            task = Task.from_dict(task_data)
+            save_task_to_json(task, logger)
+
+        # Save project and phases
+        all_projects = load_projects_from_json(logger)
+        all_projects[new_project_id] = project
+        save_projects_to_json(all_projects, logger)
+
+        all_phases = load_phases_from_json(logger)
+        all_phases.update(phases)
+        save_phases_to_json(all_phases, logger)
+
+        logger.info(f"Imported project '{project.title}' with ID {new_project_id}")
+        return new_project_id
+
+    except Exception as e:
+        logger.error(f"Error importing project: {e}")
+        return None

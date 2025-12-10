@@ -65,35 +65,50 @@ class StyledTaskItem(QWidget):
         self.initUI()
 
     def initUI(self):
+        from PyQt5.QtCore import Qt
+
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 4, 10, 4)
+        layout.setContentsMargins(10, 6, 10, 6)
         layout.setSpacing(4)
 
-        # Title
+        # Title (single line with ellipsis)
         title_label = QLabel(self.task.title)
         title_font = QFont()
         title_font.setPointSize(11)
         title_font.setBold(True)
         title_label.setFont(title_font)
-        title_label.setWordWrap(True)
+        title_label.setWordWrap(False)
+        title_label.setFixedHeight(18)
+        # Truncate text if too long
+        metrics = title_label.fontMetrics()
+        elided_text = metrics.elidedText(self.task.title, Qt.ElideRight, 250)
+        title_label.setText(elided_text)
+        title_label.setStyleSheet("color: white;")
         layout.addWidget(title_label)
 
         # Info row (priority + category)
         info_layout = QHBoxLayout()
         info_layout.setSpacing(8)
 
-        # Priority badge
+        # Priority badge (fixed height)
         priority_label = QLabel(self.task.priority.name)
         priority_label.setStyleSheet(self._getPriorityStyle())
+        priority_label.setFixedHeight(16)
+        priority_label.setAlignment(Qt.AlignCenter)
         info_layout.addWidget(priority_label)
 
-        # Category
+        # Category (fixed height)
         category_label = QLabel(self.task.category.value)
         category_label.setStyleSheet("color: #95a5a6; font-size: 10px;")
+        category_label.setFixedHeight(16)
+        category_label.setAlignment(Qt.AlignVCenter)
         info_layout.addWidget(category_label)
 
         info_layout.addStretch()
         layout.addLayout(info_layout)
+
+        # Set fixed height for entire item
+        self.setFixedHeight(50)
 
         # Set overall styling
         self.setStyleSheet("""

@@ -70,7 +70,7 @@ class PhaseDialog(QDialog):
         self.setMinimumWidth(450)
         self.setStyleSheet("""
             QDialog {
-                background-color: white;
+                background-color: #2c3e50;
             }
         """)
 
@@ -85,7 +85,7 @@ class PhaseDialog(QDialog):
             QLabel {
                 font-size: 20px;
                 font-weight: bold;
-                color: #2c3e50;
+                color: #ecf0f1;
             }
         """)
         layout.addWidget(title_label)
@@ -168,13 +168,17 @@ class PhaseDialog(QDialog):
         return """
             QLineEdit, QTextEdit {
                 padding: 8px;
-                border: 1px solid #bdc3c7;
+                border: 2px solid #3498db;
                 border-radius: 5px;
-                background-color: white;
+                background-color: #34495e;
+                color: #ecf0f1;
                 font-size: 12px;
             }
             QLineEdit:focus, QTextEdit:focus {
-                border: 2px solid #3498db;
+                border: 2px solid #5dade2;
+            }
+            QLineEdit::placeholder, QTextEdit::placeholder {
+                color: #7f8c8d;
             }
         """
 
@@ -182,15 +186,15 @@ class PhaseDialog(QDialog):
         """Get stylesheet for secondary button"""
         return """
             QPushButton {
-                background-color: #ecf0f1;
-                color: #2c3e50;
-                border: none;
+                background-color: #34495e;
+                color: #ecf0f1;
+                border: 2px solid #7f8c8d;
                 border-radius: 5px;
                 font-size: 13px;
                 font-weight: bold;
             }
             QPushButton:hover {
-                background-color: #bdc3c7;
+                background-color: #7f8c8d;
             }
             QPushButton:pressed {
                 background-color: #95a5a6;
