@@ -52,6 +52,7 @@ class MindMapScreen(QWidget):
     def __init__(self, logger, parent=None):
         super().__init__(parent)
         self.logger = logger
+        self.current_mindmap_id = None  # Track currently loaded mindmap
 
         # Create the QGraphicsScene and QGraphicsView.
         self.scene = GridScene(grid_size=25, parent=self)
@@ -62,12 +63,15 @@ class MindMapScreen(QWidget):
         self.saveButton = QPushButton("Save Mind Map")
         self.loadButton = QPushButton("Load Mind Map")
         self.clearButton = QPushButton("Clear Map")
+        self.viewProjectButton = QPushButton("📁 View Project")
+        self.viewProjectButton.setVisible(False)  # Hidden by default
 
         # Connect buttons to their respective functions.
         self.addButton.clicked.connect(self.add_node)
         self.saveButton.clicked.connect(self.save_mind_map)
         self.loadButton.clicked.connect(self.load_mind_map)
         self.clearButton.clicked.connect(self.clear_map)
+        self.viewProjectButton.clicked.connect(self.view_linked_project)
 
         self.installEventFilter(self)
 
@@ -149,6 +153,17 @@ class MindMapScreen(QWidget):
         left_layout.addWidget(self.saveButton)
         left_layout.addWidget(self.loadButton)
         left_layout.addWidget(self.clearButton)
+
+        # Add separator
+        separator = QFrame()
+        separator.setFrameShape(QFrame.HLine)
+        separator.setFixedHeight(2)
+        separator.setStyleSheet("background-color: #d0d0d0;")
+        left_layout.addWidget(separator)
+
+        # Add View Project button (shown only when linked)
+        left_layout.addWidget(self.viewProjectButton)
+
         left_layout.addStretch(1)  # Push the buttons to the top.
 
         # Add the left panel to the main layout.
@@ -172,45 +187,201 @@ class MindMapScreen(QWidget):
         nodes = [item.serialize() for item in self.scene.items() if isinstance(item, NodeItem)]
         connections = getattr(self.scene, "connections", [])
 
-        data = {"nodes": nodes}
-        if connections:
-            data["connections"] = connections
+        from utils.mindmap_io import update_mindmap, create_mindmap
 
-        fileName, _ = QFileDialog.getSaveFileName(self, "Save Mind Map", "", "JSON Files (*.json)")
-        if fileName:
-            with open(fileName, 'w') as f:
-                json.dump(data, f, indent=4)
+        # If we have a current mindmap loaded, update it
+        if self.current_mindmap_id:
+            success = update_mindmap(
+                mindmap_id=self.current_mindmap_id,
+                nodes=nodes,
+                connections=connections,
+                logger=self.logger
+            )
+
+            if success:
+                QMessageBox.information(self, "Success", "Mindmap saved successfully!")
+                self.update_view_project_button()
+            else:
+                QMessageBox.warning(self, "Error", "Failed to save mindmap.")
+        else:
+            # Create new mindmap - ask for title
+            title, ok = QInputDialog.getText(self, "Save Mindmap", "Enter mindmap title:")
+            if ok and title:
+                mindmap = create_mindmap(
+                    title=title,
+                    nodes=nodes,
+                    connections=connections,
+                    logger=self.logger
+                )
+                self.current_mindmap_id = mindmap.id
+                QMessageBox.information(self, "Success", f"Mindmap '{title}' created and saved!")
+                self.update_view_project_button()
 
     def load_mind_map(self):
-        # Load and deserialize nodes from a JSON file.
-        fileName, _ = QFileDialog.getOpenFileName(self, "Load Mind Map", "", "JSON Files (*.json)")
-        if fileName:
-            with open(fileName, 'r') as f:
+        # Load mindmap from centralized storage
+        from utils.mindmap_io import load_mindmaps_from_json
 
-                data = json.load(f)
+        mindmaps = load_mindmaps_from_json(self.logger)
 
-            if isinstance(data, list):
-                nodes_data = data
-                connections_data = []
-            else:
-                nodes_data = data.get("nodes", [])
-                connections_data = data.get("connections", [])
+        if not mindmaps:
+            QMessageBox.information(self, "No Mindmaps", "No saved mindmaps found.")
+            return
 
-            self.clear_map()  # Clear existing items in the scene.
+        # Create dialog to select mindmap
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Load Mindmap")
+        dialog.setModal(True)
+        dialog.setMinimumWidth(400)
+        dialog.setMinimumHeight(300)
 
-            for node_data in nodes_data:
-                node = NodeItem(0, 0, logger=self.logger)
-                node.deserialize(node_data)
-                node_map[node.id] = node
-                self.scene.addItem(node)
+        layout = QVBoxLayout(dialog)
 
-            # Placeholder for future connection handling
-            if connections_data and hasattr(self.scene, "connections"):
-                self.scene.connections = connections_data
+        # Label
+        label = QLabel("Select a mindmap to load:")
+        label.setStyleSheet("font-size: 14px; padding: 10px;")
+        layout.addWidget(label)
+
+        # List widget
+        list_widget = QListWidget()
+        list_widget.setStyleSheet("""
+            QListWidget {
+                border: 1px solid #d0d0d0;
+                border-radius: 4px;
+                background-color: white;
+            }
+            QListWidget::item {
+                padding: 8px;
+                border-bottom: 1px solid #f0f0f0;
+            }
+            QListWidget::item:selected {
+                background-color: #3498db;
+                color: white;
+            }
+            QListWidget::item:hover {
+                background-color: #ecf0f1;
+            }
+        """)
+
+        for mindmap in mindmaps.values():
+            item_text = f"🧠 {mindmap.title}"
+            if mindmap.project_id:
+                item_text += " 📁"  # Indicator for linked project
+            item = QListWidgetItem(item_text)
+            item.setData(Qt.UserRole, mindmap.id)
+            if mindmap.description:
+                item.setToolTip(mindmap.description)
+            list_widget.addItem(item)
+
+        layout.addWidget(list_widget)
+
+        # Buttons
+        from PyQt5.QtWidgets import QDialogButtonBox
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        button_box.accepted.connect(dialog.accept)
+        button_box.rejected.connect(dialog.reject)
+        layout.addWidget(button_box)
+
+        # Show dialog
+        if dialog.exec_() == QDialog.Accepted:
+            selected_items = list_widget.selectedItems()
+            if selected_items:
+                mindmap_id = selected_items[0].data(Qt.UserRole)
+                mindmap = mindmaps.get(mindmap_id)
+
+                if mindmap:
+                    self.load_mindmap_data(mindmap)
+
+    def load_mindmap_data(self, mindmap):
+        """Load mindmap data into the scene"""
+        self.clear_map()
+
+        nodes_data = mindmap.nodes or []
+        connections_data = mindmap.connections or []
+
+        node_map = {}
+
+        for node_data in nodes_data:
+            node = NodeItem(0, 0, logger=self.logger)
+            node.deserialize(node_data)
+            node_map[node.id] = node
+            self.scene.addItem(node)
+
+        # Placeholder for future connection handling
+        if connections_data and hasattr(self.scene, "connections"):
+            self.scene.connections = connections_data
+
+        # Set current mindmap
+        self.current_mindmap_id = mindmap.id
+        self.update_view_project_button()
+
+        self.logger.info(f"Loaded mindmap: {mindmap.title}")
+
+    def load_mindmap_by_id(self, mindmap_id: str):
+        """Load a specific mindmap by ID (for View Mindmap from project)"""
+        from utils.mindmap_io import load_mindmaps_from_json
+
+        mindmaps = load_mindmaps_from_json(self.logger)
+        mindmap = mindmaps.get(mindmap_id)
+
+        if mindmap:
+            self.load_mindmap_data(mindmap)
+        else:
+            QMessageBox.warning(self, "Error", f"Mindmap not found: {mindmap_id}")
 
     def clear_map(self):
         # Remove all items from the scene.
         self.scene.clear()
+        self.current_mindmap_id = None
+        self.update_view_project_button()
+
+    def update_view_project_button(self):
+        """Update View Project button visibility based on linked project"""
+        if self.current_mindmap_id:
+            from utils.mindmap_io import load_mindmaps_from_json
+
+            mindmaps = load_mindmaps_from_json(self.logger)
+            mindmap = mindmaps.get(self.current_mindmap_id)
+
+            if mindmap and mindmap.project_id:
+                self.viewProjectButton.setVisible(True)
+                self.viewProjectButton.setStyleSheet("""
+                    QPushButton {
+                        background-color: #3498db;
+                        color: white;
+                        border: none;
+                        padding: 8px;
+                        border-radius: 4px;
+                        font-weight: bold;
+                    }
+                    QPushButton:hover {
+                        background-color: #2980b9;
+                    }
+                """)
+            else:
+                self.viewProjectButton.setVisible(False)
+        else:
+            self.viewProjectButton.setVisible(False)
+
+    def view_linked_project(self):
+        """Open the linked project detail view"""
+        if not self.current_mindmap_id:
+            return
+
+        from utils.mindmap_io import load_mindmaps_from_json
+
+        mindmaps = load_mindmaps_from_json(self.logger)
+        mindmap = mindmaps.get(self.current_mindmap_id)
+
+        if mindmap and mindmap.project_id:
+            # Signal to main window to open project detail
+            if hasattr(self.parent(), 'openProjectDetail'):
+                self.parent().openProjectDetail(mindmap.project_id)
+            else:
+                QMessageBox.information(
+                    self,
+                    "View Project",
+                    f"Project ID: {mindmap.project_id}\n\nProject detail integration will be completed in the next step."
+                )
 
 
 class GridScene(QGraphicsScene):

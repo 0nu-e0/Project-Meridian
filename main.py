@@ -57,6 +57,7 @@ from ui.mindmap_screen import MindMapScreen
 from ui.notes_screen import NotesScreen
 from ui.planning_screen import PlanningScreen
 from ui.projects_screen import ProjectsScreen
+from ui.project_files.project_detail_view import ProjectDetailView
 from ui.welcome_screen import WelcomeScreen
 from utils.dashboard_config import DashboardConfigManager
 from utils.directory_finder import resource_path
@@ -221,6 +222,7 @@ class MainWindow(QWidget):
 
         self.projects_screen = ProjectsScreen(logger=self.logger)
         self.projects_screen.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.projects_screen.projectClicked.connect(self.showProjectDetail)
 
         self.notes_screen = NotesScreen(logger=self.logger)
         self.notes_screen.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
@@ -346,6 +348,37 @@ class MainWindow(QWidget):
     
     def showSettingsMenu(self):
         pass
+
+    def showProjectDetail(self, project_id):
+        """Show the project detail view for the given project ID"""
+        # Create a new project detail view
+        project_detail_view = ProjectDetailView(project_id, self.logger)
+        project_detail_view.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+        # Connect back button to return to projects screen
+        project_detail_view.backClicked.connect(self.returnToProjectsScreen)
+
+        # Add to stacked widget and show it
+        self.stacked_widget.addWidget(project_detail_view)
+        self.stacked_widget.setCurrentWidget(project_detail_view)
+
+        # Update banner header
+        self.banner_header.setText("Project Details")
+
+    def returnToProjectsScreen(self):
+        """Return to the projects screen from project detail view"""
+        # Remove the current project detail view
+        current_widget = self.stacked_widget.currentWidget()
+        if isinstance(current_widget, ProjectDetailView):
+            self.stacked_widget.removeWidget(current_widget)
+            current_widget.deleteLater()
+
+        # Show projects screen
+        self.stacked_widget.setCurrentWidget(self.projects_screen)
+        self.banner_header.setText("Projects")
+
+        # Refresh projects to show any updates
+        self.projects_screen.refreshProjects()
 
     def initiateStackedWidgetTransition(self, screen):
         sender = self.sender()

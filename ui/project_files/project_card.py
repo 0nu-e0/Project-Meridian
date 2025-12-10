@@ -52,16 +52,16 @@ class ProjectCard(QWidget):
 
     def initUI(self):
         """Initialize the card UI"""
-        # Main container with border
+        # Main container with border - dark theme
         self.setStyleSheet(f"""
             ProjectCard {{
-                background-color: white;
+                background-color: #2c3e50;
                 border: 2px solid {self.project.color};
                 border-radius: 10px;
             }}
             ProjectCard:hover {{
                 border: 3px solid {self.project.color};
-                background-color: #f8f9fa;
+                background-color: #34495e;
             }}
         """)
 
@@ -80,7 +80,7 @@ class ProjectCard(QWidget):
             QLabel {
                 font-size: 16px;
                 font-weight: bold;
-                color: #2c3e50;
+                color: #ecf0f1;
             }
         """)
         title_label.setWordWrap(True)
@@ -112,7 +112,7 @@ class ProjectCard(QWidget):
         phase_label.setStyleSheet("""
             QLabel {
                 font-size: 12px;
-                color: #7f8c8d;
+                color: #bdc3c7;
             }
         """)
         layout.addWidget(phase_label)
@@ -126,12 +126,13 @@ class ProjectCard(QWidget):
         progress_bar.setFixedHeight(20)
         progress_bar.setStyleSheet(f"""
             QProgressBar {{
-                border: 1px solid #bdc3c7;
+                border: 2px solid #3498db;
                 border-radius: 5px;
                 text-align: center;
                 font-size: 11px;
                 font-weight: bold;
-                background-color: #ecf0f1;
+                background-color: #34495e;
+                color: #ecf0f1;
             }}
             QProgressBar::chunk {{
                 background-color: {self.project.color};
@@ -147,7 +148,7 @@ class ProjectCard(QWidget):
         task_label.setStyleSheet("""
             QLabel {
                 font-size: 12px;
-                color: #34495e;
+                color: #ecf0f1;
             }
         """)
         layout.addWidget(task_label)
@@ -162,7 +163,7 @@ class ProjectCard(QWidget):
             start_label.setStyleSheet("""
                 QLabel {
                     font-size: 10px;
-                    color: #95a5a6;
+                    color: #bdc3c7;
                 }
             """)
             dates_layout.addWidget(start_label)
@@ -173,7 +174,7 @@ class ProjectCard(QWidget):
             due_label.setStyleSheet("""
                 QLabel {
                     font-size: 10px;
-                    color: #95a5a6;
+                    color: #bdc3c7;
                 }
             """)
             dates_layout.addWidget(due_label)
@@ -191,8 +192,8 @@ class ProjectCard(QWidget):
             mindmap_label.setStyleSheet("""
                 QLabel {
                     font-size: 10px;
-                    color: #3498db;
-                    background-color: #e8f4f8;
+                    color: #ecf0f1;
+                    background-color: #3498db;
                     padding: 3px 6px;
                     border-radius: 3px;
                 }

@@ -32,27 +32,50 @@ from utils.app_config import AppConfig
 from utils.directory_finder import resource_path
 from models.task import Task, TaskStatus, TaskPriority, TaskCategory, Attachment, TaskEntry, TimeLog
 
-def load_tasks_from_json(logger):
+# Global cache for tasks to avoid redundant file I/O
+_tasks_cache = None
+_tasks_cache_mtime = None
+
+def invalidate_tasks_cache():
+    """Invalidate the global tasks cache, forcing a reload on next access"""
+    global _tasks_cache, _tasks_cache_mtime
+    _tasks_cache = None
+    _tasks_cache_mtime = None
+
+def load_tasks_from_json(logger, force_reload=False):
     """
-    Load tasks from JSON file into Task objects
+    Load tasks from JSON file into Task objects with caching
+
+    Args:
+        logger: Logger instance
+        force_reload: If True, bypass cache and reload from disk
 
     Returns:
         dict: Dictionary with task titles as keys and Task objects as values, sorted by priority
     """
+    global _tasks_cache, _tasks_cache_mtime
     from utils.app_config import AppConfig
-
-    task_objects = {}
 
     # Get the file path from AppConfig
     app_config = AppConfig()
     json_file_path = app_config.tasks_file
 
-    logger.info(f"Attempting to load tasks from: {json_file_path}")
-
     # Check if file exists
     if not os.path.exists(json_file_path):
         logger.warning(f"Task file not found at: {json_file_path}")
         return {}
+
+    # Get file modification time
+    current_mtime = os.path.getmtime(json_file_path)
+
+    # Return cached data if available and file hasn't changed
+    if not force_reload and _tasks_cache is not None and _tasks_cache_mtime == current_mtime:
+        logger.debug(f"Using cached tasks (file unchanged)")
+        return _tasks_cache
+
+    # Load from disk
+    task_objects = {}
+    logger.info(f"Attempting to load tasks from: {json_file_path}")
 
     try:
         # Read the JSON file
@@ -260,13 +283,17 @@ def load_tasks_from_json(logger):
             # Add the task to our dictionary
             task_objects[task_name] = task
 
-        # Return tasks sorted by priority
-        return dict(sorted(task_objects.items(), key=lambda item: item[1].priority.value, reverse=True))
+        # Sort tasks by priority
+        sorted_tasks = dict(sorted(task_objects.items(), key=lambda item: item[1].priority.value, reverse=True))
+
+        # Cache the result
+        _tasks_cache = sorted_tasks
+        _tasks_cache_mtime = current_mtime
+
+        return sorted_tasks
 
     except Exception as e:
         logger.error(f"Error loading tasks from JSON: {e}")
-
-
         return {}
 
 def save_task_to_json(task, logger):
@@ -416,7 +443,10 @@ def save_task_to_json(task, logger):
         # Write back to file
         with open(json_file_path, 'w') as file:
             json.dump(tasks_data, file, indent=2)
-            
+
+        # Invalidate cache since file was modified
+        invalidate_tasks_cache()
+
         logger.info(f"Task saved to {json_file_path}")
         return True
             

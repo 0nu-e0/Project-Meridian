@@ -64,7 +64,7 @@ class TaskDialog(QDialog):
         self.setMinimumWidth(500)
         self.setStyleSheet("""
             QDialog {
-                background-color: white;
+                background-color: #2c3e50;
             }
         """)
 
@@ -79,7 +79,7 @@ class TaskDialog(QDialog):
             QLabel {
                 font-size: 20px;
                 font-weight: bold;
-                color: #2c3e50;
+                color: #ecf0f1;
             }
         """)
         layout.addWidget(title_label)
@@ -172,13 +172,17 @@ class TaskDialog(QDialog):
         return """
             QLineEdit, QTextEdit, QComboBox {
                 padding: 8px;
-                border: 1px solid #bdc3c7;
+                border: 2px solid #3498db;
                 border-radius: 5px;
-                background-color: white;
+                background-color: #34495e;
+                color: #ecf0f1;
                 font-size: 12px;
             }
             QLineEdit:focus, QTextEdit:focus, QComboBox:focus {
-                border: 2px solid #3498db;
+                border: 2px solid #5dade2;
+            }
+            QLineEdit::placeholder, QTextEdit::placeholder {
+                color: #7f8c8d;
             }
             QComboBox::drop-down {
                 border: none;
@@ -188,8 +192,15 @@ class TaskDialog(QDialog):
                 image: none;
                 border-left: 4px solid transparent;
                 border-right: 4px solid transparent;
-                border-top: 6px solid #7f8c8d;
+                border-top: 6px solid #ecf0f1;
                 margin-right: 8px;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #2c3e50;
+                border: 2px solid #3498db;
+                selection-background-color: #3498db;
+                color: #ecf0f1;
+                padding: 4px;
             }
         """
 
@@ -197,15 +208,15 @@ class TaskDialog(QDialog):
         """Get stylesheet for secondary button"""
         return """
             QPushButton {
-                background-color: #ecf0f1;
-                color: #2c3e50;
-                border: none;
+                background-color: #34495e;
+                color: #ecf0f1;
+                border: 2px solid #7f8c8d;
                 border-radius: 5px;
                 font-size: 13px;
                 font-weight: bold;
             }
             QPushButton:hover {
-                background-color: #bdc3c7;
+                background-color: #7f8c8d;
             }
             QPushButton:pressed {
                 background-color: #95a5a6;

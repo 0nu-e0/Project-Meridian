@@ -894,6 +894,7 @@ class TaskCardExpanded(QWidget):
         self.comments_list = QListWidget()
         self.comments_list.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.comments_list.setWordWrap(True)
+        self.comments_list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.comments_list.setStyleSheet("""
             QListWidget {
                 background-color: transparent;
@@ -999,6 +1000,7 @@ class TaskCardExpanded(QWidget):
         self.work_logs_list = QListWidget()
         self.work_logs_list.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.work_logs_list.setWordWrap(True)
+        self.work_logs_list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.work_logs_list.setStyleSheet("""
             QListWidget {
                 background-color: transparent;
@@ -1128,13 +1130,15 @@ class TaskCardExpanded(QWidget):
         scroll_content = QWidget()
         scroll_content.setStyleSheet(AppStyles.widget_trans())
         scroll_layout = QVBoxLayout(scroll_content)
-        
+        scroll_layout.setContentsMargins(0, 10, 0, 0)
+        scroll_layout.setSpacing(10)
+
         # Add sections to the scroll content
         details_section = self.createDetailsSection()
         dependencies_section = self.createDependenciesSection()
         attachments_section = self.createAttachmentsSection()
-        checklist_section = self.createChecklistSection() 
-        
+        checklist_section = self.createChecklistSection()
+
         scroll_layout.addLayout(details_section)
         scroll_layout.addLayout(dependencies_section)
         scroll_layout.addLayout(attachments_section)
@@ -1425,40 +1429,63 @@ class TaskCardExpanded(QWidget):
 
     def add_entry_to_list(self, entry, list_widget):
         """Add a TaskEntry to a list widget with proper formatting"""
+        from PyQt5.QtGui import QFontMetrics, QFont
+        from PyQt5.QtCore import QRect
+
         # Create and set up list item first
         item = QListWidgetItem()
         list_widget.addItem(item)
 
-        # Create entry widget
+        # Get available width - the list widget viewport gives us the actual usable space
+        viewport_width = list_widget.viewport().width()
+
+        # Create entry widget with constrained width
         entry_widget = QWidget()
         entry_widget.setStyleSheet("background-color: transparent;")
+        entry_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+        entry_widget.setMaximumWidth(viewport_width)
+
         entry_layout = QVBoxLayout(entry_widget)
         entry_layout.setContentsMargins(12, 10, 12, 10)
         entry_layout.setSpacing(8)
 
-        # Get available width from list widget
-        available_width = list_widget.viewport().width() - 50
+        # Calculate text width: viewport - widget margins - list item padding - borders - buffer
+        # Widget margins: 12*2 = 24
+        # List item padding (from CSS): 8*2 = 16
+        # List item border: 1*2 = 2
+        # Buffer for safety: 8
+        # Total: 50
+        text_width = viewport_width - 50
 
         # Content label with word wrap
         content_label = QLabel(entry.content)
         content_label.setWordWrap(True)
-        content_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+        content_label.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
+        content_label.setMaximumWidth(text_width)
         content_label.setStyleSheet("""
             QLabel {
                 color: #ecf0f1;
                 font-size: 11px;
                 padding: 0px;
-                line-height: 1.4;
             }
         """)
-        # Set fixed width for proper word wrapping calculation
-        content_label.setFixedWidth(available_width - 24)
+
+        # Calculate the required height for wrapped text using QFontMetrics
+        font = QFont()
+        font.setPointSize(11)
+        font_metrics = QFontMetrics(font)
+        bounding_rect = font_metrics.boundingRect(
+            QRect(0, 0, text_width, 0),
+            Qt.TextWordWrap,
+            entry.content
+        )
+        calculated_text_height = bounding_rect.height()
+
         entry_layout.addWidget(content_label)
 
         # Action buttons and timestamp
         actions_layout = QHBoxLayout()
         actions_layout.setSpacing(10)
-        actions_layout.setAlignment(Qt.AlignLeft)
 
         edit_label = QLabel("✏ Edit")
         delete_label = QLabel("🗑 Delete")
@@ -1490,26 +1517,27 @@ class TaskCardExpanded(QWidget):
 
         actions_layout.addWidget(edit_label)
         actions_layout.addWidget(delete_label)
-        actions_layout.addStretch()
         actions_layout.addWidget(timestamp_label)
+        actions_layout.addStretch()
 
         entry_layout.addLayout(actions_layout)
 
         # Set the widget to the item
         list_widget.setItemWidget(item, entry_widget)
 
-        # Force layout to calculate wrapped text height
-        QApplication.processEvents()
-        content_label.adjustSize()
+        # Calculate total height based on components
+        # Text height (from font metrics) + actions row + margins + spacing + buffer
+        actions_height = 30  # Height for edit/delete/timestamp row
+        margins_spacing = 20 + 8  # top/bottom margins + spacing between rows
+        buffer = 15  # Extra buffer to ensure nothing gets cut off
 
-        # Now get the proper height after word wrapping
-        content_height = content_label.sizeHint().height()
-        actions_height = 25  # height for actions row
-        margins_spacing = 20 + 8  # top/bottom margins + spacing between content and actions
-        total_height = content_height + actions_height + margins_spacing
+        total_height = calculated_text_height + actions_height + margins_spacing + buffer
 
-        # Set size hint for the list item with extra padding
-        item.setSizeHint(QSize(available_width, max(total_height, 60)))
+        # Ensure minimum height for small comments
+        final_height = max(total_height, 75)
+
+        # Set size hint for the list item
+        item.setSizeHint(QSize(viewport_width, final_height))
 
         # Store reference to the entry
         item.setData(Qt.UserRole, entry)
