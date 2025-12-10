@@ -66,7 +66,7 @@ class StyledTaskItem(QWidget):
 
     def initUI(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 8, 10, 8)
+        layout.setContentsMargins(10, 4, 10, 4)
         layout.setSpacing(4)
 
         # Title
@@ -480,11 +480,14 @@ class WeeklyViewWidget(QWidget):
         return date.addDays(-days_since_monday)
 
     def initUI(self):
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
+        self.central_widget = QWidget()
+        self.main_layout = QVBoxLayout(self.central_widget)
+        self.main_layout.setContentsMargins(0, 0, 0, 0)
 
         # Navigation
-        nav_layout = QHBoxLayout()
+        nav_widget = QWidget()
+        nav_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+        nav_layout = QHBoxLayout(nav_widget)
         prev_btn = QPushButton("◀ Previous Week")
         next_btn = QPushButton("Next Week ▶")
         prev_btn.setStyleSheet(AppStyles.save_button())
@@ -501,12 +504,16 @@ class WeeklyViewWidget(QWidget):
         nav_layout.addWidget(self.week_label)
         nav_layout.addStretch()
         nav_layout.addWidget(next_btn)
-        layout.addLayout(nav_layout)
+        self.main_layout.addWidget(nav_widget)
 
         # Days grid
-        self.days_layout = QGridLayout()
+        days_widget = QWidget()
+        days_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+        self.days_layout = QGridLayout(days_widget)
         self.days_layout.setSpacing(10)
-        layout.addLayout(self.days_layout)
+        self.main_layout.addWidget(days_widget)
+
+        self.setLayout(self.main_layout)
 
         self.updateWeekView()
 
