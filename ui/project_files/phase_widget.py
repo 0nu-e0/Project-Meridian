@@ -25,12 +25,12 @@
 # Author: Jereme Shaver
 # -----------------------------------------------------------------------------
 
-from PyQt5.QtCore import Qt, pyqtSignal, QPropertyAnimation, QEasingCurve
+from PyQt5.QtCore import Qt, pyqtSignal, QPropertyAnimation, QEasingCurve, QMimeData, QByteArray
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QProgressBar, QFrame, QSizePolicy, QMessageBox
 )
-from PyQt5.QtGui import QDragEnterEvent, QDropEvent
+from PyQt5.QtGui import QDragEnterEvent, QDropEvent, QDrag, QCursor
 
 from models.phase import Phase
 from models.project import Project
@@ -48,6 +48,7 @@ class PhaseWidget(QWidget):
 
     phaseUpdated = pyqtSignal(str)  # Emits phase_id when updated
     phaseDeleted = pyqtSignal(str)  # Emits phase_id when deleted
+    phaseReordered = pyqtSignal(str, int)  # Emits (phase_id, new_position) when dragged to new position
 
     def __init__(self, phase: Phase, project: Project, logger):
         super().__init__()
@@ -56,6 +57,7 @@ class PhaseWidget(QWidget):
         self.logger = logger
         self.is_expanded = not phase.collapsed
         self.tasks = []
+        self.drag_start_position = None
 
         # Enable drag and drop
         self.setAcceptDrops(True)
@@ -139,6 +141,18 @@ class PhaseWidget(QWidget):
         header_layout = QHBoxLayout()
         header_layout.setSpacing(10)
 
+        # Drag handle
+        drag_handle = QLabel("⋮⋮")
+        drag_handle.setStyleSheet("""
+            QLabel {
+                color: #7f8c8d;
+                font-size: 14px;
+                padding: 0px 5px;
+            }
+        """)
+        drag_handle.setToolTip("Drag to reorder phases")
+        header_layout.addWidget(drag_handle)
+
         # Expand/collapse button
         self.expand_btn = QPushButton("▼" if self.is_expanded else "▶")
         self.expand_btn.setStyleSheet("""
@@ -158,8 +172,9 @@ class PhaseWidget(QWidget):
         self.expand_btn.clicked.connect(self.toggleExpand)
         header_layout.addWidget(self.expand_btn)
 
-        # Phase name
-        phase_name_label = QLabel(self.phase.name)
+        # Phase number and name
+        phase_label_text = f"Phase {self.phase.order + 1}: {self.phase.name}"
+        phase_name_label = QLabel(phase_label_text)
         phase_name_label.setStyleSheet("""
             QLabel {
                 font-size: 16px;
@@ -308,7 +323,6 @@ class PhaseWidget(QWidget):
         self.overlay = QWidget(self.window())
         self.overlay.setStyleSheet("background-color: rgba(0, 0, 0, 128);")
         self.overlay.setGeometry(self.window().rect())
-        self.overlay.mousePressEvent = lambda event: self.closeTaskDetail()
         self.overlay.show()
         self.overlay.raise_()
 
@@ -316,6 +330,8 @@ class PhaseWidget(QWidget):
         self.dialog_container = QWidget(self.window())
         self.dialog_container.setStyleSheet("background-color: transparent;")
         self.dialog_container.setGeometry(self.window().rect())
+        # Make clicking outside close the dialog
+        self.dialog_container.mousePressEvent = lambda event: self.closeTaskDetail() if event.button() == Qt.LeftButton else None
         self.dialog_container.show()
         self.dialog_container.raise_()
 
@@ -327,12 +343,17 @@ class PhaseWidget(QWidget):
             parent_view=None,
             parent=self.dialog_container
         )
+        # Connect both save signals (saveCompleted for new tasks, newTaskUpdate for existing tasks)
         self.expanded_card.saveCompleted.connect(self.onTaskSaveCompleted)
+        self.expanded_card.newTaskUpdate.connect(self.onTaskSaveCompleted)
         self.expanded_card.cancelTask.connect(self.onTaskCanceled)
         self.expanded_card.taskDeleted.connect(self.onTaskDeleted)
         self.expanded_card.setObjectName("card_container")
         self.expanded_card.setAttribute(Qt.WA_StyledBackground, True)
         self.expanded_card.setStyleSheet(AppStyles.expanded_task_card())
+
+        # Prevent clicks on the card from closing the dialog
+        self.expanded_card.mousePressEvent = lambda event: event.accept()
 
         # Center and show the card
         window = self.window()
@@ -403,9 +424,10 @@ class PhaseWidget(QWidget):
         task = Task(
             title=task_data['title'],
             description=task_data['description'],
-            priority=task_data['priority'],
-            status=task_data['status']
         )
+
+        task.priority = task_data['priority']
+        task.status = task_data['status']
 
         # Set project and phase
         task.project_id = task_data['project_id']
@@ -416,6 +438,16 @@ class PhaseWidget(QWidget):
 
         # Save the task
         save_task_to_json(task, self.logger)
+
+        # Add task to phase's task_ids list
+        if task.phase_id:
+            phases = load_phases_from_json(self.logger)
+            if self.phase.id in phases:
+                phase = phases[self.phase.id]
+                if task.id not in phase.task_ids:
+                    phase.task_ids.append(task.id)
+                    save_phases_to_json(phases, self.logger)
+                    self.logger.info(f"Added task {task.id} to phase {self.phase.id} task_ids list")
 
         # Invalidate project task cache since a new task was added
         if self.project:
@@ -598,3 +630,129 @@ class PhaseWidget(QWidget):
                 padding: 0px;
             }}
         """)
+
+    def mousePressEvent(self, event):
+        """Handle mouse press to start drag"""
+        if event.button() == Qt.LeftButton:
+            self.drag_start_position = event.pos()
+
+    def mouseMoveEvent(self, event):
+        """Handle mouse move to initiate drag"""
+        if not (event.buttons() & Qt.LeftButton):
+            return
+        if self.drag_start_position is None:
+            return
+
+        # Only start drag if moved far enough
+        if (event.pos() - self.drag_start_position).manhattanLength() < 10:
+            return
+
+        # Create drag object
+        from PyQt5.QtGui import QDrag
+        from PyQt5.QtCore import QMimeData
+        import sip
+
+        drag = QDrag(self)
+        mime_data = QMimeData()
+        mime_data.setText(self.phase.id)  # Store phase ID
+        drag.setMimeData(mime_data)
+
+        # Visual feedback - make widget semi-transparent during drag
+        self.setStyleSheet("opacity: 0.5;")
+
+        # Execute drag
+        drag.exec_(Qt.MoveAction)
+
+        # Reset opacity only if widget still exists (not deleted during refresh)
+        try:
+            if not sip.isdeleted(self):
+                self.setStyleSheet("")
+        except RuntimeError:
+            # Widget was deleted during drag operation, ignore
+            pass
+
+    def dragEnterEvent(self, event: QDragEnterEvent):
+        """Handle drag enter for both tasks and phase reordering"""
+        mime_data = event.mimeData()
+
+        # Check if it's a task being dragged
+        if mime_data.hasFormat("application/x-task-id"):
+            event.acceptProposedAction()
+            # Highlight the phase to indicate it can accept the drop
+            self.container.setStyleSheet(self.container.styleSheet() + """
+                QFrame {
+                    border: 2px dashed #3498db;
+                    background-color: #ebf5fb;
+                }
+            """)
+        # Check if it's a phase being dragged
+        elif mime_data.hasText():
+            dragged_phase_id = mime_data.text()
+            # Only accept if it's a different phase
+            if dragged_phase_id != self.phase.id:
+                event.acceptProposedAction()
+                # Show drop indicator
+                self.container.setStyleSheet(self.container.styleSheet() + """
+                    QFrame {
+                        border: 3px dashed #27ae60;
+                    }
+                """)
+        else:
+            event.ignore()
+
+    def dragLeaveEvent(self, event):
+        """Handle drag leave event"""
+        # Remove highlight
+        self.updateContainerStyle()
+
+    def dropEvent(self, event: QDropEvent):
+        """Handle drop event for both tasks and phase reordering"""
+        mime_data = event.mimeData()
+
+        # Handle task drop
+        if mime_data.hasFormat("application/x-task-id"):
+            task_id = bytes(mime_data.data("application/x-task-id")).decode()
+
+            # Load tasks to get the task
+            all_tasks = load_tasks_from_json(self.logger)
+            task = all_tasks.get(task_id)
+
+            if task:
+                # Check if task is already in this phase
+                if task.phase_id == self.phase.id:
+                    self.logger.info(f"Task {task.title} already in phase {self.phase.name}")
+                    self.updateContainerStyle()
+                    return
+
+                # Move task to this phase
+                old_phase_id = task.phase_id
+                success = move_task_to_phase(task_id, self.phase.id, self.logger)
+
+                if success:
+                    self.logger.info(f"Moved task {task.title} to phase {self.phase.name}")
+
+                    # Refresh the task list
+                    self.refreshTasks()
+
+                    # Emit signal to notify parent
+                    self.phaseUpdated.emit(self.phase.id)
+                    if old_phase_id:
+                        self.phaseUpdated.emit(old_phase_id)
+
+                    event.acceptProposedAction()
+                else:
+                    QMessageBox.warning(self, "Error", "Failed to move task to this phase.")
+                    event.ignore()
+            else:
+                event.ignore()
+
+        # Handle phase reorder drop
+        elif mime_data.hasText():
+            dragged_phase_id = mime_data.text()
+            if dragged_phase_id != self.phase.id:
+                # Emit signal with the target position (this phase's order)
+                self.phaseReordered.emit(dragged_phase_id, self.phase.order)
+                event.acceptProposedAction()
+
+        # Remove highlight
+        self.updateContainerStyle()

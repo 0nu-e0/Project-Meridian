@@ -29,7 +29,8 @@ from PyQt5.QtCore import Qt, pyqtSignal, QSize
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QScrollArea, QGridLayout, QFrame, QPushButton,
-    QLineEdit, QComboBox, QCheckBox, QFileDialog, QMessageBox
+    QLineEdit, QComboBox, QCheckBox, QFileDialog, QMessageBox,
+    QSpacerItem, QSizePolicy
 )
 
 from models.project import ProjectStatus
@@ -71,7 +72,8 @@ class ProjectsScreen(QWidget):
         self.main_layout.setSpacing(0)
 
         # Banner header
-        self.initBannerHeader()
+        # self.initBannerHeader()
+        self.initBannerSpacer()
 
         # Separator
         self.addSeparator()
@@ -85,37 +87,45 @@ class ProjectsScreen(QWidget):
         # Scrollable content area
         self.initContentArea()
 
-    def initBannerHeader(self):
-        """Create banner header like dashboard"""
-        banner_widget = QWidget()
-        banner_widget.setStyleSheet("background-color: #2E2F73;")  # Purple banner
-        banner_layout = QHBoxLayout(banner_widget)
-        banner_layout.setContentsMargins(20, 15, 20, 15)
-        banner_layout.setSpacing(15)
+    def initBannerSpacer(self):
+        self.banner_widget = QWidget()
+        self.banner_layout = QVBoxLayout(self.banner_widget)
+        banner_height = int(self.height()*0.15) 
+        self.banner_spacer = QSpacerItem(1, banner_height, QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.banner_layout.addSpacerItem(self.banner_spacer)
+        self.main_layout.addWidget(self.banner_widget)
 
-        # Title with icon
-        title_label = QLabel("📋 Projects")
-        title_label.setStyleSheet(AppStyles.banner_header())
-        banner_layout.addWidget(title_label)
+    # def initBannerHeader(self):
+    #     """Create banner header like dashboard"""
+    #     banner_widget = QWidget()
+    #     banner_widget.setStyleSheet("background-color: #2E2F73;")  # Purple banner
+    #     banner_layout = QHBoxLayout(banner_widget)
+    #     banner_layout.setContentsMargins(20, 15, 20, 15)
+    #     banner_layout.setSpacing(15)
 
-        # Spacer
-        banner_layout.addStretch()
+    #     # Title with icon
+    #     title_label = QLabel("📋 Projects")
+    #     title_label.setStyleSheet(AppStyles.banner_header())
+    #     banner_layout.addWidget(title_label)
 
-        # Import button
-        self.import_project_btn = AnimatedButton("📥 Import")
-        self.import_project_btn.setStyleSheet(AppStyles.button_normal())
-        self.import_project_btn.setFixedHeight(40)
-        self.import_project_btn.clicked.connect(self.onImportProject)
-        banner_layout.addWidget(self.import_project_btn)
+    #     # Spacer
+    #     banner_layout.addStretch()
 
-        # Add Project button
-        self.add_project_btn = AnimatedButton("+ New Project")
-        self.add_project_btn.setStyleSheet(AppStyles.add_button())
-        self.add_project_btn.setFixedHeight(40)
-        self.add_project_btn.clicked.connect(self.onAddProject)
-        banner_layout.addWidget(self.add_project_btn)
+    #     # Import button
+    #     self.import_project_btn = AnimatedButton("📥 Import")
+    #     self.import_project_btn.setStyleSheet(AppStyles.button_normal())
+    #     self.import_project_btn.setFixedHeight(40)
+    #     self.import_project_btn.clicked.connect(self.onImportProject)
+    #     banner_layout.addWidget(self.import_project_btn)
 
-        self.main_layout.addWidget(banner_widget)
+    #     # Add Project button
+    #     self.add_project_btn = AnimatedButton("+ New Project")
+    #     self.add_project_btn.setStyleSheet(AppStyles.add_button())
+    #     self.add_project_btn.setFixedHeight(40)
+    #     self.add_project_btn.clicked.connect(self.onAddProject)
+    #     banner_layout.addWidget(self.add_project_btn)
+
+    #     self.main_layout.addWidget(banner_widget)
 
     def addSeparator(self):
         """Add separator line like dashboard"""
@@ -276,6 +286,20 @@ class ProjectsScreen(QWidget):
 
         # Spacer
         filter_layout.addStretch()
+
+        # Import button
+        self.import_project_btn = AnimatedButton("📥 Import")
+        self.import_project_btn.setStyleSheet(AppStyles.button_normal())
+        self.import_project_btn.setFixedHeight(40)
+        self.import_project_btn.clicked.connect(self.onImportProject)
+        filter_layout.addWidget(self.import_project_btn)
+
+        # Add Project button
+        self.add_project_btn = AnimatedButton("+ New Project")
+        self.add_project_btn.setStyleSheet(AppStyles.add_button())
+        self.add_project_btn.setFixedHeight(40)
+        self.add_project_btn.clicked.connect(self.onAddProject)
+        filter_layout.addWidget(self.add_project_btn)
 
         # Clear filters button
         clear_btn = AnimatedButton("Clear Filters")
@@ -464,7 +488,8 @@ class ProjectsScreen(QWidget):
 
         dialog = ProjectDialog(self.logger, self)
         if dialog.exec_():
-            project_data = dialog.getProjectData()
+            # project_data = dialog.getProjectData()
+            project_data = dialog.project_data
             if project_data:
                 # Create project
                 project = create_project(

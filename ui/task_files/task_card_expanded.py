@@ -808,6 +808,10 @@ class TaskCardExpanded(QWidget):
 
     def loadProjectsAndPhases(self):
         """Load projects into dropdown and set current selections"""
+        # Block signals while populating to prevent unwanted changes to task data
+        self.project_combo.blockSignals(True)
+        self.phase_combo.blockSignals(True)
+
         # Get all projects from DataManager
         all_projects = self.data_manager.get_projects()
 
@@ -835,8 +839,15 @@ class TaskCardExpanded(QWidget):
         # Trigger phase update based on selected project
         self.onProjectChanged(self.project_combo.currentIndex())
 
+        # Unblock signals after initial population
+        self.project_combo.blockSignals(False)
+        self.phase_combo.blockSignals(False)
+
     def onProjectChanged(self, index):
         """Handle project selection change - update phase dropdown"""
+        # Block phase combo signals while repopulating
+        self.phase_combo.blockSignals(True)
+
         # Clear phase combo
         self.phase_combo.clear()
 
@@ -847,8 +858,11 @@ class TaskCardExpanded(QWidget):
             # No project selected
             self.phase_combo.addItem("(No Phase)", None)
             self.phase_combo.setEnabled(False)
-            self.task.project_id = None
-            self.task.phase_id = None
+            # Only clear task data if user actively deselected project (signals not blocked)
+            if not self.project_combo.signalsBlocked():
+                self.task.project_id = None
+                self.task.phase_id = None
+            self.phase_combo.blockSignals(False)
             return
 
         # Enable phase combo
@@ -872,8 +886,9 @@ class TaskCardExpanded(QWidget):
             for phase in project_phases:
                 self.phase_combo.addItem(phase.name, phase.id)
 
-        # Update task project_id
-        self.task.project_id = project_id
+        # Update task project_id only if user actively changed it
+        if not self.project_combo.signalsBlocked():
+            self.task.project_id = project_id
 
         # Set current phase if task has one
         if self.task.phase_id:
@@ -881,16 +896,22 @@ class TaskCardExpanded(QWidget):
             if index >= 0:
                 self.phase_combo.setCurrentIndex(index)
             else:
-                # Phase not found in current project, reset to None
+                # Phase not found in current project, reset to None only if user changed project
                 self.phase_combo.setCurrentIndex(0)
-                self.task.phase_id = None
+                if not self.project_combo.signalsBlocked():
+                    self.task.phase_id = None
         else:
             self.phase_combo.setCurrentIndex(0)
+
+        # Unblock phase combo signals
+        self.phase_combo.blockSignals(False)
 
     def onPhaseChanged(self, index):
         """Handle phase selection change"""
         phase_id = self.phase_combo.itemData(index)
-        self.task.phase_id = phase_id
+        # Only update task if signals are not blocked (user interaction)
+        if not self.phase_combo.signalsBlocked():
+            self.task.phase_id = phase_id
 
     def _handleSaveClick(self):
         """Handle the save button click - save task and emit appropriate signal"""

@@ -36,11 +36,11 @@ def migrate_data_if_needed():
             # Get full source path
             source_path = resource_path(source_rel_path)
             
-            logger.info(f"Checking for legacy file: {source_path}")
+            # logger.info(f"Checking for legacy file: {source_path}")
             
             # Check if source file exists
             if not os.path.exists(source_path):
-                logger.info(f"No legacy file found at {source_path}")
+                # logger.info(f"No legacy file found at {source_path}")
                 continue
                 
             # Ensure destination directory exists
