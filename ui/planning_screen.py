@@ -182,9 +182,9 @@ class StyledProjectItem(QWidget):
         # Sort by order
         self.phases.sort(key=lambda p: p.order)
 
-        # Find current phase (first incomplete phase)
+        # Find current phase (phase marked as is_current)
         for phase in self.phases:
-            if not phase.is_completed:
+            if phase.is_current:
                 self.current_phase = phase
                 break
 
@@ -271,24 +271,43 @@ class StyledProjectItem(QWidget):
         """)
         layout.addWidget(progress_bar)
 
-        # Tasks preview (3-5 tasks)
+        # Tasks preview with checkboxes (like regular tasks)
         if self.tasks:
-            tasks_label = QLabel(f"Tasks ({len(self.tasks)}):")
+            tasks_label = QLabel(f"Current Phase Tasks ({len(self.tasks)}):")
             tasks_label.setStyleSheet("color: #95a5a6; font-size: 9px; margin-top: 4px;")
             layout.addWidget(tasks_label)
+
+            from PyQt5.QtWidgets import QCheckBox
+            from models.task import TaskStatus
 
             for task in self.tasks:
                 task_layout = QHBoxLayout()
                 task_layout.setSpacing(4)
 
-                # Status icon
-                status_icon = self._getStatusIcon(task.status)
-                icon_label = QLabel(status_icon)
-                icon_label.setStyleSheet("font-size: 10px; color: #95a5a6;")
-                task_layout.addWidget(icon_label)
+                # Checkbox (checked if completed)
+                checkbox = QCheckBox()
+                checkbox.setChecked(task.status == TaskStatus.COMPLETED)
+                checkbox.setEnabled(False)  # Read-only for now
+                checkbox.setStyleSheet("""
+                    QCheckBox {
+                        spacing: 5px;
+                    }
+                    QCheckBox::indicator {
+                        width: 12px;
+                        height: 12px;
+                        border: 1px solid #7f8c8d;
+                        border-radius: 2px;
+                        background-color: #34495e;
+                    }
+                    QCheckBox::indicator:checked {
+                        background-color: #27ae60;
+                        border-color: #27ae60;
+                    }
+                """)
+                task_layout.addWidget(checkbox)
 
                 # Task title (truncated)
-                task_title = task.title[:30] + "..." if len(task.title) > 30 else task.title
+                task_title = task.title[:35] + "..." if len(task.title) > 35 else task.title
                 task_label = QLabel(task_title)
                 task_label.setStyleSheet("color: #bdc3c7; font-size: 9px;")
                 task_layout.addWidget(task_label)
@@ -789,7 +808,7 @@ class DropZoneWidget(QWidget):
     def _onTaskClicked(self, item):
         """Handle task or project click"""
         item_id = item.data(Qt.UserRole)
-        item_type = item.data(Qt.UserRole + 2)
+        item_type = item.data(Qt.UserRole + 4)  # Type is stored at UserRole + 4
 
         if item_id:
             if item_type == 'project':
@@ -1318,6 +1337,7 @@ class PlanningScreen(QWidget):
 
         tasks_dict = load_tasks_from_json(self.logger)
         self.all_tasks = list(tasks_dict.values())
+        self.logger.info(f"loadTasks: Loaded {len(self.all_tasks)} total tasks from JSON")
 
         # Get current week date range (Monday to Friday)
         today = QDate.currentDate()
@@ -1408,8 +1428,16 @@ class PlanningScreen(QWidget):
             self.task_list.addItem(item)
             self.task_list.setItemWidget(item, widget)
 
-        # Add Projects section
-        if self.scheduled_projects:
+        # Add Projects section - show ALL projects
+        from utils.projects_io import load_projects_from_json, load_phases_from_json
+
+        all_projects = load_projects_from_json(self.logger)
+        all_phases = load_phases_from_json(self.logger)
+
+        # Filter out archived projects
+        active_projects = {pid: p for pid, p in all_projects.items() if not p.archived}
+
+        if active_projects:
             # Add separator
             project_separator_item = QListWidgetItem()
             project_separator_widget = QWidget()
@@ -1435,10 +1463,24 @@ class PlanningScreen(QWidget):
             self.task_list.setItemWidget(project_separator_item, project_separator_widget)
 
             # Add project items
-            for schedule_id, project_data in self.scheduled_projects.items():
+            for project_id, project in active_projects.items():
+                # Find the current phase for this project
+                current_phase = None
+                project_phases = [p for p in all_phases.values() if p.project_id == project.id and p.is_current]
+                if project_phases:
+                    current_phase = project_phases[0]
+
+                # Create project data dict for StyledProjectItem
+                project_data = {
+                    'project_id': project.id,
+                    'title': project.title,
+                    'current_phase': current_phase.name if current_phase else None,
+                    'current_phase_id': current_phase.id if current_phase else None
+                }
+
                 item = QListWidgetItem()
-                item.setData(Qt.UserRole, project_data['project_id'])
-                item.setData(Qt.UserRole + 1, project_data['title'])
+                item.setData(Qt.UserRole, project.id)
+                item.setData(Qt.UserRole + 1, project.title)
                 item.setData(Qt.UserRole + 2, 'project')  # Mark as project
 
                 widget = StyledProjectItem(project_data, self.logger)
@@ -1610,53 +1652,144 @@ class PlanningScreen(QWidget):
             self.logger.error(f"Failed to schedule project '{project_title}'")
 
     def onProjectClickedFromSchedule(self, project_id: str):
-        """Handle project click from schedule - open project detail view"""
-        from ui.project_files.project_detail_view import ProjectDetailView
+        """Handle project click from schedule - open expanded project card"""
+        from ui.project_files.project_card_expanded import ProjectCardExpanded
 
         self.logger.info(f"Project clicked from schedule: {project_id}")
 
+        # Get the main window
+        window = self.window()
+
         # Create overlay to dim background
-        self.overlay = QWidget(self)
-        self.overlay.setStyleSheet("background-color: rgba(0, 0, 0, 128);")
-        self.overlay.setGeometry(self.rect())
+        self.overlay = QWidget(window)
+        self.overlay.setStyleSheet("background-color: rgba(0, 0, 0, 0.5);")
+        self.overlay.setGeometry(window.rect())
         self.overlay.show()
-        self.overlay.raise_()
+        self.overlay.installEventFilter(self)
 
-        # Create dialog container
-        dialog_container = QWidget(self)
-        dialog_container.setStyleSheet("background-color: transparent;")
-        dialog_container.setGeometry(self.rect())
-        dialog_container.show()
-        dialog_container.raise_()
+        # Determine the scheduled date (try to find it from scheduled projects)
+        scheduled_date = QDate.currentDate()  # Default to today
+        from utils.projects_io import load_scheduled_projects
+        scheduled_projects = load_scheduled_projects(self.logger)
+        for sched in scheduled_projects.values():
+            if sched.get('project_id') == project_id:
+                # Parse the scheduled date
+                date_str = sched.get('scheduled_date', '')
+                if date_str:
+                    scheduled_date = QDate.fromString(date_str, "yyyy-MM-dd")
+                break
 
-        # Create project detail view
-        project_detail = ProjectDetailView(project_id, self.logger, parent=dialog_container)
-        project_detail.backClicked.connect(lambda: self.closeProjectDetail(dialog_container, project_detail))
+        # Create project expanded card
+        self.project_card_dialog = ProjectCardExpanded(
+            project_id=project_id,
+            scheduled_date=scheduled_date,
+            logger=self.logger,
+            parent=window
+        )
 
-        # Size and position
-        width = int(self.width() * 0.8)
-        height = int(self.height() * 0.9)
-        x = (self.width() - width) // 2
-        y = (self.height() - height) // 2
-        project_detail.setGeometry(x, y, width, height)
-        project_detail.show()
-        project_detail.raise_()
+        self.project_card_dialog.setObjectName("card_container")
+        self.project_card_dialog.setAttribute(Qt.WA_StyledBackground, True)
+        self.project_card_dialog.setStyleSheet(AppStyles.expanded_task_card())
 
-    def closeProjectDetail(self, dialog_container, project_detail):
-        """Close project detail view"""
-        if project_detail:
-            project_detail.close()
-            project_detail.deleteLater()
-        if dialog_container:
-            dialog_container.close()
-            dialog_container.deleteLater()
-        if hasattr(self, 'overlay') and self.overlay:
+        # Calculate size and center
+        card_width, card_height = ProjectCardExpanded.calculate_optimal_card_size(window)
+        center_x = (window.width() - card_width) // 2
+        center_y = (window.height() - card_height) // 2
+        self.project_card_dialog.setGeometry(center_x, center_y, card_width, card_height)
+        self.project_card_dialog.setWindowFlags(Qt.FramelessWindowHint)
+
+        # Connect signals
+        self.project_card_dialog.closeRequested.connect(self.closeProjectCard)
+        self.project_card_dialog.taskClicked.connect(self.onTaskClickedFromProjectCard)
+
+        self.project_card_dialog.show()
+        self.project_card_dialog.raise_()
+
+    def onTaskClickedFromProjectCard(self, task):
+        """Handle task click from project card - open task detail on top of project card"""
+        from ui.task_files.task_card_expanded import TaskCardExpanded
+
+        self.logger.info(f"Task clicked from project card: {task.title}")
+
+        # Get the main window
+        window = self.window()
+
+        # Create a darker overlay on top of the project card
+        self.task_overlay = QWidget(window)
+        self.task_overlay.setStyleSheet("background-color: rgba(0, 0, 0, 0.7);")
+        self.task_overlay.setGeometry(window.rect())
+        self.task_overlay.show()
+        self.task_overlay.raise_()
+        self.task_overlay.installEventFilter(self)
+
+        # Create task expanded card
+        self.task_detail_from_project = TaskCardExpanded(
+            logger=self.logger,
+            task=task,
+            grid_id=None,
+            parent_view=self,
+            parent=window
+        )
+
+        self.task_detail_from_project.setObjectName("card_container")
+        self.task_detail_from_project.setAttribute(Qt.WA_StyledBackground, True)
+        self.task_detail_from_project.setStyleSheet(AppStyles.expanded_task_card())
+
+        # Calculate size and center
+        card_width, card_height = TaskCardExpanded.calculate_optimal_card_size(window)
+        center_x = (window.width() - card_width) // 2
+        center_y = (window.height() - card_height) // 2
+        self.task_detail_from_project.setGeometry(center_x, center_y, card_width, card_height)
+        self.task_detail_from_project.setWindowFlags(Qt.FramelessWindowHint)
+
+        # Connect close signals
+        self.task_detail_from_project.cancelTask.connect(self.closeTaskFromProjectCard)
+        self.task_detail_from_project.saveCompleted.connect(self.onTaskSavedFromProjectCard)
+        self.task_detail_from_project.newTaskUpdate.connect(self.onTaskSavedFromProjectCard)
+        self.task_detail_from_project.taskDeleted.connect(self.onTaskDeletedFromProjectCard)
+
+        self.task_detail_from_project.show()
+        self.task_detail_from_project.raise_()
+
+    def closeTaskFromProjectCard(self):
+        """Close task detail and return to project card"""
+        if hasattr(self, 'task_detail_from_project') and self.task_detail_from_project:
+            self.task_detail_from_project.close()
+            self.task_detail_from_project.deleteLater()
+            self.task_detail_from_project = None
+
+        if hasattr(self, 'task_overlay') and self.task_overlay:
+            self.task_overlay.hide()
+            self.task_overlay.close()
+            self.task_overlay.deleteLater()
+            self.task_overlay = None
+
+    def onTaskSavedFromProjectCard(self, _task, _grid_id):
+        """Handle task save from project card - close and refresh project card"""
+        self.closeTaskFromProjectCard()
+        # Optionally refresh the project card here if needed
+
+    def onTaskDeletedFromProjectCard(self, task_id_or_title: str):
+        """Handle task deletion from project card - close task and project cards, refresh"""
+        self.closeTaskFromProjectCard()
+        self.closeProjectCard()
+        # Refresh task list
+        self.task_list.clear()
+        self.loadTasks()
+        self.refreshScheduledTasks()
+
+    def closeProjectCard(self):
+        """Close the project card dialog"""
+        if hasattr(self, 'project_card_dialog') and self.project_card_dialog:
+            self.project_card_dialog.close()
+            self.project_card_dialog.deleteLater()
+            self.project_card_dialog = None
+
+        if self.overlay:
+            self.overlay.hide()
             self.overlay.close()
             self.overlay.deleteLater()
             self.overlay = None
-        # Refresh in case changes were made
-        self.loadScheduledProjects()
-        self.refreshScheduledTasks()
 
     def onTaskUnscheduled(self, schedule_id: str, task_id: str):
         """Handle task being dragged back to the left panel to unschedule"""
@@ -1773,6 +1906,7 @@ class PlanningScreen(QWidget):
         self.task_detail_dialog.cancelTask.connect(self.closeTaskDetail)
         self.task_detail_dialog.saveCompleted.connect(self.onTaskSaved)
         self.task_detail_dialog.newTaskUpdate.connect(self.onTaskSaved)
+        self.task_detail_dialog.taskDeleted.connect(self.onTaskDeleted)
 
         self.task_detail_dialog.show()
         self.task_detail_dialog.raise_()
@@ -1802,9 +1936,37 @@ class PlanningScreen(QWidget):
         # Refresh scheduled tasks to update any changes
         self.refreshScheduledTasks()
 
+    def onTaskDeleted(self, task_id_or_title: str):
+        """Handle task deletion - refresh task list and close dialog"""
+        self.logger.info(f"onTaskDeleted called with: {task_id_or_title}")
+
+        # Close the task detail and overlay
+        self.closeTaskDetail()
+
+        # Reload tasks to reflect deletion in the left panel
+        self.logger.info("Clearing task list and reloading tasks...")
+        self.task_list.clear()
+        self.loadTasks()
+
+        # Refresh scheduled tasks in case the deleted task was scheduled
+        self.refreshScheduledTasks()
+
+        self.logger.info(f"Task {task_id_or_title} deleted, views refreshed")
+
     def eventFilter(self, obj, event):
         """Handle overlay clicks to close dialog"""
-        if obj == self.overlay and event.type() == event.MouseButtonPress:
-            self.closeTaskDetail()
-            return True
+        if event.type() == event.MouseButtonPress:
+            # Handle task overlay from project card (highest priority)
+            if obj == getattr(self, 'task_overlay', None):
+                self.closeTaskFromProjectCard()
+                return True
+            # Handle main overlay
+            elif obj == self.overlay:
+                # Close task detail if it's open
+                if hasattr(self, 'task_detail_dialog') and self.task_detail_dialog:
+                    self.closeTaskDetail()
+                # Close project card if it's open
+                elif hasattr(self, 'project_card_dialog') and self.project_card_dialog:
+                    self.closeProjectCard()
+                return True
         return super().eventFilter(obj, event)
