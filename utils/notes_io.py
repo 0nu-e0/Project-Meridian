@@ -28,6 +28,7 @@
 import os, json
 from datetime import datetime
 from models.note import Note
+from utils.app_config import AppConfig 
 
 def save_note_to_json(note, logger):
     """
@@ -36,7 +37,6 @@ def save_note_to_json(note, logger):
     Args:
         note: The Note object to save (can be new or existing)
     """
-    from utils.app_config import AppConfig  # Import your AppConfig
     if note is None:
         note = Note(title="New Note", content="")
 
@@ -88,7 +88,6 @@ def load_notes_from_json(logger):
     Returns:
         dict: Dictionary of notes keyed by their id.
     """
-    from utils.app_config import AppConfig  # Import your AppConfig
     app_config = AppConfig()
     json_file_path = app_config.notes_file
 
@@ -117,8 +116,7 @@ def delete_note_from_json(note_id, logger):
     Returns:
         True if deletion was successful, False otherwise.
     """
-    from utils.app_config import AppConfig
-    import os, json
+
     app_config = AppConfig()
     json_file_path = app_config.notes_file
 

@@ -3,7 +3,10 @@
     "allow": [
       "Bash(find:*)",
       "Bash(python:*)",
-      "Bash(timeout 10 python3:*)"
+      "Bash(timeout 10 python3:*)",
+      "Bash(timeout 5 python:*)",
+      "Bash(timeout 8 python:*)",
+      "Bash(timeout 10 python:*)"
     ],
     "deny": [],
     "ask": []

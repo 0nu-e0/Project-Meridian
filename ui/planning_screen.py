@@ -1763,7 +1763,7 @@ class PlanningScreen(QWidget):
         self.task_detail_dialog.setStyleSheet(AppStyles.expanded_task_card())
 
         # Calculate size and center
-        card_width, card_height = self.task_detail_dialog.calculate_optimal_card_size()
+        card_width, card_height = self.task_detail_dialog.calculate_optimal_card_size(window)
         center_x = (window.width() - card_width) // 2
         center_y = (window.height() - card_height) // 2
         self.task_detail_dialog.setGeometry(center_x, center_y, card_width, card_height)

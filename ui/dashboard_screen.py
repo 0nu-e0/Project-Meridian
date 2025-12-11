@@ -34,7 +34,7 @@ from functools import partial
 # Third-party imports
 from PyQt5.QtCore import QEvent, QSize, Qt, pyqtSignal
 from PyQt5.QtGui import QIcon, QPixmap, QResizeEvent
-from PyQt5.QtWidgets import (QFrame, QHBoxLayout, QLabel, QLayout, QMessageBox,
+from PyQt5.QtWidgets import (QComboBox, QFrame, QHBoxLayout, QLabel, QLayout, QMessageBox,
                              QPushButton, QScrollArea, QSizePolicy, QSpacerItem, QVBoxLayout, QWidget)
 
 # Local application imports
@@ -43,7 +43,7 @@ from resources.styles import AnimatedButton, AppStyles
 from ui.task_files.task_card_expanded import TaskCardExpanded
 from utils.dashboard_config import DashboardConfigManager
 from utils.directory_finder import resource_path
-from utils.tasks_io import load_tasks_from_json
+from utils.data_manager import DataManager
 from .dashboard_child_view.add_task_group import AddGridDialog
 from .dashboard_child_view.grid_layout import GridLayout
 
@@ -56,7 +56,9 @@ class DashboardScreen(QWidget):
 
         self.logger = logger
         self.dashboard_width = width
-        self.tasks = load_tasks_from_json(self.logger)
+        # Get tasks from centralized DataManager instead of loading from JSON
+        self.data_manager = DataManager(self.logger)
+        self.tasks = self.data_manager.get_tasks()
 
         # first_key = next(iter(self.tasks))
         # print(f"Task Loaded Types: {type(self.tasks[first_key])}")
@@ -82,14 +84,20 @@ class DashboardScreen(QWidget):
     def loadGridLayouts(self):
         return DashboardConfigManager.get_all_grid_layouts()
 
-    def eventFilter(self, obj, event):
-        """Handle events to collapse cards when mouse leaves dashboard"""
-        if event.type() == QEvent.Leave and obj == self:
-            # Collapse all expanded cards in all grids when mouse leaves dashboard
-            for grid_layout in self.grid_layouts:
+    def eventFilter(self, source, event):
+        # If overlay was clicked, close dialog
+        if hasattr(self, 'overlay') and self.overlay is not None and source == self.overlay and event.type() == QEvent.MouseButtonPress:
+            self.dialog_container.close()
+            return True
+
+        # Collapse cards when mouse leaves the dashboard widget itself
+        if event.type() == QEvent.Leave and source == self:
+            for grid_layout in getattr(self, 'grid_layouts', []):
                 if hasattr(grid_layout, 'collapseAllCards'):
                     grid_layout.collapseAllCards()
-        return super().eventFilter(obj, event)
+            # do not swallow the event unless you need to
+        return super().eventFilter(source, event)
+
 
     def initUI(self):
         self.initCentralWidget()
@@ -125,6 +133,16 @@ class DashboardScreen(QWidget):
         self.layout_group_layout = QHBoxLayout(layout_group_widget)
 
     def initTasksLayout(self):
+        # Create main container
+        main_container = QWidget()
+        main_container_layout = QVBoxLayout(main_container)
+        main_container_layout.setContentsMargins(0, 0, 0, 0)
+        main_container_layout.setSpacing(0)
+
+        # Create header with project filter (ONCE, not recreated on refresh)
+        self.createDashboardHeader()
+        main_container_layout.addWidget(self.dashboard_header)
+
         # Create container for all grid layouts
         task_layout_widget = QWidget()
         task_layout_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
@@ -139,6 +157,11 @@ class DashboardScreen(QWidget):
         tasks_scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         tasks_scroll_area.setWidget(task_layout_widget)
         self.task_layout_container.setSizeConstraint(QLayout.SetNoConstraint)
+
+        main_container_layout.addWidget(tasks_scroll_area)
+
+        # Add main container to layout
+        self.main_layout.addWidget(main_container)
 
         self.iterrateGridLayouts()
 
@@ -156,87 +179,132 @@ class DashboardScreen(QWidget):
         
         self.main_layout.addWidget(tasks_scroll_area)
 
-    def iterrateGridLayouts(self):
-        # Reload tasks and build category dictionary
-        self.tasks = load_tasks_from_json(self.logger)
-        self.logger.debug("iterrateGridLayouts done loading json")
-        task_categories_dict = {}
-
-        for task in self.tasks.values():
-            if task.category not in task_categories_dict:
-                task_categories_dict[task.category.value] = [] 
-
-        for task in self.tasks.values():
-            task_categories_dict[task.category.value].append(task)
-
-        self.logger.debug(f"Task Category Dict: {task_categories_dict}")
-
+    def createDashboardHeader(self):
+        """Create the dashboard header widget with project filter and action buttons (called once)"""
         # Main container widget
-        manage_header_widget = QWidget()
-        manage_header_layout = QHBoxLayout(manage_header_widget)
+        self.dashboard_header = QWidget()
+        manage_header_layout = QHBoxLayout(self.dashboard_header)
         manage_header_layout.setContentsMargins(10, 5, 10, 5)
-        
+
+        # Left side: Project filter
+        filter_widget = QWidget()
+        filter_layout = QVBoxLayout(filter_widget)
+        filter_layout.setContentsMargins(0, 0, 0, 0)
+        filter_layout.setSpacing(5)
+
+        filter_label = QLabel("Filter by Project:")
+        filter_label.setStyleSheet(AppStyles.label_bold())
+        filter_layout.addWidget(filter_label)
+
+        self.project_filter_combo = QComboBox()
+        self.project_filter_combo.setStyleSheet(AppStyles.combo_box_norm())
+        self.project_filter_combo.setMinimumWidth(200)
+        # Connect signal ONCE here
+        self.project_filter_combo.currentIndexChanged.connect(self.onProjectFilterChanged)
+        filter_layout.addWidget(self.project_filter_combo)
+
+        # Populate project filter
+        self.loadProjectFilter()
+
+        manage_header_layout.addWidget(filter_widget)
+
         # Right-aligned container for both rows
         buttons_widget = QWidget()
         buttons_container = QHBoxLayout(buttons_widget)
         buttons_container.setSpacing(10)
         buttons_container.setContentsMargins(0, 0, 10, 0)
 
+        # Count non-archived tasks
         archived_tasks = 0
-        for task, archived in self.tasks.items():
-            if archived.category == TaskCategory.ARCHIVED:
+        for task in self.tasks.values():
+            if task.category == TaskCategory.ARCHIVED:
                 archived_tasks += 1
 
         card_count_widget = QLabel(f"Current Task Count: {len(self.tasks) - archived_tasks}")
-        
+
         button_size = QSize(30, 30)
-        
+
         # Task row
         task_row_widget = QWidget()
         task_row_layout = QHBoxLayout(task_row_widget)
         task_row_layout.setContentsMargins(0, 0, 0, 0)
-        
+
         manage_tasks_label = QLabel("Add New Task")
         manage_tasks_label.setStyleSheet(AppStyles.label_lgfnt())
-        
+
         addTaskButton = AnimatedButton("+", blur=2, x=10, y=10, offsetX=1, offsetY=1)
         addTaskButton.setStyleSheet(AppStyles.button_normal())
-        addTaskButton.setFixedSize(button_size)  # Set fixed size
+        addTaskButton.setFixedSize(button_size)
         addTaskButton.clicked.connect(partial(self.openExpandedCardOverlay, task=None))
-        
+
         task_row_layout.addWidget(card_count_widget)
         task_row_layout.addStretch(1)
         task_row_layout.addWidget(manage_tasks_label)
         task_row_layout.addWidget(addTaskButton)
-        
+
         # Group row
         group_row_widget = QWidget()
         group_row_layout = QHBoxLayout(group_row_widget)
         group_row_layout.setContentsMargins(0, 0, 0, 0)
-        
+
         manage_groups_label = QLabel("Add New Group")
         manage_groups_label.setStyleSheet(AppStyles.label_lgfnt())
-        
+
         addGroupsButton = AnimatedButton("+", blur=2, x=10, y=10, offsetX=1, offsetY=1)
         addGroupsButton.setStyleSheet(AppStyles.button_normal())
         addGroupsButton.setFixedSize(button_size)
         addGroupsButton.clicked.connect(self.addGroupTask)
-        
+
         group_row_layout.addWidget(manage_groups_label)
         group_row_layout.addWidget(addGroupsButton)
-        
+
         # Add both rows to the container
         buttons_container.addWidget(task_row_widget)
         buttons_container.addWidget(group_row_widget)
-        
+
         # Push everything to the right side
         manage_header_layout.addStretch(1)
         manage_header_layout.addWidget(buttons_widget)
-        
+
         # Set minimum height to prevent cutoff
-        manage_header_widget.setMinimumHeight(100)
-        
-        self.task_layout_container.addWidget(manage_header_widget)
+        self.dashboard_header.setMinimumHeight(100)
+
+    def iterrateGridLayouts(self):
+        # Get tasks from DataManager (already loaded in memory)
+        # NOTE: Accessing internal _tasks directly to avoid any method call overhead/recursion
+        all_tasks = self.data_manager._tasks
+
+        # Apply project filter if set (use local variable to avoid modifying self.tasks)
+        tasks_to_display = all_tasks
+        if hasattr(self, 'current_project_filter') and self.current_project_filter is not None:
+            filtered_tasks = {}
+            if self.current_project_filter == "no_project":
+                # Show only tasks without a project
+                for task_id, task in all_tasks.items():
+                    if not task.project_id:
+                        filtered_tasks[task_id] = task
+            else:
+                # Show only tasks from selected project
+                for task_id, task in all_tasks.items():
+                    if task.project_id == self.current_project_filter:
+                        filtered_tasks[task_id] = task
+            tasks_to_display = filtered_tasks
+
+        task_categories_dict = {}
+
+        for task in tasks_to_display.values():
+            # Get category value (handle both enum and string)
+            category_value = task.category.value if hasattr(task.category, 'value') else task.category
+            if category_value not in task_categories_dict:
+                task_categories_dict[category_value] = []
+
+        for task in tasks_to_display.values():
+            # Get category value (handle both enum and string)
+            category_value = task.category.value if hasattr(task.category, 'value') else task.category
+            task_categories_dict[category_value].append(task)
+
+        # NOTE: Header is now created once in createDashboardHeader() and added to the main layout
+        # This method only creates/refreshes the grid layouts below the header
 
         self.grid_layout_map = {}
 
@@ -248,9 +316,10 @@ class DashboardScreen(QWidget):
                 f"This thing: {grid.filter.category[0]}, type: {type(grid.filter.category[0])}"
             )
 
-            # Don't skip grids with no matching tasks - show them as empty grids
-            # if grid.filter.category[0] not in task_categories_dict:
-            #     continue
+            # Check if this grid category has any tasks
+            if grid.filter.category and grid.filter.category[0] not in task_categories_dict:
+                self.logger.debug(f"Skipping grid '{grid.name}' - no tasks in category '{grid.filter.category[0]}'")
+                continue
 
             # Create section with title for this grid
             self.grid_section = QWidget()
@@ -432,15 +501,16 @@ class DashboardScreen(QWidget):
         self.expanded_card.saveCompleted.connect(self.completeSaveActions)
         self.expanded_card.newTaskUpdate.connect(self.completeSaveActions)
         self.expanded_card.taskDeleted.connect(self.propagateTaskDeletion)
+        self.expanded_card.cancelTask.connect(self.closeExpandedCard)
         # Set the object name so the style sheet applies.
         self.expanded_card.setObjectName("card_container")
         # Enable styled backgrounds so that the style sheet paints the background.
         self.expanded_card.setAttribute(Qt.WA_StyledBackground, True)
         # Notice: We do NOT set WA_TranslucentBackground here, so that the style sheet's background color is visible.
         self.expanded_card.setStyleSheet(AppStyles.expanded_task_card())
-        
+
         # Calculate optimal dimensions and center the expanded card.
-        card_width, card_height = self.expanded_card.calculate_optimal_card_size()
+        card_width, card_height = self.expanded_card.calculate_optimal_card_size(window)
         center_x = (self.dialog_container.width() - card_width) // 2
         center_y = (self.dialog_container.height() - card_height) // 2
         self.expanded_card.setGeometry(center_x, center_y, card_width, card_height)
@@ -449,12 +519,6 @@ class DashboardScreen(QWidget):
         
         # Show the container (which holds both the overlay and the expanded card)
         self.dialog_container.show()
-    
-    def eventFilter(self, source, event):
-        if hasattr(self, 'overlay') and self.overlay is not None and source == self.overlay and event.type() == QEvent.MouseButtonPress:
-            self.dialog_container.close()
-            return True
-        return super().eventFilter(source, event)
 
     def addGroupTask(self):
         self.overlay_grid_dialog = QWidget(self)
@@ -569,7 +633,8 @@ class DashboardScreen(QWidget):
     def completeSaveActions(self, task=None, grid_id=None):
         self.logger.debug("closing layouts")
         self.saved_grid_layouts = self.loadGridLayouts() or []
-        self.tasks = load_tasks_from_json(self.logger)
+        # Get updated tasks from DataManager
+        self.tasks = self.data_manager.get_tasks()
 
         # Check if the saved task's category has a corresponding grid
         if task is not None:
@@ -611,6 +676,58 @@ class DashboardScreen(QWidget):
             self.dialog_container.deleteLater()
             self.dialog_container = None
         self.logger.debug("Cleanup complete")
+
+    def loadProjectFilter(self):
+        """Load projects into the filter dropdown"""
+        # Add "All Projects" option first
+        self.project_filter_combo.addItem("All Projects", None)
+
+        # Get all projects from DataManager
+        try:
+            all_projects = self.data_manager.get_projects()
+
+            # Add all non-archived projects
+            for project_id, project in all_projects.items():
+                if not project.archived:
+                    self.project_filter_combo.addItem(project.title, project_id)
+
+            # Add "Tasks without Project" option
+            self.project_filter_combo.addItem("Tasks without Project", "no_project")
+
+        except Exception as e:
+            self.logger.error(f"Error loading projects for filter: {e}")
+
+        # Default to "All Projects"
+        self.project_filter_combo.setCurrentIndex(0)
+
+    def onProjectFilterChanged(self, index):
+        """Handle project filter change - reload dashboard with filtered tasks"""
+        selected_project_id = self.project_filter_combo.itemData(index)
+
+        # Store the filter selection
+        self.current_project_filter = selected_project_id
+
+        # Reload the dashboard with the filter applied
+        self.refreshDashboard()
+
+    def refreshDashboard(self):
+        """Reload and refresh the entire dashboard"""
+        # Guard against re-entrant calls
+        if hasattr(self, '_refreshing') and self._refreshing:
+            return
+
+        self._refreshing = True
+        try:
+            # Clear existing grid layouts
+            while self.task_layout_container.count():
+                child = self.task_layout_container.takeAt(0)
+                if child.widget():
+                    child.widget().deleteLater()
+
+            # Reload grid layouts with current filter
+            self.iterrateGridLayouts()
+        finally:
+            self._refreshing = False
 
     def resizeEvent(self, event: QResizeEvent):
         super().resizeEvent(event)

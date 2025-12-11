@@ -828,7 +828,7 @@ Create project templates for common project types:
 ## ✅ PHASE 4: TASK INTEGRATION - Link Tasks to Phases
 **Goal**: Connect tasks with phases and projects
 **Estimated Time**: 3-4 hours
-**Status**: ✅ COMPLETED (Core features: 4/6 tasks)
+**Status**: ✅ COMPLETED (All tasks: 6/6 tasks)
 
 ### Tasks:
 
@@ -874,13 +874,25 @@ Create project templates for common project types:
 - Saves task to JSON and refreshes phase widget task list
 - refreshTasks() method rebuilds task list UI after adding new task
 
-#### 4.3 Update Task Creation Dialog
-- [ ] In `TaskCardExpanded` (or wherever tasks are created)
-- [ ] Add optional project dropdown
-- [ ] Add optional phase dropdown (filtered by selected project)
-- [ ] When project selected, load its phases
-- [ ] Set task.project_id and task.phase_id on save
-- [ ] Test: Create task assigned to project and phase
+#### 4.3 Update Task Creation Dialog ✅ COMPLETED
+- [x] In `TaskCardExpanded` (or wherever tasks are created)
+- [x] Add optional project dropdown
+- [x] Add optional phase dropdown (filtered by selected project)
+- [x] When project selected, load its phases
+- [x] Set task.project_id and task.phase_id on save
+- [x] Test: Create task assigned to project and phase
+
+**Work Completed**:
+- Added createProjectPhaseSelectionSection() method to TaskCardExpanded (lines 666-778)
+- Project dropdown includes "(No Project)" option and all non-archived projects
+- Phase dropdown dynamically filters based on selected project
+- Implemented loadProjectsAndPhases() to populate dropdowns (lines 780-809)
+- Implemented onProjectChanged() handler with cascade filtering (lines 811-861)
+- Implemented onPhaseChanged() handler to update task.phase_id (lines 863-866)
+- Phase dropdown automatically disables when no project is selected
+- Pre-fills current project/phase if task already has assignments
+- Uses lazy loading from projects_io and phases_io
+- Integrated into right panel layout after category section
 
 #### 4.4 Update Task Detail View ✅ COMPLETED
 - [x] In `TaskCardExpanded`
@@ -899,26 +911,54 @@ Create project templates for common project types:
 - Only shows if task has project_id or phase_id set
 - Clean, subtle styling that doesn't distract from main task content
 
-#### 4.5 Implement Move Task Between Phases
-- [ ] Add drag-and-drop support to phase widget task list
-- [ ] Allow dragging task from one phase to another
-- [ ] Update task.phase_id on drop
-- [ ] Remove from old phase.task_ids
-- [ ] Add to new phase.task_ids
-- [ ] Save changes
-- [ ] Refresh both phases
-- [ ] Test: Drag task between phases
+#### 4.5 Implement Move Task Between Phases ✅ COMPLETED
+- [x] Add drag-and-drop support to phase widget task list
+- [x] Allow dragging task from one phase to another
+- [x] Update task.phase_id on drop
+- [x] Remove from old phase.task_ids
+- [x] Add to new phase.task_ids
+- [x] Save changes
+- [x] Refresh both phases
+- [x] Test: Drag task between phases
 
-#### 4.6 Update Dashboard Filtering
-- [ ] In `dashboard_screen.py`, add project filter option
-- [ ] Add dropdown or sidebar to select project
-- [ ] Filter displayed tasks by project_id
-- [ ] Show "All Projects" option to clear filter
-- [ ] Test: Filter dashboard by project
+**Work Completed**:
+- Previously completed as Additional Enhancement (v2.1)
+- Created DraggableTaskItem widget (ui/project_files/draggable_task_item.py - 170 lines)
+- Implemented drag-and-drop between any phases in project
+- Visual feedback with drop zone highlighting
+- Automatic task reassignment via move_task_to_phase()
+- Real-time UI refresh after successful drop
+- Drag handle indicator (⋮⋮) for intuitive interaction
+- See "⭐ ADDITIONAL ENHANCEMENTS" section for full details
 
-**Milestone**: ✅ Tasks can be assigned to phases, viewed within phases, and edited with full project/phase context.
+#### 4.6 Update Dashboard Filtering ✅ COMPLETED
+- [x] In `dashboard_screen.py`, add project filter option
+- [x] Add dropdown or sidebar to select project
+- [x] Filter displayed tasks by project_id
+- [x] Show "All Projects" option to clear filter
+- [x] Test: Filter dashboard by project
 
-**Note**: Tasks 4.3 (project dropdown in main task dialog), 4.5 (drag-drop between phases), and 4.6 (dashboard filtering) are optional enhancements that can be added later as needed.
+**Work Completed**:
+- Added QComboBox import to dashboard_screen.py (line 37)
+- Created "Filter by Project" dropdown in dashboard header (lines 198-217)
+- Implemented loadProjectFilter() method (lines 615-638)
+  - Loads all non-archived projects
+  - Adds "All Projects" option (default)
+  - Adds "Tasks without Project" option for unassigned tasks
+- Implemented onProjectFilterChanged() handler (lines 640-648)
+  - Stores current filter selection
+  - Triggers dashboard refresh
+- Implemented refreshDashboard() method (lines 650-659)
+  - Clears existing grid layouts
+  - Reloads with current filter
+- Updated iterrateGridLayouts() to apply project filter (lines 164-180)
+  - Filters tasks by selected project_id
+  - Special handling for "no_project" option
+  - Only displays tasks matching current filter
+- Filter persists until user changes selection
+- Grid layouts automatically hide when no tasks match filter
+
+**Milestone**: ✅ Tasks can be assigned to phases, viewed within phases, edited with full project/phase context, moved between phases via drag-drop, and filtered by project on the dashboard. All Phase 4 tasks are now complete!
 
 ---
 
@@ -1343,13 +1383,13 @@ Note: User documentation deferred. Code is self-documenting with clear UI labels
 - [x] Phase 1: Foundation (5/5 tasks) ✅ COMPLETED
 - [x] Phase 2: Basic UI (6/6 tasks) ✅ COMPLETED
 - [x] Phase 3: Phase Management (7/7 tasks) ✅ COMPLETED
-- [x] Phase 4: Task Integration (4/6 tasks - core complete) ✅ COMPLETED
+- [x] Phase 4: Task Integration (6/6 tasks - ALL COMPLETE) ✅ COMPLETED
 - [x] Phase 5: Planning Integration (8/8 tasks) ✅ COMPLETED
 - [x] Phase 6: Mindmap Integration (5/5 tasks) ✅ COMPLETED
 - [x] Phase 7: Polish & Testing (9/10 tasks - 1 deferred) ✅ COMPLETED
 
 ### Status
-**🎉 ALL PHASES COMPLETED!** The Projects Module is fully implemented and production-ready!
+**🎉 ALL PHASES FULLY COMPLETED!** The Projects Module is fully implemented and production-ready with all features complete!
 
 ---
 
@@ -1645,15 +1685,16 @@ Project-Meridian/
 12. `ui/project_files/task_dialog.py` - Task creation from phase (180 lines)
 13. `ui/project_files/draggable_task_item.py` - Draggable task widget (170 lines)
 
-### Modified Files (5 files):
+### Modified Files (6 files):
 14. `models/task.py` - Added phase_id field
 15. `utils/tasks_io.py` - Updated serialization for phases
 16. `ui/planning_screen.py` - Project scheduling integration (350 lines added)
 17. `ui/mindmap_screen.py` - Centralized storage, project linking (200 lines added)
-18. `ui/task_files/task_card_expanded.py` - Project/phase badges
+18. `ui/task_files/task_card_expanded.py` - Project/phase badges + Project/Phase selection dropdowns (210 lines added)
+19. `ui/dashboard_screen.py` - Project filter dropdown and filtering logic (70 lines added)
 
-**Total New Code**: ~4,500+ lines
-**Total Modified Code**: ~550+ lines
+**Total New Code**: ~4,780+ lines
+**Total Modified Code**: ~830+ lines
 
 ---
 
@@ -1661,3 +1702,4 @@ Project-Meridian/
 - v1.0 (2025-12-08) - Initial plan created
 - v2.0 (2025-12-10) - All 7 phases completed
 - v2.1 (2025-12-10) - Added drag-and-drop and export/import enhancements
+- v2.2 (2025-12-10) - Completed remaining Phase 4 tasks (4.3 and 4.6) - ALL tasks now complete!

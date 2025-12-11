@@ -38,23 +38,23 @@ class AppConfig:
     and data directory management.
     """
     _instance = None
-    
-    path = os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~\\AppData\\Local")), "MeridianTasks")
-    logger = logging.getLogger("AppConfig")
-    logger.debug(f"Expected directory: {path}")
-    logger.debug(f"Exists: {os.path.exists(path)}")
-    logger.debug(f"Real Path: {os.path.realpath(path)}")
-    logger.debug(f"Dir Contents: {os.listdir(path) if os.path.exists(path) else 'Not Found'}")
 
     def __new__(cls):
         """Implement singleton pattern"""
         if cls._instance is None:
             cls._instance = super(AppConfig, cls).__new__(cls)
+            cls._instance._initialized = False
             cls._instance._initialize()
         return cls._instance
-    
+
     def _initialize(self):
         """Initialize configuration properties"""
+        # Prevent re-initialization
+        if hasattr(self, '_initialized') and self._initialized:
+            return
+
+        self._initialized = True
+
         # Set up logger
         self.logger = logging.getLogger("AppConfig")
         

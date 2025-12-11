@@ -335,8 +335,9 @@ class PhaseWidget(QWidget):
         self.expanded_card.setStyleSheet(AppStyles.expanded_task_card())
 
         # Center and show the card
-        card_width, card_height = TaskCardExpanded.calculate_optimal_card_size()
-        window_rect = self.window().rect()
+        window = self.window()
+        card_width, card_height = TaskCardExpanded.calculate_optimal_card_size(window)
+        window_rect = window.rect()
         x = (window_rect.width() - card_width) // 2
         y = (window_rect.height() - card_height) // 2
         self.expanded_card.setGeometry(x, y, card_width, card_height)

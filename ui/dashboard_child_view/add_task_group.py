@@ -28,10 +28,11 @@
 import time
 from datetime import datetime
 from utils.dashboard_config import DashboardConfigManager
+from utils.categories_config import CategoriesConfigManager
 from models.task import TaskCategory, TaskPriority, TaskStatus, DueStatus
 from PyQt5.QtWidgets import (QApplication, QWidget, QSizePolicy, QHBoxLayout, QVBoxLayout,
                              QPushButton, QDialog, QLabel, QLineEdit, QSpinBox, QTabWidget, QCheckBox,
-                             QMessageBox
+                             QMessageBox, QInputDialog, QScrollArea
                             )
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QGuiApplication
@@ -88,13 +89,29 @@ class AddGridDialog(QDialog):
         
         # Category tab
         category_widget = QWidget()
-        category_layout = QVBoxLayout(category_widget)
+        category_main_layout = QVBoxLayout(category_widget)
+
+        # Add "Create New Category" button at the top
+        new_category_btn = QPushButton("+ Create New Category")
+        new_category_btn.clicked.connect(self.onCreateNewCategory)
+        category_main_layout.addWidget(new_category_btn)
+
+        # Scrollable area for categories
+        category_scroll = QScrollArea()
+        category_scroll.setWidgetResizable(True)
+        category_scroll.setFrameShape(QScrollArea.NoFrame)
+
+        category_scroll_widget = QWidget()
+        category_layout = QVBoxLayout(category_scroll_widget)
+
+        # Load dynamic categories
         self.category_checkboxes = {}
-        for category in TaskCategory:
-            checkbox = QCheckBox(category.value)
-            self.category_checkboxes[category.value] = checkbox
-            category_layout.addWidget(checkbox)
+        self.loadCategories(category_layout)
+
         category_layout.addStretch()
+        category_scroll.setWidget(category_scroll_widget)
+        category_main_layout.addWidget(category_scroll)
+
         filter_tabs.addTab(category_widget, "Category")
         
         # Due Date tab
@@ -124,6 +141,90 @@ class AddGridDialog(QDialog):
         button_layout.addWidget(self.cancel_button)
         button_layout.addWidget(self.save_button)
         layout.addLayout(button_layout)
+
+    def loadCategories(self, layout):
+        """Load categories from config and create checkboxes"""
+        # Load dynamic categories from config
+        categories = CategoriesConfigManager.load_categories()
+
+        # Clear existing checkboxes
+        self.category_checkboxes.clear()
+
+        # Create checkbox for each category
+        for category in categories:
+            checkbox = QCheckBox(category)
+            self.category_checkboxes[category] = checkbox
+            layout.addWidget(checkbox)
+
+    def onCreateNewCategory(self):
+        """Handle creating a new category"""
+        # Show input dialog
+        category_name, ok = QInputDialog.getText(
+            self,
+            "Create New Category",
+            "Enter category name:",
+            QLineEdit.Normal,
+            ""
+        )
+
+        if ok and category_name:
+            category_name = category_name.strip()
+
+            # Validate category name
+            if not category_name:
+                QMessageBox.warning(
+                    self,
+                    "Invalid Name",
+                    "Category name cannot be empty.",
+                    QMessageBox.Ok
+                )
+                return
+
+            # Check if category already exists
+            if CategoriesConfigManager.category_exists(category_name):
+                QMessageBox.warning(
+                    self,
+                    "Category Exists",
+                    f"Category '{category_name}' already exists.",
+                    QMessageBox.Ok
+                )
+                return
+
+            # Add the new category
+            if CategoriesConfigManager.add_category(category_name):
+                QMessageBox.information(
+                    self,
+                    "Success",
+                    f"Category '{category_name}' has been created successfully!",
+                    QMessageBox.Ok
+                )
+
+                # Reload the category checkboxes
+                self.refreshCategoryList()
+            else:
+                QMessageBox.critical(
+                    self,
+                    "Error",
+                    "Failed to create category. Please try again.",
+                    QMessageBox.Ok
+                )
+
+    def refreshCategoryList(self):
+        """Refresh the category checkboxes after adding a new category"""
+        # Find the category scroll widget
+        category_tab = self.findChild(QTabWidget).widget(1)  # Category is the second tab
+        category_scroll = category_tab.findChild(QScrollArea)
+        category_scroll_widget = category_scroll.widget()
+        category_layout = category_scroll_widget.layout()
+
+        # Clear the layout (except the stretch)
+        while category_layout.count() > 1:
+            item = category_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        # Reload categories
+        self.loadCategories(category_layout)
 
     def addGroupSave(self):
         """Collect data from the dialog and save the new grid"""

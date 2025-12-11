@@ -27,9 +27,11 @@
 # -----------------------------------------------------------------------------
 
 from utils.config_loader import config 
+import logging
 import os
 import yaml
 from pathlib import Path
+from utils.app_config import AppConfig
 
 class DashboardConfigManager:
     """
@@ -44,8 +46,6 @@ class DashboardConfigManager:
         Returns:
             list: List of grid layout configurations
         """
-        from utils.app_config import AppConfig
-        import logging
         
         logger = logging.getLogger(__name__)
         
@@ -122,8 +122,6 @@ class DashboardConfigManager:
         Args:
             grid_layouts (list): List of grid layout objects to save
         """
-        from utils.app_config import AppConfig
-        import logging
         
         logger = logging.getLogger(__name__)
         
@@ -218,8 +216,6 @@ class DashboardConfigManager:
         Returns:
             list: List of grid layout objects
         """
-        from utils.app_config import AppConfig
-        import logging
         
         logger = logging.getLogger(__name__)
         
