@@ -91,13 +91,13 @@ class MainWindow(QWidget):
         # before DataManager tries to load data (which internally uses AppConfig)
         from utils.app_config import AppConfig
         self.app_config = AppConfig()
-        self.logger.info(f"AppConfig initialized: {self.app_config.app_data_dir}")
+        # self.logger.info(f"AppConfig initialized: {self.app_config.app_data_dir}")
 
         # Initialize DataManager once at startup
         self.data_manager = DataManager(self.logger, self.app_config)
         # Load all data into memory
         self.data_manager._load_all_data()
-        self.logger.info(f"DataManager initialized: {self.data_manager.get_data_summary()}")
+        # self.logger.info(f"DataManager initialized: {self.data_manager.get_data_summary()}")
 
         # Set window flags to make it act like a main window
         self.setWindowFlags(Qt.Window)
@@ -504,7 +504,7 @@ if __name__ == '__main__':
     
     # Run data migration instead of check_and_migrate_all_data()
 
-    migrate_data_if_needed()
+    # migrate_data_if_needed()
     
     ensure_required_files()
     app = QApplication(sys.argv)

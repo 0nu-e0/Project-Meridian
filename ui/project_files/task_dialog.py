@@ -54,6 +54,7 @@ class TaskDialog(QDialog):
         self.project_id = project_id
         self.phase_id = phase_id
         self.logger = logger
+        self._saving = False  # Flag to prevent duplicate saves
 
         self.initUI()
 
@@ -133,39 +134,52 @@ class TaskDialog(QDialog):
         cancel_btn.setFixedSize(100, 35)
         cancel_btn.setStyleSheet(self.getSecondaryButtonStyle())
         cancel_btn.clicked.connect(self.reject)
+        cancel_btn.setAutoDefault(False)  # Prevent this from being default
         buttons_layout.addWidget(cancel_btn)
 
         save_btn = QPushButton("Add Task")
         save_btn.setFixedSize(100, 35)
         save_btn.setStyleSheet(AppStyles.save_button())
         save_btn.clicked.connect(self.onSave)
+        save_btn.setDefault(True)  # Make this the default button for Enter key
         buttons_layout.addWidget(save_btn)
 
         layout.addLayout(buttons_layout)
 
     def onSave(self):
         """Validate and save task data"""
-        # Validate title
-        title = self.title_input.text().strip()
-        if not title:
-            QMessageBox.warning(self, "Validation Error", "Task title is required.")
+        # Prevent duplicate saves
+        if self._saving:
             return
 
-        # Get form data
-        task_data = {
-            'title': title,
-            'description': self.description_input.toPlainText().strip(),
-            'priority': self.priority_combo.currentData(),
-            'status': self.status_combo.currentData(),
-            'project_id': self.project_id,
-            'phase_id': self.phase_id
-        }
+        self._saving = True
 
-        # Emit signal with task data
-        self.taskSaved.emit(task_data)
+        try:
+            # Validate title
+            title = self.title_input.text().strip()
+            if not title:
+                QMessageBox.warning(self, "Validation Error", "Task title is required.")
+                self._saving = False  # Reset flag on validation failure
+                return
 
-        # Close dialog
-        self.accept()
+            # Get form data
+            task_data = {
+                'title': title,
+                'description': self.description_input.toPlainText().strip(),
+                'priority': self.priority_combo.currentData(),
+                'status': self.status_combo.currentData(),
+                'project_id': self.project_id,
+                'phase_id': self.phase_id
+            }
+
+            # Emit signal with task data
+            self.taskSaved.emit(task_data)
+
+            # Close dialog
+            self.accept()
+        except Exception as e:
+            self._saving = False  # Reset flag on error
+            raise e
 
     def getInputStyle(self):
         """Get stylesheet for input widgets"""

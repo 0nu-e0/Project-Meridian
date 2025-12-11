@@ -51,7 +51,7 @@ def load_tasks_from_json(logger, force_reload=False):
         force_reload: If True, bypass cache and reload from disk
 
     Returns:
-        dict: Dictionary with task titles as keys and Task objects as values, sorted by priority
+        dict: Dictionary with task IDs as keys and Task objects as values, sorted by priority
     """
     global _tasks_cache, _tasks_cache_mtime
 
@@ -81,7 +81,7 @@ def load_tasks_from_json(logger, force_reload=False):
         with open(json_file_path, 'r') as file:
             tasks_data = json.load(file)
 
-        logger.info(f"Successfully loaded {len(tasks_data)} tasks from {json_file_path}")
+        # logger.info(f"Successfully loaded {len(tasks_data)} tasks from {json_file_path}")
 
         # Convert each task data to Task object
         for task_key, task_info in tasks_data.items():
@@ -288,8 +288,8 @@ def load_tasks_from_json(logger, force_reload=False):
 
             #print(task.checklist)
 
-            # Add the task to our dictionary
-            task_objects[task_name] = task
+            # Add the task to our dictionary using task ID as key
+            task_objects[task.id] = task
 
         # Sort tasks by priority
         sorted_tasks = dict(sorted(task_objects.items(), key=lambda item: item[1].priority.value, reverse=True))

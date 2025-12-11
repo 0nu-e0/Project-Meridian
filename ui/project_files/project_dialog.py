@@ -251,7 +251,7 @@ class ProjectDialog(QDialog):
         # Get form data
         from datetime import datetime
 
-        project_data = {
+        self.project_data = {
             'title': title,
             'description': self.description_input.toPlainText().strip(),
             'status': self.status_combo.currentData(),
@@ -264,7 +264,7 @@ class ProjectDialog(QDialog):
         # Convert QDate to datetime
         start_qdate = self.start_date_edit.date()
         if start_qdate != self.start_date_edit.minimumDate():
-            project_data['start_date'] = datetime(
+            self.project_data['start_date'] = datetime(
                 start_qdate.year(),
                 start_qdate.month(),
                 start_qdate.day()
@@ -272,7 +272,7 @@ class ProjectDialog(QDialog):
 
         target_qdate = self.target_date_edit.date()
         if target_qdate != self.target_date_edit.minimumDate():
-            project_data['target_completion'] = datetime(
+            self.project_data['target_completion'] = datetime(
                 target_qdate.year(),
                 target_qdate.month(),
                 target_qdate.day()
@@ -280,10 +280,10 @@ class ProjectDialog(QDialog):
 
         # If editing, include project_id
         if self.mode == "edit" and self.project:
-            project_data['project_id'] = self.project.id
+            self.project_data['project_id'] = self.project.id
 
         # Emit signal with project data
-        self.projectSaved.emit(project_data)
+        self.projectSaved.emit(self.project_data)
 
         # Close dialog
         self.accept()
