@@ -54,7 +54,6 @@ def load_tasks_from_json(logger, force_reload=False):
         dict: Dictionary with task titles as keys and Task objects as values, sorted by priority
     """
     global _tasks_cache, _tasks_cache_mtime
-    from utils.app_config import AppConfig
 
     # Get the file path from AppConfig
     app_config = AppConfig()
@@ -113,12 +112,21 @@ def load_tasks_from_json(logger, force_reload=False):
                 task.priority = TaskPriority[priority_value]
 
             if 'category' in task_info:
-                category_value = task_info['category'].replace(" ", "_").upper()
-                task.category = TaskCategory[category_value]
+                category_value = task_info['category']
+                # Try to match with enum first for backward compatibility
+                try:
+                    category_enum_value = category_value.replace(" ", "_").upper()
+                    task.category = TaskCategory[category_enum_value]
+                except KeyError:
+                    # If not found in enum, use string directly (dynamic category)
+                    task.category = category_value
             else:
                 task.category = TaskCategory.FEATURE
 
-            if task.category == TaskCategory.ARCHIVED:
+            # Check if task is archived (handle both enum and string)
+            if isinstance(task.category, TaskCategory) and task.category == TaskCategory.ARCHIVED:
+                task.archived = True
+            elif isinstance(task.category, str) and task.category == "Archived":
                 task.archived = True
 
             # Set numeric values
@@ -303,7 +311,6 @@ def save_task_to_json(task, logger):
     Args:
         task: The Task object to save (can be new or existing)
     """
-    from utils.app_config import AppConfig
     
     # Initialize new task if None
     if task is None:
@@ -348,7 +355,7 @@ def save_task_to_json(task, logger):
             'description': getattr(task, 'description', ""),
             'project_id': getattr(task, 'project_id', None),
             'phase_id': getattr(task, 'phase_id', None),
-            'category': task.category.name if hasattr(task, 'category') and task.category else TaskCategory.FEATURE.name,
+            'category': task.category.value if isinstance(task.category, TaskCategory) else (task.category if isinstance(task.category, str) else TaskCategory.FEATURE.value),
             'creation_date': getattr(task, 'creation_date', datetime.now()).strftime('%Y-%m-%d, %H:%M:%S'),
             'start_date': task.start_date.strftime('%Y-%m-%d, %H:%M:%S') if getattr(task, 'start_date', None) else None,
             'due_date': task.due_date.strftime('%Y-%m-%d, %H:%M:%S') if getattr(task, 'due_date', None) else None,

@@ -41,12 +41,14 @@ from PyQt5.QtWidgets import (QApplication, QCalendarWidget, QComboBox, QFileDial
                              QTextEdit, QToolButton, QVBoxLayout, QWidget)
 
 # Local application imports
+from utils.app_config import AppConfig
 from models.task import Attachment, Task, TaskCategory, TaskEntry, TaskPriority, TaskStatus, TimeLog
 from resources.styles import AppStyles
 from ui.custom_widgets.collapsable_section import CollapsibleSection
 from ui.task_files.task_settings_menu import TaskSettingsMenu
+from utils.categories_config import CategoriesConfigManager
 from utils.directory_finder import resource_path
-from utils.tasks_io import load_tasks_from_json, save_task_to_json
+from utils.data_manager import DataManager
 
 class TaskCardExpanded(QWidget):
     taskDeleted = pyqtSignal(str)
@@ -55,23 +57,34 @@ class TaskCardExpanded(QWidget):
     newTaskUpdate = pyqtSignal(object, str)  # (task, grid_id)
     
     @classmethod
-    def calculate_optimal_card_size(cls):
-        screen = QGuiApplication.primaryScreen().availableGeometry()
-        screen_width, screen_height = screen.width(), screen.height()
+    def calculate_optimal_card_size(cls, parent_window=None):
+        # If parent window is provided, use its dimensions instead of screen
+        if parent_window:
+            window_width = parent_window.width()
+            window_height = parent_window.height()
+        else:
+            # Fallback to screen dimensions
+            screen = QGuiApplication.primaryScreen().availableGeometry()
+            window_width, window_height = screen.width(), screen.height()
 
         min_width = 600
-        min_height_for_content = 120
+        min_height_for_content = 400
 
-        card_width = int(max(min_width, screen_width * 0.6))
-        card_height = int(max(int(card_width / 1.5), min_height_for_content))
-        # Optional: clamp very tall screens
-        card_height = min(card_height, int(screen_height * 0.9))
+        # Use 75% of window width and 85% of window height for better fit
+        card_width = int(max(min_width, window_width * 0.75))
+        card_height = int(max(min_height_for_content, window_height * 0.85))
+
+        # Ensure card doesn't exceed window dimensions
+        card_width = min(card_width, window_width - 40)  # Leave 40px margin
+        card_height = min(card_height, window_height - 40)
+
         return card_width, card_height
 
     def __init__(self, logger, task=None, grid_id=None, parent_view=None, parent=None):
         super().__init__(parent)
         self.setMouseTracking(True)
         self.logger = logger
+        self.data_manager = DataManager(logger)
         self.task = task
         self.grid_id = grid_id
         self.logger.debug(f"Expanded card grid_id: {self.grid_id}")
@@ -206,6 +219,7 @@ class TaskCardExpanded(QWidget):
         right_layout.addLayout(self.createStatusPrioritySection())
         right_layout.addLayout(self.initCollapsableSections())
         right_layout.addLayout(self.createCategorySection())
+        right_layout.addLayout(self.createProjectPhaseSelectionSection())
         #right_layout.addStretch(1)
         right_layout.addLayout(self.createButtonSection())
         
@@ -257,20 +271,18 @@ class TaskCardExpanded(QWidget):
         section_layout.setContentsMargins(0, 0, 5, 10)
         section_layout.setSpacing(8)
 
-        # Load project and phase names
+        # Load project and phase names from DataManager
         project_name = None
         phase_name = None
 
         if self.task.project_id:
-            from utils.projects_io import load_projects_from_json
-            projects = load_projects_from_json(self.logger)
+            projects = self.data_manager.get_projects()
             project = projects.get(self.task.project_id)
             if project:
                 project_name = project.title
 
         if self.task.phase_id:
-            from utils.projects_io import load_phases_from_json
-            phases = load_phases_from_json(self.logger)
+            phases = self.data_manager.get_phases()
             phase = phases.get(self.task.phase_id)
             if phase:
                 phase_name = phase.name
@@ -648,8 +660,18 @@ class TaskCardExpanded(QWidget):
                 padding: 4px;
             }
         """)
-        category_combo.addItems([category.value for category in TaskCategory])
-        category_combo.setCurrentText(self.task.category.value if self.task else category_combo.itemText(0))
+        # Load dynamic categories
+        dynamic_categories = CategoriesConfigManager.load_categories()
+        category_combo.addItems(dynamic_categories)
+
+        # Set current category
+        if self.task and hasattr(self.task.category, 'value'):
+            category_combo.setCurrentText(self.task.category.value)
+        elif self.task and isinstance(self.task.category, str):
+            category_combo.setCurrentText(self.task.category)
+        else:
+            category_combo.setCurrentIndex(0)
+
         category_combo.setView(QListView())
         category_combo.currentTextChanged.connect(self.updateTaskCategory)
 
@@ -658,17 +680,224 @@ class TaskCardExpanded(QWidget):
 
     def updateTaskCategory(self, new_category):
         # Update the task object with the new category
+        # Try to match with enum first for backward compatibility
+        category_found = False
         for category in TaskCategory:
             if category.value == new_category:
                 self.task.category = category
+                category_found = True
                 break
+
+        # If not found in enum, use the string directly (for dynamic categories)
+        if not category_found:
+            self.task.category = new_category
+
+    def createProjectPhaseSelectionSection(self):
+        """Create section for selecting project and phase assignment"""
+        section_layout = QVBoxLayout()
+        section_layout.setContentsMargins(0, 0, 5, 10)
+        section_layout.setSpacing(10)
+
+        # Project selection
+        project_container = QVBoxLayout()
+        project_container.setSpacing(6)
+
+        project_label = QLabel("Project")
+        project_label.setStyleSheet("""
+            QLabel {
+                color: #bdc3c7;
+                font-size: 11px;
+                font-weight: bold;
+            }
+        """)
+        project_container.addWidget(project_label)
+
+        self.project_combo = QComboBox()
+        self.project_combo.setStyleSheet("""
+            QComboBox {
+                background-color: #2c3e50;
+                border: 2px solid #34495e;
+                border-radius: 5px;
+                padding: 8px 12px;
+                color: #ecf0f1;
+                font-size: 11px;
+            }
+            QComboBox:hover {
+                border: 2px solid #3498db;
+            }
+            QComboBox::drop-down {
+                width: 20px;
+                border: none;
+            }
+            QComboBox::down-arrow {
+                image: none;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-top: 5px solid #ecf0f1;
+                margin-right: 5px;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #2c3e50;
+                border: 2px solid #3498db;
+                selection-background-color: #3498db;
+                color: #ecf0f1;
+                padding: 4px;
+            }
+        """)
+        self.project_combo.setView(QListView())
+        self.project_combo.currentIndexChanged.connect(self.onProjectChanged)
+        project_container.addWidget(self.project_combo)
+
+        # Phase selection
+        phase_container = QVBoxLayout()
+        phase_container.setSpacing(6)
+
+        phase_label = QLabel("Phase")
+        phase_label.setStyleSheet("""
+            QLabel {
+                color: #bdc3c7;
+                font-size: 11px;
+                font-weight: bold;
+            }
+        """)
+        phase_container.addWidget(phase_label)
+
+        self.phase_combo = QComboBox()
+        self.phase_combo.setStyleSheet("""
+            QComboBox {
+                background-color: #2c3e50;
+                border: 2px solid #34495e;
+                border-radius: 5px;
+                padding: 8px 12px;
+                color: #ecf0f1;
+                font-size: 11px;
+            }
+            QComboBox:hover {
+                border: 2px solid #3498db;
+            }
+            QComboBox::drop-down {
+                width: 20px;
+                border: none;
+            }
+            QComboBox::down-arrow {
+                image: none;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-top: 5px solid #ecf0f1;
+                margin-right: 5px;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #2c3e50;
+                border: 2px solid #3498db;
+                selection-background-color: #3498db;
+                color: #ecf0f1;
+                padding: 4px;
+            }
+        """)
+        self.phase_combo.setView(QListView())
+        self.phase_combo.currentIndexChanged.connect(self.onPhaseChanged)
+        phase_container.addWidget(self.phase_combo)
+
+        section_layout.addLayout(project_container)
+        section_layout.addLayout(phase_container)
+
+        # Load and populate projects
+        self.loadProjectsAndPhases()
+
+        return section_layout
+
+    def loadProjectsAndPhases(self):
+        """Load projects into dropdown and set current selections"""
+        # Get all projects from DataManager
+        all_projects = self.data_manager.get_projects()
+
+        # Add "None" option first
+        self.project_combo.addItem("(No Project)", None)
+
+        # Add all non-archived projects
+        self.project_data = {}
+        for project_id, project in all_projects.items():
+            if not project.archived:
+                self.project_combo.addItem(project.title, project_id)
+                self.project_data[project_id] = project
+
+        # Get all phases from DataManager
+        self.all_phases = self.data_manager.get_phases()
+
+        # Set current project if task has one
+        if self.task.project_id:
+            index = self.project_combo.findData(self.task.project_id)
+            if index >= 0:
+                self.project_combo.setCurrentIndex(index)
+        else:
+            self.project_combo.setCurrentIndex(0)  # "None"
+
+        # Trigger phase update based on selected project
+        self.onProjectChanged(self.project_combo.currentIndex())
+
+    def onProjectChanged(self, index):
+        """Handle project selection change - update phase dropdown"""
+        # Clear phase combo
+        self.phase_combo.clear()
+
+        # Get selected project ID
+        project_id = self.project_combo.itemData(index)
+
+        if project_id is None:
+            # No project selected
+            self.phase_combo.addItem("(No Phase)", None)
+            self.phase_combo.setEnabled(False)
+            self.task.project_id = None
+            self.task.phase_id = None
+            return
+
+        # Enable phase combo
+        self.phase_combo.setEnabled(True)
+
+        # Add "None" option
+        self.phase_combo.addItem("(No Phase)", None)
+
+        # Get project and load its phases
+        if project_id in self.project_data:
+            project = self.project_data[project_id]
+            # Get phases for this project, sorted by order
+            project_phases = []
+            for phase_id in project.phases:
+                if phase_id in self.all_phases:
+                    project_phases.append(self.all_phases[phase_id])
+
+            project_phases.sort(key=lambda p: p.order)
+
+            # Add phases to combo
+            for phase in project_phases:
+                self.phase_combo.addItem(phase.name, phase.id)
+
+        # Update task project_id
+        self.task.project_id = project_id
+
+        # Set current phase if task has one
+        if self.task.phase_id:
+            index = self.phase_combo.findData(self.task.phase_id)
+            if index >= 0:
+                self.phase_combo.setCurrentIndex(index)
+            else:
+                # Phase not found in current project, reset to None
+                self.phase_combo.setCurrentIndex(0)
+                self.task.phase_id = None
+        else:
+            self.phase_combo.setCurrentIndex(0)
+
+    def onPhaseChanged(self, index):
+        """Handle phase selection change"""
+        phase_id = self.phase_combo.itemData(index)
+        self.task.phase_id = phase_id
 
     def _handleSaveClick(self):
         """Handle the save button click - save task and emit appropriate signal"""
         is_new_task = self.task is None
 
-        # Save the task to JSON
-        save_task_to_json(self.task, self.logger)
+        # Save the task using DataManager
+        self.data_manager.save_task(self.task)
 
         # Emit the appropriate signal with the task object
         if is_new_task:
@@ -1668,8 +1897,8 @@ class TaskCardExpanded(QWidget):
 
     def load_dependencies(self):
         """Load all available tasks for dependencies"""
-        # Get all task titles from the task objects
-        tasks = load_tasks_from_json(self.logger)
+        # Get all task titles from DataManager
+        tasks = self.data_manager.get_tasks()
         return list(tasks.keys())
 
     def add_dependency_to_task(self, dependency_task_title):
@@ -1726,7 +1955,6 @@ class TaskCardExpanded(QWidget):
         if confirm != QMessageBox.Yes:
             return
 
-        from utils.app_config import AppConfig
         app_config = AppConfig()
         json_file_path = app_config.tasks_file
 
@@ -1876,9 +2104,9 @@ class TaskCardExpanded(QWidget):
         self.task_settings_menu.setAttribute(Qt.WA_StyledBackground, True)
         # Notice: We do NOT set WA_TranslucentBackground here, so that the style sheet's background color is visible.
         self.task_settings_menu.setStyleSheet(AppStyles.expanded_task_card())
-        
+
         # Calculate optimal dimensions and center the expanded card.
-        card_width, card_height = self.task_settings_menu.calculate_optimal_card_size()
+        card_width, card_height = self.task_settings_menu.calculate_optimal_card_size(window)
         center_x = (self.dialog_container.width() - card_width) // 2
         center_y = (self.dialog_container.height() - card_height) // 2
         self.task_settings_menu.setGeometry(center_x, center_y, card_width, card_height)

@@ -63,17 +63,18 @@ class ConfigSection:
                 else:
                     setattr(self, key, value)
 
-class AppConfig:
+class YamlConfig:
     """
-    Configuration manager for application settings.
+    Configuration manager for YAML application settings.
     Loads settings from YAML file and provides access to configuration values.
+    RENAMED from AppConfig to avoid conflict with utils/app_config.py
     """
     _instance = None
-    
+
     def __new__(cls):
         """Singleton pattern to ensure only one config instance exists"""
         if cls._instance is None:
-            cls._instance = super(AppConfig, cls).__new__(cls)
+            cls._instance = super(YamlConfig, cls).__new__(cls)
             cls._instance._loaded = False
         return cls._instance
     
@@ -182,4 +183,4 @@ class AppConfig:
             setattr(section, last_part, value)
 
 # Singleton instance
-config = AppConfig()
+config = YamlConfig()

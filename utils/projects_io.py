@@ -521,7 +521,6 @@ def load_scheduled_projects(logger):
     Returns:
         dict: Dictionary with schedule_id as keys and scheduled project data as values
     """
-    from utils.app_config import AppConfig
 
     scheduled_projects = {}
 
@@ -559,7 +558,6 @@ def save_scheduled_projects(scheduled_projects, logger):
         scheduled_projects: Dictionary of scheduled projects
         logger: Logger instance
     """
-    from utils.app_config import AppConfig
 
     app_config = AppConfig()
     json_file_path = os.path.join(app_config.data_dir, "scheduled_projects.json")

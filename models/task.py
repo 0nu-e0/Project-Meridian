@@ -79,7 +79,7 @@ class Task(QObject):
         title: str,
         description: str = "",
         project_id: str = None,
-        category: TaskCategory = TaskCategory.FEATURE
+        category = TaskCategory.FEATURE  # Can be TaskCategory enum or string
     ):
         # Initialize QObject parent class
         super().__init__()
@@ -88,11 +88,21 @@ class Task(QObject):
         self.id = str(uuid4())
         self.project_id = project_id
         self.phase_id: Optional[str] = None  # Phase within project
-        
+
         # Basic information
         self.title = title
         self.description = description
-        self.category = category
+        # Support both enum and string categories for dynamic categories
+        if isinstance(category, str):
+            # Try to convert string to enum for backward compatibility
+            category_enum = None
+            for cat in TaskCategory:
+                if cat.value == category:
+                    category_enum = cat
+                    break
+            self.category = category_enum if category_enum else category
+        else:
+            self.category = category
         
         # Dates and timing
         self.creation_date = datetime.now()
