@@ -30,6 +30,7 @@ import json
 import logging
 from typing import Dict, Optional
 from datetime import datetime
+from uuid import uuid4
 from utils.app_config import AppConfig
 from models.project import Project, ProjectStatus
 from models.phase import Phase

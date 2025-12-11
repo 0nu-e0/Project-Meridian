@@ -411,6 +411,12 @@ class MainWindow(QWidget):
 
         if targetWidget and currentWidget != targetWidget:
             self.animateStackedWidgetTransition(currentWidget, targetWidget)
+
+            # Refresh screens when switching to them to sync with any changes
+            if screen == "planning_screen":
+                self.planning_screen.refreshPlanningUI()
+            elif screen == "projects_screen":
+                self.projects_screen.refreshProjects()
         else:
             self.logger.warning(f"No valid transition for screen: {screen}")
 

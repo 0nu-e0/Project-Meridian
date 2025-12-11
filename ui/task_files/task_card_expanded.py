@@ -289,7 +289,7 @@ class TaskCardExpanded(QWidget):
 
         # Project label with modern styling
         if project_name:
-            project_label = QLabel(f"📁 {project_name}")
+            project_label = QLabel(f"Project: 📁 {project_name}")
             project_label.setStyleSheet("""
                 QLabel {
                     font-size: 11px;
