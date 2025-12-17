@@ -71,7 +71,7 @@ class DataManager:
     def _load_all_data(self):
         """Load all data from JSON files into memory - MUST be called from main.py after initialization"""
         try:
-            self.logger.info("Loading all application data...")
+            # self.logger.info("Loading all application data...")
 
             # Load tasks
             self._tasks = load_tasks_from_json(self.logger)

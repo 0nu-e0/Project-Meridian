@@ -79,8 +79,8 @@ class AppConfig:
         self.notes_file = os.path.join(self.data_dir, "notes.json")
         self.settings_file = os.path.join(self.app_data_dir, "settings.json")
         
-        self.logger.info(f"AppConfig initialized for {self.system} system")
-        self.logger.info(f"App data directory: {self.app_data_dir}")
+        # self.logger.info(f"AppConfig initialized for {self.system} system")
+        # self.logger.info(f"App data directory: {self.app_data_dir}")
     
     def _get_app_data_dir(self):
         """
@@ -111,7 +111,7 @@ class AppConfig:
                 with open(test_file, 'w') as f:
                     f.write('test')
                 os.remove(test_file)
-                self.logger.info(f"Successfully created and verified directory: {directory}")
+                # self.logger.info(f"Successfully created and verified directory: {directory}")
             except Exception as e:
                 self.logger.error(f"Error creating directory {directory}: {e}")
                 # Try to create in an alternative location if primary fails

@@ -160,10 +160,10 @@ class Task(QObject):
 
     def check_archived(self):
         # print(f"checking for archived for {self.title}, with category: {self.status}")
-        
-        if self.status == TaskStatus.COMPLETED:
-            self.archived = True
-            self.category = TaskCategory.ARCHIVED
+
+        # Don't automatically archive completed tasks - they should stay in their phase
+        # Users can manually archive tasks if needed
+        pass
 
     def add_checklist_item(self, text: str, checked: bool = False):
         self.checklist.append({
