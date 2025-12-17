@@ -55,7 +55,7 @@ def load_projects_from_json(logger) -> Dict[str, Project]:
         with open(json_file_path, 'r') as file:
             projects_data = json.load(file)
 
-        logger.info(f"Successfully loaded {len(projects_data)} projects from {json_file_path}")
+        # logger.info(f"Successfully loaded {len(projects_data)} projects from {json_file_path}")
 
         # Convert each project data to Project object
         projects = {}
@@ -128,7 +128,7 @@ def load_phases_from_json(logger) -> Dict[str, Phase]:
         with open(json_file_path, 'r') as file:
             phases_data = json.load(file)
 
-        logger.info(f"Successfully loaded {len(phases_data)} phases from {json_file_path}")
+        # logger.info(f"Successfully loaded {len(phases_data)} phases from {json_file_path}")
 
         # Convert each phase data to Phase object
         phases = {}
@@ -540,7 +540,7 @@ def load_scheduled_projects(logger):
             for schedule_id, project_data in data.items():
                 scheduled_projects[schedule_id] = project_data
 
-        logger.info(f"Successfully loaded {len(scheduled_projects)} scheduled projects from {json_file_path}")
+        # logger.info(f"Successfully loaded {len(scheduled_projects)} scheduled projects from {json_file_path}")
         return scheduled_projects
 
     except json.JSONDecodeError as e:

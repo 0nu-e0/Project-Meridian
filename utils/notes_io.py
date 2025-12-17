@@ -91,7 +91,7 @@ def load_notes_from_json(logger):
     app_config = AppConfig()
     json_file_path = app_config.notes_file
 
-    logger.info(f"Loading notes from: {json_file_path}")
+    # logger.info(f"Loading notes from: {json_file_path}")
     
     try:
         if os.path.exists(json_file_path):

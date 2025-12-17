@@ -575,8 +575,8 @@ class AppStyles:
                 border: 1px solid #3498db;
             }}
             QListWidget::item:selected {{
-                background-color: #2980b9;
-                border: 1px solid #3498db;
+                background-color: transparent;
+                border: 1px solid #34495e;
             }}
             QScrollBar:vertical {{
                 border: {AppBorders.none};
@@ -618,8 +618,8 @@ class AppStyles:
                 border: 1px solid #3498db;
             }}
             QListWidget::item:selected {{
-                background-color: #2980b9;
-                border: 1px solid #3498db;
+                background-color: transparent;
+                border: 1px solid #34495e;
             }}
             QScrollBar:vertical {{
                 border: {AppBorders.none};

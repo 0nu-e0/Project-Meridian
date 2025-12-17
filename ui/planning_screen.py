@@ -278,7 +278,7 @@ class StyledProjectItem(QWidget):
         # Sort by order
         self.phases.sort(key=lambda p: p.order)
 
-        # Find current phase (first incomplete phase)
+        # Find current phase (phase marked as is_current)
         for phase in self.phases:
             # A phase is considered incomplete if it doesn't have a completion_date
             # or if it's marked as the current phase
@@ -1034,7 +1034,7 @@ class DropZoneWidget(QWidget):
     def _onTaskClicked(self, item):
         """Handle task or project click"""
         item_id = item.data(Qt.UserRole)
-        item_type = item.data(Qt.UserRole + 2)
+        item_type = item.data(Qt.UserRole + 4)  # Type is stored at UserRole + 4
 
         if item_id:
             if item_type == 'project':
@@ -1612,6 +1612,7 @@ class PlanningScreen(QWidget):
 
         tasks_dict = load_tasks_from_json(self.logger)
         self.all_tasks = list(tasks_dict.values())
+        self.logger.info(f"loadTasks: Loaded {len(self.all_tasks)} total tasks from JSON")
 
         # Get current week date range (Monday to Friday)
         today = QDate.currentDate()
@@ -1947,15 +1948,21 @@ class PlanningScreen(QWidget):
             self.logger.error(f"Failed to schedule project '{project_title}'")
 
     def onProjectClickedFromSchedule(self, project_id: str):
-        """Handle project click from schedule - open project detail view"""
-        from ui.project_files.project_detail_view import ProjectDetailView
+        """Handle project click from schedule - open expanded project card"""
+        from ui.project_files.project_card_expanded import ProjectCardExpanded
 
         self.logger.info(f"Project clicked from schedule: {project_id}")
 
         # Get the main window
         window = self.window()
 
+        # Get the main window
+        window = self.window()
+
         # Create overlay to dim background
+        self.overlay = QWidget(window)
+        self.overlay.setStyleSheet("background-color: rgba(0, 0, 0, 0.5);")
+        self.overlay.setGeometry(window.rect())
         self.overlay = QWidget(window)
         self.overlay.setStyleSheet("background-color: rgba(0, 0, 0, 0.5);")
         self.overlay.setGeometry(window.rect())
@@ -2106,6 +2113,7 @@ class PlanningScreen(QWidget):
         self.task_detail_dialog.cancelTask.connect(self.closeTaskDetail)
         self.task_detail_dialog.saveCompleted.connect(self.onTaskSaved)
         self.task_detail_dialog.newTaskUpdate.connect(self.onTaskSaved)
+        self.task_detail_dialog.taskDeleted.connect(self.onTaskDeleted)
 
         self.task_detail_dialog.show()
         self.task_detail_dialog.raise_()
@@ -2134,6 +2142,23 @@ class PlanningScreen(QWidget):
 
         # Refresh scheduled tasks to update any changes
         self.refreshScheduledTasks()
+
+    def onTaskDeleted(self, task_id_or_title: str):
+        """Handle task deletion - refresh task list and close dialog"""
+        self.logger.info(f"onTaskDeleted called with: {task_id_or_title}")
+
+        # Close the task detail and overlay
+        self.closeTaskDetail()
+
+        # Reload tasks to reflect deletion in the left panel
+        self.logger.info("Clearing task list and reloading tasks...")
+        self.task_list.clear()
+        self.loadTasks()
+
+        # Refresh scheduled tasks in case the deleted task was scheduled
+        self.refreshScheduledTasks()
+
+        self.logger.info(f"Task {task_id_or_title} deleted, views refreshed")
 
     def eventFilter(self, obj, event):
         """Handle overlay clicks to close dialog"""

@@ -413,13 +413,6 @@ class ProjectDetailView(QWidget):
             link_btn.clicked.connect(self.onLinkMindmap)
             buttons_layout.addWidget(link_btn)
 
-        # Add to Planning button
-        planning_btn = AnimatedButton("📅 Add to Planning")
-        planning_btn.setStyleSheet(AppStyles.button_normal())
-        planning_btn.setFixedHeight(35)
-        planning_btn.clicked.connect(self.onAddToPlanning)
-        buttons_layout.addWidget(planning_btn)
-
         buttons_layout.addStretch()
 
         return buttons_layout
@@ -457,12 +450,17 @@ class ProjectDetailView(QWidget):
             phase_widget = PhaseWidget(phase, self.project, self.logger)
             phase_widget.phaseUpdated.connect(self.onPhaseUpdated)
             phase_widget.phaseDeleted.connect(self.onPhaseDeleted)
+            phase_widget.phaseReordered.connect(self.onPhaseReordered)
 
             # Set a minimum width for phase widgets
             phase_widget.setMinimumWidth(300)
 
+            # Set size policy to prevent vertical stretching
+            from PyQt5.QtWidgets import QSizePolicy
+            phase_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+
             self.phase_widgets.append(phase_widget)
-            self.phases_layout.addWidget(phase_widget, row, col)
+            self.phases_layout.addWidget(phase_widget, row, col, Qt.AlignTop)
 
     def onBackClicked(self):
         """Handle back button click"""
@@ -510,6 +508,7 @@ class ProjectDetailView(QWidget):
             QMenu::item {
                 padding: 8px 20px;
                 border-radius: 3px;
+                color: #333333;  /* dark gray text */
             }
             QMenu::item:selected {
                 background-color: #3498db;
@@ -693,79 +692,6 @@ class ProjectDetailView(QWidget):
                 f"Mindmap ID: {self.project.mindmap_id}\n\nMindmap screen integration will be completed in the next step."
             )
 
-    def onAddToPlanning(self):
-        """Handle add to planning button click"""
-        from PyQt5.QtWidgets import QDialog, QVBoxLayout, QLabel, QCalendarWidget, QPushButton, QHBoxLayout
-        from PyQt5.QtCore import QDate
-        from utils.projects_io import schedule_project
-
-        # Create a simple date picker dialog
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Schedule Project")
-        dialog.setModal(True)
-        dialog.setMinimumWidth(400)
-
-        layout = QVBoxLayout(dialog)
-
-        # Label
-        label = QLabel(f"Select a date to schedule '{self.project.title}':")
-        label.setStyleSheet("font-size: 14px; padding: 10px;")
-        layout.addWidget(label)
-
-        # Calendar widget
-        calendar = QCalendarWidget()
-        calendar.setMinimumDate(QDate.currentDate())
-        calendar.setGridVisible(True)
-        layout.addWidget(calendar)
-
-        # Buttons
-        buttons_layout = QHBoxLayout()
-        buttons_layout.addStretch()
-
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.clicked.connect(dialog.reject)
-        buttons_layout.addWidget(cancel_btn)
-
-        schedule_btn = QPushButton("Schedule")
-        schedule_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #3498db;
-                color: white;
-                border: none;
-                padding: 8px 16px;
-                border-radius: 4px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #2980b9;
-            }
-        """)
-        schedule_btn.clicked.connect(dialog.accept)
-        buttons_layout.addWidget(schedule_btn)
-
-        layout.addLayout(buttons_layout)
-
-        # Show dialog
-        if dialog.exec_() == QDialog.Accepted:
-            selected_date = calendar.selectedDate()
-            date_string = selected_date.toString("yyyy-MM-dd")
-
-            # Schedule the project
-            schedule_id = schedule_project(self.project_id, date_string, self.logger)
-
-            if schedule_id:
-                QMessageBox.information(
-                    self,
-                    "Success",
-                    f"Project '{self.project.title}' scheduled for {selected_date.toString('MMMM d, yyyy')}"
-                )
-            else:
-                QMessageBox.warning(
-                    self,
-                    "Error",
-                    "Failed to schedule project. Please try again."
-                )
-
     def onAddPhase(self):
         """Handle add phase button click"""
         from ui.project_files.phase_dialog import PhaseDialog
@@ -809,6 +735,47 @@ class ProjectDetailView(QWidget):
 
     def onPhaseDeleted(self, phase_id):
         """Handle phase deleted signal"""
+        self.refresh()
+
+    def onPhaseReordered(self, dragged_phase_id, target_position):
+        """Handle phase reordering via drag and drop"""
+        from utils.projects_io import load_phases_from_json, save_phases_to_json
+
+        # Load all phases
+        all_phases = load_phases_from_json(self.logger)
+
+        # Get the phases for this project
+        project_phases = [p for p in all_phases.values() if p.project_id == self.project.id]
+
+        # Sort by current order
+        project_phases.sort(key=lambda p: p.order)
+
+        # Find the dragged phase
+        dragged_phase = next((p for p in project_phases if p.id == dragged_phase_id), None)
+        if not dragged_phase:
+            self.logger.warning(f"Dragged phase {dragged_phase_id} not found")
+            return
+
+        # Get current position
+        current_position = dragged_phase.order
+
+        # Remove from current position
+        project_phases.pop(current_position)
+
+        # Insert at new position
+        project_phases.insert(target_position, dragged_phase)
+
+        # Update order for all phases
+        for idx, phase in enumerate(project_phases):
+            phase.order = idx
+            all_phases[phase.id] = phase
+
+        # Save updated phases
+        save_phases_to_json(all_phases, self.logger)
+
+        self.logger.info(f"Reordered phase {dragged_phase.name} from position {current_position} to {target_position}")
+
+        # Refresh the display
         self.refresh()
 
     def refresh(self):
