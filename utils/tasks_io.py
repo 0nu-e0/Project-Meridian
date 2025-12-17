@@ -74,14 +74,14 @@ def load_tasks_from_json(logger, force_reload=False):
 
     # Load from disk
     task_objects = {}
-    logger.info(f"Attempting to load tasks from: {json_file_path}")
+    # logger.info(f"Attempting to load tasks from: {json_file_path}")
 
     try:
         # Read the JSON file
         with open(json_file_path, 'r') as file:
             tasks_data = json.load(file)
 
-        logger.info(f"Successfully loaded {len(tasks_data)} tasks from {json_file_path}")
+        # logger.info(f"Successfully loaded {len(tasks_data)} tasks from {json_file_path}")
 
         # Convert each task data to Task object
         for task_key, task_info in tasks_data.items():

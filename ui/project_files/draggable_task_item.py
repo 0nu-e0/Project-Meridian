@@ -26,7 +26,7 @@
 # -----------------------------------------------------------------------------
 
 from PyQt5.QtCore import Qt, pyqtSignal, QMimeData
-from PyQt5.QtWidgets import QFrame, QHBoxLayout, QLabel
+from PyQt5.QtWidgets import QFrame, QHBoxLayout, QLabel, QSizePolicy
 from PyQt5.QtGui import QDrag
 
 from models.task import Task, TaskStatus
@@ -61,6 +61,10 @@ class DraggableTaskItem(QFrame):
         """)
         self.setCursor(Qt.OpenHandCursor)
         self.setMinimumHeight(50)
+        self.setMaximumHeight(80)  # Prevent stretching in vertical layouts
+
+        # Set size policy to prevent vertical expansion
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(10, 8, 10, 8)

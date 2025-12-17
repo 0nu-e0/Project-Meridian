@@ -150,6 +150,8 @@ class DashboardScreen(QWidget):
         self.task_layout_container.setContentsMargins(0, 0, 0, 0)
         self.task_layout_container.setSpacing(0)
 
+        self.project_filter_combo.currentIndexChanged.connect(self.onProjectFilterChanged)
+
         tasks_scroll_area = QScrollArea()
         tasks_scroll_area.setStyleSheet(AppStyles.scroll_area())
         tasks_scroll_area.setWidgetResizable(True)
@@ -200,7 +202,7 @@ class DashboardScreen(QWidget):
         self.project_filter_combo.setStyleSheet(AppStyles.combo_box_norm())
         self.project_filter_combo.setMinimumWidth(200)
         # Connect signal ONCE here
-        self.project_filter_combo.currentIndexChanged.connect(self.onProjectFilterChanged)
+        # self.project_filter_combo.currentIndexChanged.connect(self.onProjectFilterChanged)
         filter_layout.addWidget(self.project_filter_combo)
 
         # Populate project filter

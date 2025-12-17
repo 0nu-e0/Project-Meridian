@@ -32,11 +32,12 @@ import os
 from functools import partial
 
 # Third-party imports
-from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtCore import Qt, pyqtSignal, QSize
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import (QCheckBox, QComboBox, QFrame, QHBoxLayout, QLabel,
                              QLineEdit, QListView, QListWidget, QListWidgetItem,
-                             QPushButton, QScrollArea, QSizePolicy, QVBoxLayout, QWidget)
+                             QPushButton, QScrollArea, QSizePolicy, QVBoxLayout, QWidget,
+                             )
 
 # Local application imports
 from resources.styles import AppBorders, AppColors, AppPixelSizes, AppStyles
@@ -176,7 +177,6 @@ class CollapsibleSection(QWidget):
 # Team Section
 
     def add_team_list(self):
-
         # Create team members label
         team_label = QLabel("Team Members")
         team_label.setStyleSheet("""
@@ -186,11 +186,12 @@ class CollapsibleSection(QWidget):
                 font-weight: bold;
                 background: transparent;
                 border: none;
+                padding-top: 4px;
             }
         """)
         self.content_layout.addWidget(team_label)
 
-        # Create input and button in horizontal layout
+        # Input row for adding new members
         input_row = QWidget()
         input_row.setStyleSheet("background: transparent; border: none;")
         input_layout = QHBoxLayout(input_row)
@@ -239,103 +240,113 @@ class CollapsibleSection(QWidget):
         input_layout.addWidget(self.team_input, 1)
         input_layout.addWidget(add_button)
 
-        # Create list for team members
-        self.team_list = QListWidget()
-        self.team_list.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
-        self.team_list.setFixedHeight(100)
-        self.team_list.setFrameShape(QFrame.NoFrame)
-        self.team_list.setVerticalScrollMode(QListWidget.ScrollPerPixel)
-        self.team_list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.team_list.setStyleSheet("""
-            QListWidget {
-                background-color: transparent;
-                border: none;
-                outline: none;
-            }
-            QListWidget::item {
-                background-color: #34495e;
-                border: 1px solid #3498db;
-                border-radius: 5px;
-                padding: 6px;
-                margin: 3px 0px;
-            }
-            QListWidget::item:hover {
-                background-color: #3e5467;
-            }
-        """)
+        # Container layout for team member widgets
+        self.team_layout = QVBoxLayout()
+        self.team_layout.setAlignment(Qt.AlignTop)
+        self.team_layout.setSpacing(4)
+        self.team_layout.setContentsMargins(0, 0, 0, 0)
 
-        # Add everything to the content layout with specific spacing
+        self.team_container = QWidget()
+        self.team_container.setStyleSheet("background: transparent; border: none;")
+        self.team_container.setLayout(self.team_layout)
+
+        # Scroll area for team members
+        self.team_scroll = QScrollArea()
+        self.team_scroll.setWidgetResizable(True)
+        self.team_scroll.setWidget(self.team_container)
+        self.team_scroll.setFixedHeight(200)  # optional initial height
+        self.team_scroll.setStyleSheet("background: transparent; border: none;")
+
+        # Add everything to the content layout
         self.content_layout.addWidget(input_row)
-        self.content_layout.addWidget(self.team_list)
+        self.content_layout.addWidget(self.team_scroll)
 
         # Connect signals
         add_button.clicked.connect(self.add_team_member)
         self.team_input.returnPressed.connect(self.add_team_member)
 
+
     def add_team_member(self):
-        self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
         name = self.team_input.text().strip()
-        if name:
-            # Create item widget
-            item_widget = QWidget()
-            item_widget.setStyleSheet("background-color: transparent; border: none;")
-            item_layout = QHBoxLayout(item_widget)
-            item_layout.setContentsMargins(8, 4, 8, 4)
+        if not name:
+            return
 
-            name_label = QLabel(name)
-            name_label.setStyleSheet("""
-                QLabel {
-                    color: #ecf0f1;
-                    font-size: 11px;
-                    border: none;
-                    background-color: transparent;
-                }
-            """)
+        # Create item layout
+        item_layout = QHBoxLayout()
+        item_layout.setContentsMargins(8, 6, 8, 6)
+        item_layout.setSpacing(8)
 
-            remove_button = QPushButton("✕")
-            remove_button.setStyleSheet("""
-                QPushButton {
-                    color: #e74c3c;
-                    border: none;
-                    background-color: transparent;
-                    font-size: 14px;
-                    font-weight: bold;
-                }
-                QPushButton:hover {
-                    color: #c0392b;
-                }
-            """)
-            remove_button.setFixedSize(20, 20)
+        # Name label
+        name_label = QLabel(name)
+        name_label.setStyleSheet("""
+            QLabel {
+                color: #ecf0f1;
+                font-size: 11px;
+                border: none;
+                background-color: transparent;
+            }
+        """)
+        name_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
 
-            item_layout.addWidget(name_label)
-            item_layout.addStretch()
-            item_layout.addWidget(remove_button)
+        # Remove button
+        remove_button = QPushButton("✕")
+        remove_button.setStyleSheet("""
+            QPushButton {
+                color: #e74c3c;
+                border: none;
+                background-color: transparent;
+                font-size: 14px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                color: #c0392b;
+            }
+        """)
+        remove_button.setFixedSize(20, 20)
 
-            item = QListWidgetItem()
-            item.setSizeHint(QSize(0, 32))
-            self.team_list.addItem(item)
-            self.team_list.setItemWidget(item, item_widget)
-            items_height = self.team_list.count() * 38  # 32px + margin
-            self.team_list.setFixedHeight(min(items_height, 200))
+        # Add widgets to layout
+        item_layout.addWidget(name_label)
+        item_layout.addStretch()
+        item_layout.addWidget(remove_button)
 
-            remove_button.clicked.connect(partial(self.remove_team_member, item))
-            self.team_input.clear()
+        # Create container widget with modern card styling
+        item_widget = QWidget()
+        item_widget.setStyleSheet("""
+            QWidget {
+                background-color: #34495e;
+                border: 1px solid #3498db;
+                border-radius: 5px;
+            }
+            QWidget:hover {
+                background-color: #3e5467;
+            }
+        """)
+        item_widget.setLayout(item_layout)
+        item_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
 
-            # Emit signal with the name
-            self.team_member_added.emit(name)
+        # Add to the team layout
+        self.team_layout.addWidget(item_widget)
 
-    def remove_team_member(self, item):
-        widget = self.team_list.itemWidget(item)
-        name = widget.layout().itemAt(0).widget().text()
-        row = self.team_list.row(item)
-        self.team_list.takeItem(row)
-        
-        # Emit signal with the name
-        self.team_member_removed.emit(name)
+        # Connect remove button
+        remove_button.clicked.connect(lambda: self.remove_team_member(item_widget))
+
+        self.team_input.clear()
+
+        # Emit signal
+        self.team_member_added.emit(name)
+
+
+    def remove_team_member(self, item_widget):
+        # Remove from layout
+        self.team_layout.removeWidget(item_widget)
+        item_widget.deleteLater()
+
+        # Emit signal
+        name_label = item_widget.layout().itemAt(0).widget()
+        self.team_member_removed.emit(name_label.text())
+
 
     def get_team_members(self):
-        self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
-        """Get list of all team members"""
         members = []
         for i in range(self.team_list.count()):
             item = self.team_list.item(i)
@@ -343,6 +354,7 @@ class CollapsibleSection(QWidget):
             name_label = widget.layout().itemAt(0).widget()
             members.append(name_label.text())
         return members
+
 
     def toggle_collapsed(self):
         self.is_collapsed = not self.is_collapsed

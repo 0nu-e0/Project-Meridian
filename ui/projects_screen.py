@@ -462,7 +462,7 @@ class ProjectsScreen(QWidget):
         """Handle add project button click"""
         from ui.project_files.project_dialog import ProjectDialog
 
-        dialog = ProjectDialog(self.logger, self)
+        dialog = ProjectDialog(mode="create", logger=self.logger, parent=self)
         if dialog.exec_():
             project_data = dialog.getProjectData()
             if project_data:
