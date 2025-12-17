@@ -58,6 +58,7 @@ class ProjectDialog(QDialog):
         self.project = project
         self.logger = logger
         self.selected_color = "#3498db"  # Default color
+        self.project_data = None  # Store project data when saved
 
         # Pre-fill with project data if editing
         if mode == "edit" and project:
@@ -282,11 +283,18 @@ class ProjectDialog(QDialog):
         if self.mode == "edit" and self.project:
             project_data['project_id'] = self.project.id
 
+        # Store project data for getProjectData() method
+        self.project_data = project_data
+
         # Emit signal with project data
         self.projectSaved.emit(project_data)
 
         # Close dialog
         self.accept()
+
+    def getProjectData(self):
+        """Return the saved project data"""
+        return self.project_data
 
     def getInputStyle(self):
         """Get stylesheet for input widgets"""

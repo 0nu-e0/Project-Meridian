@@ -463,6 +463,7 @@ class TaskCardExpanded(QWidget):
 
     def createDescriptionSection(self):
         desc_layout = QVBoxLayout()
+        desc_layout.setContentsMargins(0, 0, 5, 8)
         desc_layout.setSpacing(6)
 
         # Modern label
@@ -495,7 +496,7 @@ class TaskCardExpanded(QWidget):
                 background-color: #34495e;
             }
         """)
-        self.desc_edit.setMaximumHeight(80)
+        self.desc_edit.setMaximumHeight(200)
         self.desc_edit.textChanged.connect(self._on_description_changed)
         desc_layout.addWidget(self.desc_edit)
 
@@ -694,7 +695,7 @@ class TaskCardExpanded(QWidget):
 
     def createProjectPhaseSelectionSection(self):
         """Create section for selecting project and phase assignment"""
-        section_layout = QVBoxLayout()
+        section_layout = QHBoxLayout()
         section_layout.setContentsMargins(0, 0, 5, 10)
         section_layout.setSpacing(10)
 
@@ -1014,6 +1015,20 @@ class TaskCardExpanded(QWidget):
         activity_layout.setContentsMargins(0, 0, 5, 15)
         activity_layout.setSpacing(8)
 
+        scroll_content = QWidget()
+        scroll_content.setStyleSheet(AppStyles.widget_trans())
+        scroll_layout = QVBoxLayout(scroll_content)
+        scroll_layout.setContentsMargins(0, 10, 5, 0)
+        scroll_layout.setSpacing(10)
+
+        scroll_area = QScrollArea()
+        scroll_area.setStyleSheet(AppStyles.scroll_area())
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll_area.setWidget(scroll_content)
+
+        activity_layout.addWidget(scroll_area)
+
         # Activity section label
         activity_label = QLabel("Activity")
         activity_label.setStyleSheet("""
@@ -1024,7 +1039,7 @@ class TaskCardExpanded(QWidget):
                 padding-bottom: 4px;
             }
         """)
-        activity_layout.addWidget(activity_label)
+        scroll_layout.addWidget(activity_label)
 
         # Create tab widget with modern styling
         tab_widget = QTabWidget()
@@ -1142,6 +1157,8 @@ class TaskCardExpanded(QWidget):
             }
         """)
 
+        
+
         comments_layout.addWidget(self.comments_list, 1)
 
         # Connect signals - pass the input widget
@@ -1256,72 +1273,13 @@ class TaskCardExpanded(QWidget):
         # Add tabs to tab widget
         tab_widget.addTab(comments_tab, " Comments ")
         tab_widget.addTab(work_logs_tab, " Work Logs ")
-        activity_layout.addWidget(tab_widget)
+        scroll_layout.addWidget(tab_widget)
         
         # Display existing activities
         self.display_activities()
         QApplication.processEvents()
         
         return activity_widget
-
-    # def post_comment(self, comment_input, comments_list, entry_type):
-    #     if entry_type == "comment":
-    #         comment_text = comment_input.toPlainText().strip()
-    #     elif entry_type == "work_log":
-    #         comment_text = comment_input.text().strip()
-    #     else:
-    #         return  # Handle invalid entry types
-
-    #     if comment_text:
-    #         timestamp = QDateTime.currentDateTime().toString("MM / dd / yyyy hh:mm")
-
-    #         comment_widget = QWidget()
-    #         comment_layout = QVBoxLayout(comment_widget)
-
-    #         comment_label = QLabel(comment_text)
-    #         timestamp_label = QLabel(timestamp)
-    #         timestamp_label.setStyleSheet("font-size: 10px; color: gray;")
-
-    #         actions_layout = QHBoxLayout()
-    #         actions_layout.setAlignment(Qt.AlignLeft)
-
-    #         edit_label = QLabel("Edit")
-    #         delete_label = QLabel("Delete")
-
-    #         for label in [edit_label, delete_label]:
-    #             label.setStyleSheet("color: #ffffff; padding-right: 10px; text-decoration: none;")
-    #             label.setCursor(Qt.PointingHandCursor)
-    #             label.setTextInteractionFlags(Qt.TextBrowserInteraction)
-
-    #         # def hover_enter(event, lbl):
-    #         #     lbl.setStyleSheet("color: #ffffff; padding-right: 10px; text-decoration: underline;")
-
-    #         # def hover_leave(event, lbl):
-    #         #     lbl.setStyleSheet("color: #ffffff; padding-right: 10px; text-decoration: none;")
-
-    #         # edit_label.enterEvent = lambda event, lbl=edit_label: hover_enter(event, lbl)
-    #         # edit_label.leaveEvent = lambda event, lbl=edit_label: hover_leave(event, lbl)
-    #         # delete_label.enterEvent = lambda event, lbl=delete_label: hover_enter(event, lbl)
-    #         # delete_label.leaveEvent = lambda event, lbl=delete_label: hover_leave(event, lbl)
-
-    #         edit_label.mousePressEvent = lambda event: self.edit_comment(item, comment_label)
-    #         delete_label.mousePressEvent = lambda event: self.delete_comment(item)
-
-    #         actions_layout.addWidget(edit_label)
-    #         actions_layout.addWidget(delete_label)
-
-    #         comment_layout.addWidget(comment_label)
-    #         comment_layout.addWidget(timestamp_label)
-    #         comment_layout.addLayout(actions_layout)
-
-    #         item = QListWidgetItem()
-    #         item.setSizeHint(comment_widget.sizeHint())
-    #         comments_list.addItem(item)
-    #         comments_list.setItemWidget(item, comment_widget)
-
-    #         comment_input.clear()
-    #         self.saveActivity(comment_text, timestamp, "comment")
-
 
     def edit_comment(self, item, comment_label):
         current_text = comment_label.text().split(" - ")[0]
@@ -1405,7 +1363,7 @@ class TaskCardExpanded(QWidget):
         details_section = CollapsibleSection("Details", self)
         details_section.setStyleSheet(AppStyles.border_widget())
 
-        details_section.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        details_section.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
         
         # Add your regular details rows
         details_section.add_dates(self.createDatesSection())
@@ -1611,50 +1569,6 @@ class TaskCardExpanded(QWidget):
                     self.add_entry_to_list(entry, self.comments_list)
                 elif entry.entry_type == "work_log":
                     self.add_entry_to_list(entry, self.work_logs_list)
-
-    # def add_activity_to_list(self, entry):
-    #     """Add a TaskEntry to the comments list with proper formatting"""
-
-    #     """Need to impliment if necessary"""
-    #     comment_widget = QWidget()
-    #     comment_layout = QVBoxLayout(comment_widget)
-        
-    #     comment_label = QLabel(entry.content)
-    #     comment_label.setWordWrap(True)
-    #     timestamp_label = QLabel(entry.timestamp.strftime("%m/%d/%Y %H:%M"))
-    #     timestamp_label.setStyleSheet(AppStyles.time_stamp_label())
-    
-    #     actions_layout = QHBoxLayout()
-    #     actions_layout.setAlignment(Qt.AlignLeft)
-        
-    #     edit_label = QPushButton("Edit")
-    #     edit_label.clicked.connect(lambda: self.edit_comment(entry))
-    #     delete_label = QPushButton("Delete")
-    #     delete_label.clicked.connect(lambda: self.delete_comment(entry))
-        
-    #     # for label in [edit_label, delete_label]:
-    #     #     label.setStyleSheet(AppStyles.label_edit_delete())
-    #     #     label.setCursor(Qt.PointingHandCursor)
-    #     #     label.setTextInteractionFlags(Qt.TextBrowserInteraction)
-        
-    #     actions_layout.addWidget(edit_label)
-    #     actions_layout.addWidget(delete_label)
-        
-    #     comment_layout.addWidget(comment_label)
-    #     comment_layout.addWidget(timestamp_label)
-    #     comment_layout.addLayout(actions_layout)
-        
-    #     item = QListWidgetItem()
-    #     item.setSizeHint(comment_widget.sizeHint())
-    #     self.comments_list.addItem(item)
-    #     self.comments_list.setItemWidget(item, comment_widget)
-        
-    #     # Store reference to the entry in the item's data
-    #     item.setData(Qt.UserRole, entry)
-        
-    #     # Set up event handlers
-    #     edit_label.mousePressEvent = lambda event, item=item: self.edit_activity(item)
-    #     delete_label.mousePressEvent = lambda event, item=item: self.delete_activity(item)
 
     def add_entry_to_list(self, entry, list_widget):
         """Add a TaskEntry to a list widget with proper formatting"""

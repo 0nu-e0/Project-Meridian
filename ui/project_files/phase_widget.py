@@ -127,6 +127,9 @@ class PhaseWidget(QWidget):
         add_task_btn.clicked.connect(self.onAddTask)
         self.content_layout.addWidget(add_task_btn)
 
+        # Add stretch to push content to the top when phase has fewer tasks
+        self.content_layout.addStretch()
+
         container_layout.addWidget(self.content_widget)
 
         # Set initial visibility based on collapsed state
@@ -402,14 +405,16 @@ class PhaseWidget(QWidget):
         # Create the task
         task = Task(
             title=task_data['title'],
-            description=task_data['description'],
-            priority=task_data['priority'],
-            status=task_data['status']
+            description=task_data['description']
         )
 
         # Set project and phase
         task.project_id = task_data['project_id']
         task.phase_id = task_data['phase_id']
+
+        # Set priority and status (these are instance attributes, not constructor params)
+        task.priority = task_data['priority']
+        task.status = task_data['status']
 
         # Set creation date
         task.creation_date = datetime.now()
