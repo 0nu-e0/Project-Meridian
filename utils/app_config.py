@@ -79,8 +79,8 @@ class AppConfig:
         self.notes_file = os.path.join(self.data_dir, "notes.json")
         self.settings_file = os.path.join(self.app_data_dir, "settings.json")
         
-        # self.logger.info(f"AppConfig initialized for {self.system} system")
-        # self.logger.info(f"App data directory: {self.app_data_dir}")
+        self.logger.info(f"AppConfig initialized for {self.system} system")
+        self.logger.info(f"App data directory: {self.app_data_dir}")
     
     def _get_app_data_dir(self):
         """
@@ -111,7 +111,7 @@ class AppConfig:
                 with open(test_file, 'w') as f:
                     f.write('test')
                 os.remove(test_file)
-                # self.logger.info(f"Successfully created and verified directory: {directory}")
+                self.logger.info(f"Successfully created and verified directory: {directory}")
             except Exception as e:
                 self.logger.error(f"Error creating directory {directory}: {e}")
                 # Try to create in an alternative location if primary fails
@@ -121,11 +121,15 @@ class AppConfig:
                     try:
                         os.makedirs(fallback_dir, exist_ok=True)
                         self.app_data_dir = fallback_dir
-                        self.data_dir = os.path.join(self.app_data_dir, "data") 
+                        self.data_dir = os.path.join(self.app_data_dir, "data")
                         self.logs_dir = os.path.join(self.app_data_dir, "logs")
                         self.temp_dir = os.path.join(self.app_data_dir, "temp")
-                        # Restart the directory creation with new paths
-                        return self._ensure_directories_exist()
+                        # Create subdirectories inline to avoid infinite recursion
+                        for sub_dir in [self.data_dir, self.logs_dir, self.temp_dir]:
+                            try:
+                                os.makedirs(sub_dir, exist_ok=True)
+                            except Exception as e3:
+                                self.logger.error(f"Error creating fallback subdirectory {sub_dir}: {e3}")
                     except Exception as e2:
                         self.logger.error(f"Error creating fallback directory: {e2}")
     

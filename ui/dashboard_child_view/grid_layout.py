@@ -308,8 +308,22 @@ class GridLayout(QWidget):
                 self.currently_expanded_card = None
 
         # Force layout update to accommodate expanded card height
-        QTimer.singleShot(50, lambda: self.updateGeometry())
-        QTimer.singleShot(50, lambda: self.parent().updateGeometry() if self.parent() else None)
+        # Use try/except to handle case where widget is deleted before timer fires
+        def safe_update_geometry():
+            try:
+                self.updateGeometry()
+            except RuntimeError:
+                pass  # Widget was deleted, ignore
+
+        def safe_update_parent_geometry():
+            try:
+                if self.parent():
+                    self.parent().updateGeometry()
+            except RuntimeError:
+                pass  # Widget was deleted, ignore
+
+        QTimer.singleShot(50, safe_update_geometry)
+        QTimer.singleShot(50, safe_update_parent_geometry)
 
     def collapseAllCards(self):
         """Collapse all expanded cards"""

@@ -732,7 +732,7 @@ def import_project_from_json(import_path: str, logger: logging.Logger) -> Option
         from models.project import Project
         project_data = import_data["project"]
         old_project_id = project_data["id"]
-        new_project_id = str(uuid.uuid4())
+        new_project_id = str(uuid4())
         old_to_new_project_id[old_project_id] = new_project_id
 
         # Update project data
@@ -747,7 +747,7 @@ def import_project_from_json(import_path: str, logger: logging.Logger) -> Option
         phases = {}
         for phase_data in import_data["phases"]:
             old_phase_id = phase_data["id"]
-            new_phase_id = str(uuid.uuid4())
+            new_phase_id = str(uuid4())
             old_to_new_phase_id[old_phase_id] = new_phase_id
 
             phase_data["id"] = new_phase_id
@@ -764,7 +764,7 @@ def import_project_from_json(import_path: str, logger: logging.Logger) -> Option
         from utils.tasks_io import save_task_to_json
         for task_data in import_data.get("tasks", []):
             old_task_id = task_data["id"]
-            new_task_id = str(uuid.uuid4())
+            new_task_id = str(uuid4())
             old_to_new_task_id[old_task_id] = new_task_id
 
             task_data["id"] = new_task_id

@@ -34,11 +34,11 @@ from ui.custom_widgets.mindmap_nodes import NodeItem
 from ui.custom_widgets.collapsable_section import CollapsibleSection
 from resources.styles import AppColors
 from resources.styles import AppStyles, AnimatedButton
-from PyQt5.QtWidgets import (QApplication, QDesktopWidget, QGraphicsScene, QGraphicsView, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QSpacerItem, 
+from PyQt5.QtWidgets import (QApplication, QDesktopWidget, QGraphicsScene, QGraphicsView, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QSpacerItem,
                              QSizePolicy, QGridLayout, QPushButton, QGraphicsDropShadowEffect, QStyle, QComboBox, QTextEdit,
                              QDateTimeEdit, QLineEdit, QCalendarWidget, QToolButton, QSpinBox, QListWidget, QTabWidget,
                              QMessageBox, QInputDialog, QListWidgetItem, QScrollArea, QTreeWidget, QTreeWidgetItem, QFileDialog,
-                             QStyleFactory, QListView, QLayout, 
+                             QStyleFactory, QListView, QLayout, QDialog, QSlider
                              )
 from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot, QEvent, QSize, QDateTime, QUrl, QTimer, QLineF
 from PyQt5.QtGui import (QColor, QPainter, QBrush, QPen, QMovie, QTextCharFormat, QColor, QIcon, QPixmap, QDesktopServices
@@ -47,6 +47,157 @@ from PyQt5.QtGui import (QColor, QPainter, QBrush, QPen, QMovie, QTextCharFormat
 from PyQt5.QtSvg import QSvgWidget
 
 
+class ZoomableGraphicsView(QGraphicsView):
+    """
+    QGraphicsView with built-in zoom controls via mouse wheel and keyboard.
+    """
+    def __init__(self, scene, parent=None):
+        super().__init__(scene, parent)
+        self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
+        self.setResizeAnchor(QGraphicsView.AnchorUnderMouse)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        self.setDragMode(QGraphicsView.NoDrag)
+
+        # Zoom limits
+        self.min_zoom = 0.1
+        self.max_zoom = 5.0
+        self.zoom_factor = 1.15
+
+    def wheelEvent(self, event):
+        """Handle mouse wheel for zooming"""
+        # Only zoom with Ctrl key pressed
+        if event.modifiers() & Qt.ControlModifier:
+            # Get the current zoom level
+            current_scale = self.transform().m11()
+
+            # Determine zoom direction
+            if event.angleDelta().y() > 0:
+                # Zoom in
+                new_scale = current_scale * self.zoom_factor
+                if new_scale <= self.max_zoom:
+                    self.scale(self.zoom_factor, self.zoom_factor)
+                    self._notify_zoom_change()
+            else:
+                # Zoom out
+                new_scale = current_scale / self.zoom_factor
+                if new_scale >= self.min_zoom:
+                    self.scale(1 / self.zoom_factor, 1 / self.zoom_factor)
+                    self._notify_zoom_change()
+
+            event.accept()
+        else:
+            # Normal scrolling
+            super().wheelEvent(event)
+
+    def _notify_zoom_change(self):
+        """Notify parent widget of zoom change"""
+        parent = self.parent()
+        while parent:
+            if hasattr(parent, 'update_zoom_ui'):
+                parent.update_zoom_ui()
+                break
+            parent = parent.parent()
+
+    def keyPressEvent(self, event):
+        """Handle keyboard shortcuts for zoom"""
+        if event.modifiers() & Qt.ControlModifier:
+            if event.key() == Qt.Key_Plus or event.key() == Qt.Key_Equal:
+                # Zoom in
+                current_scale = self.transform().m11()
+                if current_scale * self.zoom_factor <= self.max_zoom:
+                    self.scale(self.zoom_factor, self.zoom_factor)
+                    self._notify_zoom_change()
+                event.accept()
+                return
+            elif event.key() == Qt.Key_Minus:
+                # Zoom out
+                current_scale = self.transform().m11()
+                if current_scale / self.zoom_factor >= self.min_zoom:
+                    self.scale(1 / self.zoom_factor, 1 / self.zoom_factor)
+                    self._notify_zoom_change()
+                event.accept()
+                return
+            elif event.key() == Qt.Key_0:
+                # Reset zoom to 100%
+                self.resetTransform()
+                self._notify_zoom_change()
+                event.accept()
+                return
+
+        super().keyPressEvent(event)
+
+    def get_zoom_percentage(self):
+        """Get current zoom level as percentage"""
+        return int(self.transform().m11() * 100)
+
+
+class SpatialTracker:
+    """
+    Efficiently tracks objects in scene space for fast queries.
+    Maintains incrementally-updated bounding box of all content.
+    """
+    def __init__(self):
+        self.objects = {}  # {node_id: QRectF (scene bounds)}
+        self._content_bounds = None  # Cached bounding box of all content
+        self._dirty = False  # Flag to recalculate bounds
+
+    def add_object(self, node_id, bounds_rect):
+        """Add or update object bounds"""
+        self.objects[node_id] = bounds_rect
+        self._expand_bounds(bounds_rect)
+
+    def remove_object(self, node_id):
+        """Remove object and mark bounds for recalculation"""
+        if node_id in self.objects:
+            del self.objects[node_id]
+            self._dirty = True
+
+    def update_object(self, node_id, new_bounds):
+        """Update object position/size"""
+        self.objects[node_id] = new_bounds
+        self._expand_bounds(new_bounds)
+
+    def get_content_bounds(self):
+        """Get bounding box of all content - O(1) if not dirty"""
+        if self._dirty or self._content_bounds is None:
+            self._recalculate_bounds()
+        return self._content_bounds
+
+    def _expand_bounds(self, rect):
+        """Incrementally expand bounds (faster than full recalc)"""
+        if self._content_bounds is None:
+            from PyQt5.QtCore import QRectF
+            self._content_bounds = QRectF(rect)
+        else:
+            self._content_bounds = self._content_bounds.united(rect)
+
+    def _recalculate_bounds(self):
+        """Full recalculation when object is removed"""
+        from PyQt5.QtCore import QRectF
+        if not self.objects:
+            self._content_bounds = QRectF(0, 0, 0, 0)
+        else:
+            bounds = None
+            for rect in self.objects.values():
+                if bounds is None:
+                    bounds = QRectF(rect)
+                else:
+                    bounds = bounds.united(rect)
+            self._content_bounds = bounds
+        self._dirty = False
+
+    def get_objects_in_rect(self, query_rect):
+        """Find all objects intersecting a rectangle (for selection)"""
+        return [oid for oid, rect in self.objects.items()
+                if rect.intersects(query_rect)]
+
+    def clear(self):
+        """Clear all tracked objects"""
+        self.objects.clear()
+        self._content_bounds = None
+        self._dirty = False
+
 
 class MindMapScreen(QWidget):
     def __init__(self, logger, parent=None):
@@ -54,24 +205,59 @@ class MindMapScreen(QWidget):
         self.logger = logger
         self.current_mindmap_id = None  # Track currently loaded mindmap
 
-        # Create the QGraphicsScene and QGraphicsView.
+        # Create the QGraphicsScene and ZoomableGraphicsView.
         self.scene = GridScene(grid_size=25, parent=self)
-        self.view = QGraphicsView(self.scene)
+        self.view = ZoomableGraphicsView(self.scene)
 
         # Create buttons for user actions.
         self.addButton = QPushButton("Add Node")
         self.saveButton = QPushButton("Save Mind Map")
         self.loadButton = QPushButton("Load Mind Map")
         self.clearButton = QPushButton("Clear Map")
+        self.zoomToFitButton = QPushButton("🔍 Zoom to Fit")
         self.viewProjectButton = QPushButton("📁 View Project")
         self.viewProjectButton.setVisible(False)  # Hidden by default
+
+        # Create zoom control widgets
+        self.zoomInButton = QPushButton("+")
+        self.zoomOutButton = QPushButton("-")
+        self.zoomResetButton = QPushButton("100%")
+        self.zoomLabel = QLabel("Zoom: 100%")
+        self.zoomLabel.setAlignment(Qt.AlignCenter)
+
+        # Create zoom slider (10% to 500%)
+        self.zoomSlider = QSlider(Qt.Horizontal)
+        self.zoomSlider.setMinimum(10)  # 10%
+        self.zoomSlider.setMaximum(500)  # 500%
+        self.zoomSlider.setValue(100)  # Start at 100%
+        self.zoomSlider.setTickPosition(QSlider.TicksBelow)
+        self.zoomSlider.setTickInterval(50)
+
+        # Create grid and snap toggle buttons
+        self.gridToggleButton = QPushButton("✓ Show Grid")
+        self.gridToggleButton.setCheckable(True)
+        self.gridToggleButton.setChecked(True)  # Grid on by default
+        self.snapToggleButton = QPushButton("✓ Snap to Grid")
+        self.snapToggleButton.setCheckable(True)
+        self.snapToggleButton.setChecked(True)  # Snap on by default
 
         # Connect buttons to their respective functions.
         self.addButton.clicked.connect(self.add_node)
         self.saveButton.clicked.connect(self.save_mind_map)
         self.loadButton.clicked.connect(self.load_mind_map)
         self.clearButton.clicked.connect(self.clear_map)
+        self.zoomToFitButton.clicked.connect(self.zoom_to_content)
         self.viewProjectButton.clicked.connect(self.view_linked_project)
+
+        # Connect zoom controls
+        self.zoomInButton.clicked.connect(self.zoom_in)
+        self.zoomOutButton.clicked.connect(self.zoom_out)
+        self.zoomResetButton.clicked.connect(self.zoom_reset)
+        self.zoomSlider.valueChanged.connect(self.on_zoom_slider_changed)
+
+        # Connect grid and snap toggles
+        self.gridToggleButton.clicked.connect(self.toggle_grid)
+        self.snapToggleButton.clicked.connect(self.toggle_snap)
 
         self.installEventFilter(self)
 
@@ -160,6 +346,50 @@ class MindMapScreen(QWidget):
         separator.setFixedHeight(2)
         separator.setStyleSheet("background-color: #d0d0d0;")
         left_layout.addWidget(separator)
+
+        # Add Zoom Controls section
+        zoom_label_header = QLabel("Zoom Controls")
+        zoom_label_header.setStyleSheet("font-weight: bold; font-size: 12px;")
+        left_layout.addWidget(zoom_label_header)
+
+        # Add zoom percentage display
+        left_layout.addWidget(self.zoomLabel)
+
+        # Add zoom slider
+        left_layout.addWidget(self.zoomSlider)
+
+        # Add zoom buttons in a horizontal layout
+        zoom_buttons_layout = QHBoxLayout()
+        zoom_buttons_layout.addWidget(self.zoomOutButton)
+        zoom_buttons_layout.addWidget(self.zoomResetButton)
+        zoom_buttons_layout.addWidget(self.zoomInButton)
+        left_layout.addLayout(zoom_buttons_layout)
+
+        # Add Zoom to Fit button
+        left_layout.addWidget(self.zoomToFitButton)
+
+        # Add separator
+        separator2 = QFrame()
+        separator2.setFrameShape(QFrame.HLine)
+        separator2.setFixedHeight(2)
+        separator2.setStyleSheet("background-color: #d0d0d0;")
+        left_layout.addWidget(separator2)
+
+        # Add Grid Options section
+        grid_label_header = QLabel("Grid Options")
+        grid_label_header.setStyleSheet("font-weight: bold; font-size: 12px;")
+        left_layout.addWidget(grid_label_header)
+
+        # Add grid toggle buttons
+        left_layout.addWidget(self.gridToggleButton)
+        left_layout.addWidget(self.snapToggleButton)
+
+        # Add separator
+        separator3 = QFrame()
+        separator3.setFrameShape(QFrame.HLine)
+        separator3.setFixedHeight(2)
+        separator3.setStyleSheet("background-color: #d0d0d0;")
+        left_layout.addWidget(separator3)
 
         # Add View Project button (shown only when linked)
         left_layout.addWidget(self.viewProjectButton)
@@ -334,6 +564,109 @@ class MindMapScreen(QWidget):
         self.current_mindmap_id = None
         self.update_view_project_button()
 
+    def zoom_to_content(self, padding=50):
+        """Zoom view to fit all content with padding"""
+        content_bounds = self.scene.get_content_bounds()
+
+        if content_bounds.isNull() or content_bounds.isEmpty():
+            # No content, reset to center
+            self.view.resetTransform()
+            self.update_zoom_ui()
+            return
+
+        # Add padding around content
+        padded_bounds = content_bounds.adjusted(-padding, -padding,
+                                                padding, padding)
+
+        # Fit the view to show padded bounds
+        self.view.fitInView(padded_bounds, Qt.KeepAspectRatio)
+
+        # Optional: Clamp zoom level to reasonable range
+        current_scale = self.view.transform().m11()
+        if current_scale > 3.0:  # Too zoomed in
+            self.view.resetTransform()
+            self.view.scale(3.0, 3.0)
+            self.view.centerOn(content_bounds.center())
+        elif current_scale < 0.1:  # Too zoomed out
+            self.view.resetTransform()
+            self.view.scale(0.1, 0.1)
+            self.view.centerOn(content_bounds.center())
+
+        self.update_zoom_ui()
+
+    def zoom_in(self):
+        """Zoom in using the view's zoom method"""
+        current_scale = self.view.transform().m11()
+        if current_scale * self.view.zoom_factor <= self.view.max_zoom:
+            self.view.scale(self.view.zoom_factor, self.view.zoom_factor)
+            self.update_zoom_ui()
+
+    def zoom_out(self):
+        """Zoom out using the view's zoom method"""
+        current_scale = self.view.transform().m11()
+        if current_scale / self.view.zoom_factor >= self.view.min_zoom:
+            self.view.scale(1 / self.view.zoom_factor, 1 / self.view.zoom_factor)
+            self.update_zoom_ui()
+
+    def zoom_reset(self):
+        """Reset zoom to 100%"""
+        self.view.resetTransform()
+        self.update_zoom_ui()
+
+    def on_zoom_slider_changed(self, value):
+        """Handle zoom slider value change"""
+        # Convert slider value (10-500) to scale factor
+        target_scale = value / 100.0
+
+        # Get current scale
+        current_scale = self.view.transform().m11()
+
+        # Calculate the ratio to reach target scale
+        if current_scale > 0:
+            ratio = target_scale / current_scale
+            self.view.scale(ratio, ratio)
+
+        # Update UI without triggering slider again
+        self.update_zoom_ui(update_slider=False)
+
+    def update_zoom_ui(self, update_slider=True):
+        """Update zoom percentage label and slider"""
+        zoom_percent = self.view.get_zoom_percentage()
+
+        # Update label
+        self.zoomLabel.setText(f"Zoom: {zoom_percent}%")
+
+        # Update slider (avoid feedback loop)
+        if update_slider:
+            self.zoomSlider.blockSignals(True)
+            self.zoomSlider.setValue(zoom_percent)
+            self.zoomSlider.blockSignals(False)
+
+    def toggle_grid(self):
+        """Toggle grid visibility"""
+        is_checked = self.gridToggleButton.isChecked()
+        self.scene.grid_visible = is_checked
+
+        # Update button text
+        if is_checked:
+            self.gridToggleButton.setText("✓ Show Grid")
+        else:
+            self.gridToggleButton.setText("Show Grid")
+
+        # Force scene redraw
+        self.scene.update()
+
+    def toggle_snap(self):
+        """Toggle snap-to-grid"""
+        is_checked = self.snapToggleButton.isChecked()
+        self.scene.snap_to_grid = is_checked
+
+        # Update button text
+        if is_checked:
+            self.snapToggleButton.setText("✓ Snap to Grid")
+        else:
+            self.snapToggleButton.setText("Snap to Grid")
+
     def update_view_project_button(self):
         """Update View Project button visibility based on linked project"""
         if self.current_mindmap_id:
@@ -391,30 +724,98 @@ class GridScene(QGraphicsScene):
     def __init__(self, grid_size=25, parent=None):
         super().__init__(parent)
         self.grid_size = grid_size
+        self.spatial_tracker = SpatialTracker()
+        self.grid_visible = True  # Grid visibility toggle
+        self.snap_to_grid = True  # Snap to grid toggle
+
+    def addItem(self, item):
+        """Override to track NodeItems"""
+        super().addItem(item)
+        if isinstance(item, NodeItem):
+            bounds = item.sceneBoundingRect()
+            self.spatial_tracker.add_object(item.id, bounds)
+
+    def removeItem(self, item):
+        """Override to untrack NodeItems"""
+        if isinstance(item, NodeItem):
+            self.spatial_tracker.remove_object(item.id)
+        super().removeItem(item)
+
+    def clear(self):
+        """Override to clear spatial tracker"""
+        self.spatial_tracker.clear()
+        super().clear()
+
+    def get_content_bounds(self):
+        """Public API for getting all content bounds"""
+        return self.spatial_tracker.get_content_bounds()
 
     def drawBackground(self, painter, rect):
-        # Fill the background with white (or any color you want)
+        # Fill the background with white
         painter.fillRect(rect, Qt.white)
 
-        # Make lines for the grid. We'll start at the nearest multiple of grid_size
-        left = int(rect.left()) - (int(rect.left()) % self.grid_size)
-        top = int(rect.top()) - (int(rect.top()) % self.grid_size)
+        # Skip grid rendering if grid is not visible
+        if not self.grid_visible:
+            return
 
-        lines = []
+        # Get current scale/zoom level from the view
+        scale_factor = 1.0
+        if self.views():
+            view = self.views()[0]
+            scale_factor = view.transform().m11()
+
+        # Adaptive grid spacing based on zoom level
+        # At high zoom (>2x), show finer grid
+        # At low zoom (<0.5x), show coarser grid
+        fine_grid = self.grid_size
+        major_grid = self.grid_size * 4
+
+        if scale_factor > 2.0:
+            # Zoomed in - show fine grid
+            fine_grid = self.grid_size / 2
+            major_grid = self.grid_size * 2
+        elif scale_factor < 0.5:
+            # Zoomed out - show coarse grid only
+            fine_grid = self.grid_size * 2
+            major_grid = self.grid_size * 8
+
+        # Calculate grid starting points
+        left = int(rect.left()) - (int(rect.left()) % int(fine_grid))
+        top = int(rect.top()) - (int(rect.top()) % int(fine_grid))
+
+        fine_lines = []
+        major_lines = []
+
         # Create vertical grid lines
         x = left
         while x < rect.right():
-            lines.append(QLineF(x, rect.top(), x, rect.bottom()))
-            x += self.grid_size
+            line = QLineF(x, rect.top(), x, rect.bottom())
+            if int(x) % int(major_grid) == 0:
+                major_lines.append(line)
+            else:
+                fine_lines.append(line)
+            x += fine_grid
 
         # Create horizontal grid lines
         y = top
         while y < rect.bottom():
-            lines.append(QLineF(rect.left(), y, rect.right(), y))
-            y += self.grid_size
+            line = QLineF(rect.left(), y, rect.right(), y)
+            if int(y) % int(major_grid) == 0:
+                major_lines.append(line)
+            else:
+                fine_lines.append(line)
+            y += fine_grid
 
-        # Draw them with a light pen so you see the grid
-        pen = QPen(Qt.lightGray)
-        pen.setWidth(1)
-        painter.setPen(pen)
-        painter.drawLines(lines)
+        # Draw fine grid lines (lighter)
+        if fine_lines and scale_factor > 0.25:  # Don't draw fine lines when too zoomed out
+            pen = QPen(QColor(240, 240, 240))
+            pen.setWidth(1)
+            painter.setPen(pen)
+            painter.drawLines(fine_lines)
+
+        # Draw major grid lines (darker)
+        if major_lines:
+            pen = QPen(QColor(200, 200, 200))
+            pen.setWidth(1)
+            painter.setPen(pen)
+            painter.drawLines(major_lines)

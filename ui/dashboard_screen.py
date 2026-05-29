@@ -63,11 +63,18 @@ class DashboardScreen(QWidget):
         # first_key = next(iter(self.tasks))
         # print(f"Task Loaded Types: {type(self.tasks[first_key])}")
 
+        # Ensure project groups exist before loading grid layouts
+        from utils.project_dashboard_sync import ensure_project_groups_exist
+        ensure_project_groups_exist(self.logger)
+
         self.saved_grid_layouts = self.loadGridLayouts() or []
         self.consoles = {}
         self.taskCards = []
         self.grid_layouts = []
         self.initComplete = False
+
+        # Initialize project filter to None (no filter = exclude project tasks)
+        self.current_project_filter = None
 
         # Initialize widget references to None for proper cleanup
         self.expanded_card = None
@@ -291,6 +298,14 @@ class DashboardScreen(QWidget):
                     if task.project_id == self.current_project_filter:
                         filtered_tasks[task_id] = task
             tasks_to_display = filtered_tasks
+        else:
+            # No filter selected - exclude tasks that belong to project phases
+            filtered_tasks = {}
+            for task_id, task in all_tasks.items():
+                has_phase = hasattr(task, 'phase_id') and task.phase_id is not None
+                if not has_phase:
+                    filtered_tasks[task_id] = task
+            tasks_to_display = filtered_tasks
 
         task_categories_dict = {}
 
@@ -312,14 +327,18 @@ class DashboardScreen(QWidget):
 
         for idx, grid in enumerate(self.saved_grid_layouts):
 
-            self.logger.debug(f"Adding Grids for:: {grid.name}")
+            # Check if this is a project grid (has project_id filter)
+            is_project_grid = hasattr(grid.filter, 'project_id') and grid.filter.project_id
+
+            self.logger.debug(f"Adding Grids for:: {grid.name} (is_project_grid: {is_project_grid})")
             self.logger.debug(f"Grid Total: {grid}, type: {type(grid)}")
-            self.logger.debug(
-                f"This thing: {grid.filter.category[0]}, type: {type(grid.filter.category[0])}"
-            )
+            if not is_project_grid and grid.filter.category:
+                self.logger.debug(
+                    f"Category filter: {grid.filter.category[0]}, type: {type(grid.filter.category[0])}"
+                )
 
             # Check if this grid category has any tasks
-            if grid.filter.category and grid.filter.category[0] not in task_categories_dict:
+            if not is_project_grid and grid.filter.category and grid.filter.category[0] not in task_categories_dict:
                 self.logger.debug(f"Skipping grid '{grid.name}' - no tasks in category '{grid.filter.category[0]}'")
                 continue
 
@@ -383,10 +402,29 @@ class DashboardScreen(QWidget):
                 'due': grid.filter.due if hasattr(grid.filter, 'due') and grid.filter.due else []
             }
 
+            # Handle project grids differently
+            if is_project_grid:
+                # For project grids, filter tasks by phase_id (project tasks)
+                grid_tasks = {
+                    task_id: task for task_id, task in all_tasks.items()
+                    if hasattr(task, 'project_id') and task.project_id == grid.filter.project_id
+                       and not task.archived
+                }
+                grid_title = grid.name
+                self.logger.info(f"Project grid '{grid.name}': {len(grid_tasks)} tasks")
+
+                # Skip project grid if no tasks
+                if not grid_tasks:
+                    continue
+            else:
+                # Use the already-filtered tasks_to_display (excludes project tasks)
+                grid_tasks = tasks_to_display
+                grid_title = grid.filter.category[0] if grid.filter.category else grid.name
+
             self.logger.debug(f"filter dict: {filter_dict}")
 
             # Create grid layout with correct filter
-            grid_layout = GridLayout(logger=self.logger, id=grid.id, grid_title=grid.filter.category[0], filter=filter_dict, tasks=self.tasks)
+            grid_layout = GridLayout(logger=self.logger, id=grid.id, grid_title=grid_title, filter=filter_dict, tasks=grid_tasks)
             
             self.grid_layout_map[grid.id] = grid_layout
 
@@ -642,12 +680,36 @@ class DashboardScreen(QWidget):
         if task is not None:
             self.checkAndPromptMissingCategory(task)
 
-        # Always do a full refresh to handle category changes
-        # (task may have moved to a different grid if category changed)
-        self.clear_layout(self.task_layout_container)
-        self.grid_layouts = []  # Clear the grid_layouts list before rebuilding
-        self.iterrateGridLayouts()
-        self.refreshPlanningUI.emit()
+        # Optimized: Only update the specific task card instead of rebuilding everything
+        if task is not None and grid_id is not None:
+            # Get task category (handle both enum and string)
+            task_category = task.category.value if hasattr(task.category, 'value') else task.category
+
+            # Check if category matches the grid_id (category might have changed)
+            if task_category == grid_id:
+                # Category hasn't changed - just update the existing card
+                for grid_layout in self.grid_layouts:
+                    if grid_layout.id == grid_id:
+                        # Update just this one task card
+                        grid_layout.updateSingleTask(task)
+                        break
+                # DON'T emit refreshPlanningUI for simple updates - it rebuilds the entire planning screen!
+                # The planning screen will pick up changes next time it's opened
+            else:
+                # Category changed - need to move task to different grid
+                # Do a full refresh to handle the move
+                self.clear_layout(self.task_layout_container)
+                self.grid_layouts = []
+                self.iterrateGridLayouts()
+                # Only refresh planning UI when we do a full rebuild
+                self.refreshPlanningUI.emit()
+        else:
+            # Full refresh only if we don't have task info (shouldn't happen often)
+            self.clear_layout(self.task_layout_container)
+            self.grid_layouts = []  # Clear the grid_layouts list before rebuilding
+            self.iterrateGridLayouts()
+            self.refreshPlanningUI.emit()
+
         self.closeExpandedCard()
 
     def clear_layout(self, layout):
@@ -721,10 +783,14 @@ class DashboardScreen(QWidget):
         self._refreshing = True
         try:
             # Clear existing grid layouts
+            self.grid_layouts = []
             while self.task_layout_container.count():
                 child = self.task_layout_container.takeAt(0)
                 if child.widget():
                     child.widget().deleteLater()
+
+            # Reload tasks from DataManager
+            self.tasks = self.data_manager.get_tasks()
 
             # Reload grid layouts with current filter
             self.iterrateGridLayouts()

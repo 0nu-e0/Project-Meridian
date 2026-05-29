@@ -548,6 +548,24 @@ class AppStyles:
             QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{ border: {AppBorders.none}; background: {AppColors.none}; }}
             QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {{ background: {AppColors.none}; }}
         """
+    
+    @staticmethod
+    def planning_scroll_area():
+        return f"""
+            QScrollArea {{ border: {AppBorders.none}; background: transparent;}}
+
+            QScrollBar:vertical {{ border: {AppBorders.none}; background-color: #1e2a38; width: {AppPixelSizes.scroll_bar_width}; }}
+            QScrollBar:horizontal {{ border: {AppBorders.none}; background: transparent; height: {AppPixelSizes.scroll_bar_width};}}
+
+            QScrollBar::handle:vertical {{ background: {AppColors.scroll_bar_main}; min-height: {AppPixelSizes.scroll_bar_min_height}; border-radius: {AppPixelSizes.border_radius_xsml}; }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ border: {AppBorders.none}; background: {AppColors.none}; }}
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{ background: {AppColors.none}; }}
+
+            QScrollBar::handle:horizontal {{ background: transparent; min-width: {AppPixelSizes.scroll_bar_min_height}; border-radius: {AppPixelSizes.border_radius_xxsml}; }}
+            QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{ border: {AppBorders.none}; background: {AppColors.none}; }}
+            QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {{ background: {AppColors.none}; }}
+        """
+
 
     ### List Style ###
     @staticmethod
