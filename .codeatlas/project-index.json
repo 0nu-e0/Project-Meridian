@@ -1,0 +1,2139 @@
+{
+  "version": 1,
+  "generatedAt": "2026-05-08T16:26:57.821Z",
+  "rootPath": "c:\\Users\\htap-jshaver\\Documents\\Project_Manager",
+  "summary": {
+    "totalFiles": 58,
+    "totalEdges": 172,
+    "totalLines": 23264,
+    "languages": [
+      "py"
+    ],
+    "flowStages": {
+      "start": 2,
+      "main": 32,
+      "core": 6,
+      "helpers": 18
+    }
+  },
+  "files": [
+    {
+      "path": "main.py",
+      "fileType": "entry",
+      "stage": "start",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 593,
+      "size": 25678,
+      "summary": "Entry or startup logic. Classes: MainWindow. Functions: setup_logging, get_logger, __init__, eventFilter",
+      "functions": [
+        "setup_logging",
+        "get_logger",
+        "__init__",
+        "eventFilter",
+        "closeEvent",
+        "resizeEvent",
+        "initUI",
+        "initCentralWidget",
+        "initStackedWidgets",
+        "initBanner",
+        "initToggleButton",
+        "initBannerHeader",
+        "initDrawer",
+        "addDrawerButtons",
+        "buttonClicked",
+        "showSettingsMenu",
+        "showProjectDetail",
+        "showGanttChart",
+        "returnFromGanttChart",
+        "returnToProjectsScreen",
+        "initiateStackedWidgetTransition",
+        "toggleDrawer",
+        "animateStackedWidgetTransition",
+        "ensure_required_files"
+      ],
+      "classes": [
+        "MainWindow"
+      ],
+      "exports": [],
+      "imports": [
+        "utils/constants.py",
+        "utils/app_config.py",
+        "resources/styles/__init__.py",
+        "ui/dashboard_screen.py",
+        "ui/mindmap_screen.py",
+        "ui/notes_screen.py",
+        "ui/planning_screen.py",
+        "ui/projects_screen.py",
+        "ui/project_files/project_detail_view.py",
+        "ui/welcome_screen.py",
+        "utils/dashboard_config.py",
+        "utils/directory_finder.py",
+        "utils/directory_migration.py",
+        "utils/data_manager.py",
+        "ui/gantt_chart_view.py"
+      ],
+      "usedBy": []
+    },
+    {
+      "path": "migrate_phase_tasks.py",
+      "fileType": "module",
+      "stage": "main",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 57,
+      "size": 2127,
+      "summary": "Main orchestration code. Functions: migrate_phase_tasks",
+      "functions": [
+        "migrate_phase_tasks"
+      ],
+      "classes": [],
+      "exports": [],
+      "imports": [
+        "utils/tasks_io.py",
+        "utils/projects_io.py"
+      ],
+      "usedBy": []
+    },
+    {
+      "path": "models/gantt_item.py",
+      "fileType": "module",
+      "stage": "core",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 174,
+      "size": 5681,
+      "summary": "Core business logic. Classes: GanttItemType, GanttChartItem, GanttChart. Functions: __init__, to_dict, from_dict, from_phase",
+      "functions": [
+        "__init__",
+        "to_dict",
+        "from_dict",
+        "from_phase",
+        "add_item",
+        "remove_item",
+        "reorder_items"
+      ],
+      "classes": [
+        "GanttItemType",
+        "GanttChartItem",
+        "GanttChart"
+      ],
+      "exports": [],
+      "imports": [],
+      "usedBy": [
+        "ui/gantt_chart_view.py",
+        "utils/gantt_io.py"
+      ]
+    },
+    {
+      "path": "models/mindmap.py",
+      "fileType": "module",
+      "stage": "core",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 198,
+      "size": 6809,
+      "summary": "Core business logic. Classes: Mindmap. Functions: __init__, to_dict, from_dict, get_node_count",
+      "functions": [
+        "__init__",
+        "to_dict",
+        "from_dict",
+        "get_node_count",
+        "get_connection_count",
+        "update_content",
+        "link_to_project",
+        "unlink_from_project",
+        "get_project"
+      ],
+      "classes": [
+        "Mindmap"
+      ],
+      "exports": [],
+      "imports": [
+        "utils/projects_io.py"
+      ],
+      "usedBy": [
+        "utils/mindmap_io.py"
+      ]
+    },
+    {
+      "path": "models/note.py",
+      "fileType": "module",
+      "stage": "core",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 36,
+      "size": 1745,
+      "summary": "Core business logic. Classes: Note. Functions: __init__",
+      "functions": [
+        "__init__"
+      ],
+      "classes": [
+        "Note"
+      ],
+      "exports": [],
+      "imports": [],
+      "usedBy": [
+        "ui/notes_screen.py",
+        "utils/notes_io.py"
+      ]
+    },
+    {
+      "path": "models/phase.py",
+      "fileType": "module",
+      "stage": "core",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 165,
+      "size": 5920,
+      "summary": "Core business logic. Classes: Phase. Functions: __init__, to_dict, from_dict, get_progress_percentage",
+      "functions": [
+        "__init__",
+        "to_dict",
+        "from_dict",
+        "get_progress_percentage",
+        "get_task_count",
+        "get_completed_task_count"
+      ],
+      "classes": [
+        "Phase"
+      ],
+      "exports": [],
+      "imports": [
+        "models/task.py",
+        "utils/tasks_io.py"
+      ],
+      "usedBy": [
+        "test_projects_module.py",
+        "ui/gantt_chart_view.py",
+        "ui/project_files/phase_dialog.py",
+        "ui/project_files/phase_widget.py",
+        "utils/data_manager.py",
+        "utils/projects_io.py"
+      ]
+    },
+    {
+      "path": "models/project.py",
+      "fileType": "module",
+      "stage": "core",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 237,
+      "size": 8451,
+      "summary": "Core business logic. Classes: ProjectStatus, Project. Functions: __init__, to_dict, from_dict, _get_project_tasks",
+      "functions": [
+        "__init__",
+        "to_dict",
+        "from_dict",
+        "_get_project_tasks",
+        "invalidate_task_cache",
+        "get_progress_percentage",
+        "get_total_tasks",
+        "get_completed_tasks",
+        "get_current_phase",
+        "get_tasks_by_status"
+      ],
+      "classes": [
+        "ProjectStatus",
+        "Project"
+      ],
+      "exports": [],
+      "imports": [
+        "models/task.py",
+        "utils/tasks_io.py",
+        "utils/projects_io.py"
+      ],
+      "usedBy": [
+        "test_projects_module.py",
+        "ui/planning_screen.py",
+        "ui/projects_screen.py",
+        "ui/project_files/phase_widget.py",
+        "ui/project_files/project_card.py",
+        "ui/project_files/project_card_expanded.py",
+        "ui/project_files/project_detail_view.py",
+        "ui/project_files/project_dialog.py",
+        "utils/data_manager.py",
+        "utils/projects_io.py"
+      ]
+    },
+    {
+      "path": "models/task.py",
+      "fileType": "module",
+      "stage": "core",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 578,
+      "size": 23325,
+      "summary": "Core business logic. Classes: TaskPriority, TaskStatus, TaskCategory. Functions: __init__, to_dict, from_dict, check_archived",
+      "functions": [
+        "__init__",
+        "to_dict",
+        "from_dict",
+        "check_archived",
+        "add_checklist_item",
+        "update_checklist_item",
+        "remove_checklist_item",
+        "get_checklist_progress",
+        "track_time",
+        "add_attachment",
+        "calculate_burndown",
+        "get_project",
+        "get_phase",
+        "_detect_type",
+        "_process_file",
+        "_process_directory",
+        "_process_hyperlink",
+        "_is_valid_url",
+        "edit",
+        "__str__"
+      ],
+      "classes": [
+        "TaskPriority",
+        "TaskStatus",
+        "TaskCategory",
+        "DueStatus",
+        "Task",
+        "TimeLog",
+        "AttachmentType",
+        "Attachment",
+        "Project",
+        "Sprint",
+        "Milestone",
+        "TaskEntry"
+      ],
+      "exports": [],
+      "imports": [
+        "utils/projects_io.py"
+      ],
+      "usedBy": [
+        "models/phase.py",
+        "models/project.py",
+        "resources/styles/styles.py",
+        "tests/test_tasks_io.py",
+        "test_projects_module.py",
+        "ui/custom_widgets/collapsable_sections/details_section.py",
+        "ui/custom_widgets/filter_image.py",
+        "ui/custom_widgets/mindmap_nodes.py",
+        "ui/dashboard_child_view/add_task_group.py",
+        "ui/dashboard_child_view/grid_layout.py",
+        "ui/dashboard_screen.py",
+        "ui/notes_screen.py",
+        "ui/planning_screen.py",
+        "ui/projects_screen.py",
+        "ui/project_files/draggable_task_item.py",
+        "ui/project_files/phase_widget.py",
+        "ui/project_files/project_card.py",
+        "ui/project_files/project_card_expanded.py",
+        "ui/project_files/project_detail_view.py",
+        "ui/project_files/project_dialog.py",
+        "ui/project_files/task_dialog.py",
+        "ui/task_files/task_card_expanded.py",
+        "ui/task_files/task_card_lite.py",
+        "utils/data_manager.py",
+        "utils/projects_io.py",
+        "utils/tasks_io.py"
+      ]
+    },
+    {
+      "path": "resources/styles/styles.py",
+      "fileType": "module",
+      "stage": "helpers",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 1445,
+      "size": 62098,
+      "summary": "Support or shared utility code. Classes: AppColors, AppPixelSizes, AppBorders. Functions: get_priority_color, get_status_color, get_category_color, get_progress_color",
+      "functions": [
+        "get_priority_color",
+        "get_status_color",
+        "get_category_color",
+        "get_progress_color",
+        "get_due_date_status",
+        "get_due_date_color",
+        "time_stamp_label",
+        "label_edit_delete",
+        "label_trans_background",
+        "label_checklist",
+        "label_checklist_empty",
+        "label_lgfnt_bold",
+        "label_xlgfnt_bold_dark",
+        "label_lgfnt",
+        "label_xlgfnt",
+        "label_normal",
+        "list_label_normal",
+        "label_small",
+        "label_bold",
+        "label_bold_wht",
+        "label_normal_warn",
+        "card_label_single",
+        "card_label_double",
+        "background_color",
+        "banner_color"
+      ],
+      "classes": [
+        "AppColors",
+        "AppPixelSizes",
+        "AppBorders",
+        "AppFontFamily",
+        "AppFontWeight",
+        "AppFontStyle",
+        "AppMargins",
+        "AppStyles",
+        "AnimatedDrawerButton",
+        "AnimatedButton",
+        "AnimatedButtonMultiText",
+        "ButtonContainer"
+      ],
+      "exports": [],
+      "imports": [
+        "models/task.py"
+      ],
+      "usedBy": [
+        "resources/styles/__init__.py"
+      ]
+    },
+    {
+      "path": "resources/styles/__init__.py",
+      "fileType": "module",
+      "stage": "helpers",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 1,
+      "size": 21,
+      "summary": "Support or shared utility code. Type: module",
+      "functions": [],
+      "classes": [],
+      "exports": [],
+      "imports": [
+        "resources/styles/styles.py"
+      ],
+      "usedBy": [
+        "main.py",
+        "ui/custom_widgets/collapsable_section.py",
+        "ui/custom_widgets/collapsable_sections/details_section.py",
+        "ui/custom_widgets/mindmap_nodes.py",
+        "ui/custom_widgets/text_edit_toolbar.py",
+        "ui/dashboard_child_view/grid_layout.py",
+        "ui/dashboard_screen.py",
+        "ui/gantt_chart_view.py",
+        "ui/mindmap_screen.py",
+        "ui/notes_screen.py",
+        "ui/planning_screen.py",
+        "ui/projects_screen.py",
+        "ui/project_files/phase_dialog.py",
+        "ui/project_files/phase_widget.py",
+        "ui/project_files/project_card_expanded.py",
+        "ui/project_files/project_detail_view.py",
+        "ui/project_files/project_dialog.py",
+        "ui/project_files/task_dialog.py",
+        "ui/task_files/task_card_expanded.py",
+        "ui/task_files/task_card_lite.py",
+        "ui/welcome_screen.py"
+      ]
+    },
+    {
+      "path": "resources/types/types.py",
+      "fileType": "module",
+      "stage": "helpers",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 1,
+      "size": 0,
+      "summary": "Support or shared utility code. Type: module",
+      "functions": [],
+      "classes": [],
+      "exports": [],
+      "imports": [],
+      "usedBy": []
+    },
+    {
+      "path": "resources/__init__.py",
+      "fileType": "module",
+      "stage": "main",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 1,
+      "size": 0,
+      "summary": "Main orchestration code. Type: module",
+      "functions": [],
+      "classes": [],
+      "exports": [],
+      "imports": [],
+      "usedBy": []
+    },
+    {
+      "path": "tests/test_node_serialization.py",
+      "fileType": "test",
+      "stage": "main",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 154,
+      "size": 5103,
+      "summary": "Main orchestration code. Classes: DummyPointF, DummyEllipseItem, DummyTextItem. Functions: __init__, x, y, setPen",
+      "functions": [
+        "__init__",
+        "x",
+        "y",
+        "setPen",
+        "setBrush",
+        "setFlags",
+        "setAcceptHoverEvents",
+        "setRect",
+        "setPos",
+        "pos",
+        "toPlainText",
+        "setPlainText",
+        "setDefaultTextColor",
+        "setTextWidth",
+        "document",
+        "adjustSize",
+        "boundingRect",
+        "width",
+        "height",
+        "test_nodeitem_serialization_round_trip"
+      ],
+      "classes": [
+        "DummyPointF",
+        "DummyEllipseItem",
+        "DummyTextItem",
+        "R"
+      ],
+      "exports": [],
+      "imports": [
+        "ui/custom_widgets/mindmap_nodes.py"
+      ],
+      "usedBy": []
+    },
+    {
+      "path": "tests/test_tasks_io.py",
+      "fileType": "test",
+      "stage": "main",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 37,
+      "size": 1226,
+      "summary": "Main orchestration code. Functions: test_save_and_load_team_members",
+      "functions": [
+        "test_save_and_load_team_members"
+      ],
+      "classes": [],
+      "exports": [],
+      "imports": [
+        "utils/tasks_io.py",
+        "utils/app_config.py",
+        "models/task.py"
+      ],
+      "usedBy": []
+    },
+    {
+      "path": "test_cache.py",
+      "fileType": "test",
+      "stage": "main",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 34,
+      "size": 876,
+      "summary": "Main orchestration code. Type: test",
+      "functions": [],
+      "classes": [],
+      "exports": [],
+      "imports": [
+        "utils/tasks_io.py"
+      ],
+      "usedBy": []
+    },
+    {
+      "path": "test_projects_module.py",
+      "fileType": "test",
+      "stage": "main",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 447,
+      "size": 14088,
+      "summary": "Main orchestration code. Functions: test_project_creation, test_phase_creation, test_task_creation_with_phases, test_project_serialization",
+      "functions": [
+        "test_project_creation",
+        "test_phase_creation",
+        "test_task_creation_with_phases",
+        "test_project_serialization",
+        "test_phase_serialization",
+        "test_task_serialization",
+        "test_data_loading",
+        "test_project_progress_calculation",
+        "test_phase_progress_calculation",
+        "test_task_phase_relationships",
+        "test_move_task_between_phases",
+        "run_all_tests"
+      ],
+      "classes": [],
+      "exports": [],
+      "imports": [
+        "models/project.py",
+        "models/phase.py",
+        "models/task.py",
+        "utils/projects_io.py",
+        "utils/tasks_io.py"
+      ],
+      "usedBy": []
+    },
+    {
+      "path": "ui/custom_widgets/collapsable_section.py",
+      "fileType": "module",
+      "stage": "main",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 1142,
+      "size": 42725,
+      "summary": "Main orchestration code. Classes: CollapsibleSection. Functions: __init__, sizeHint, resizeEvent, setupUI",
+      "functions": [
+        "__init__",
+        "sizeHint",
+        "resizeEvent",
+        "setupUI",
+        "add_team_list",
+        "add_team_member",
+        "remove_team_member",
+        "get_team_members",
+        "toggle_collapsed",
+        "add_row",
+        "add_dates",
+        "add_dependencies_list",
+        "update_available_tasks",
+        "add_dependency",
+        "remove_dependency",
+        "add_attachments",
+        "add_attachment_item",
+        "openAllAttachments",
+        "add_checklist",
+        "add_checklist_item",
+        "_on_checklist_item_state_changed",
+        "update_checklist_item_state",
+        "remove_checklist_item",
+        "_update_checklist_indices"
+      ],
+      "classes": [
+        "CollapsibleSection"
+      ],
+      "exports": [],
+      "imports": [
+        "resources/styles/__init__.py"
+      ],
+      "usedBy": [
+        "ui/custom_widgets/collapsable_sections/details_section.py",
+        "ui/custom_widgets/mindmap_nodes.py",
+        "ui/mindmap_screen.py",
+        "ui/notes_screen.py",
+        "ui/task_files/task_card_expanded.py"
+      ]
+    },
+    {
+      "path": "ui/custom_widgets/collapsable_sections/details_section.py",
+      "fileType": "module",
+      "stage": "main",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 189,
+      "size": 8012,
+      "summary": "Main orchestration code. Classes: DetailsCollapsableSection. Functions: add_team_list, add_team_member, remove_team_member, get_team_members",
+      "functions": [
+        "add_team_list",
+        "add_team_member",
+        "remove_team_member",
+        "get_team_members",
+        "toggle_collapsed",
+        "add_row",
+        "add_dates"
+      ],
+      "classes": [
+        "DetailsCollapsableSection"
+      ],
+      "exports": [],
+      "imports": [
+        "utils/tasks_io.py",
+        "utils/directory_finder.py",
+        "models/task.py",
+        "ui/custom_widgets/collapsable_section.py",
+        "resources/styles/__init__.py"
+      ],
+      "usedBy": []
+    },
+    {
+      "path": "ui/custom_widgets/custom_splitter.py",
+      "fileType": "module",
+      "stage": "main",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 47,
+      "size": 2247,
+      "summary": "Main orchestration code. Classes: CustomSplitterHandle, CustomSplitter. Functions: __init__, sizeHint, resizeEvent, createHandle",
+      "functions": [
+        "__init__",
+        "sizeHint",
+        "resizeEvent",
+        "createHandle"
+      ],
+      "classes": [
+        "CustomSplitterHandle",
+        "CustomSplitter"
+      ],
+      "exports": [],
+      "imports": [],
+      "usedBy": []
+    },
+    {
+      "path": "ui/custom_widgets/filter_image.py",
+      "fileType": "module",
+      "stage": "main",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 176,
+      "size": 7376,
+      "summary": "Main orchestration code. Classes: FilterButton. Functions: __init__, mousePressEvent, showFilterMenu, addStatusFilters",
+      "functions": [
+        "__init__",
+        "mousePressEvent",
+        "showFilterMenu",
+        "addStatusFilters",
+        "addCategoryFilters",
+        "addDueFilters",
+        "toggleFilter",
+        "clearAllFilters",
+        "updateButtonState",
+        "applyFilters",
+        "calculateDueStatus"
+      ],
+      "classes": [
+        "FilterButton"
+      ],
+      "exports": [],
+      "imports": [
+        "ui/task_files/task_card_lite.py",
+        "models/task.py"
+      ],
+      "usedBy": [
+        "ui/dashboard_child_view/grid_layout.py"
+      ]
+    },
+    {
+      "path": "ui/custom_widgets/mindmap_nodes.py",
+      "fileType": "module",
+      "stage": "main",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 713,
+      "size": 30439,
+      "summary": "Main orchestration code. Classes: ConnectionItem, LinkHandle, ResizeHandle. Functions: __init__, _handle_pos, update_position, detach",
+      "functions": [
+        "__init__",
+        "_handle_pos",
+        "update_position",
+        "detach",
+        "find_node_item",
+        "_target_handle_at",
+        "mousePressEvent",
+        "mouseMoveEvent",
+        "mouseReleaseEvent",
+        "updateBrush",
+        "snapPosition",
+        "hoverEnterEvent",
+        "hoverLeaveEvent",
+        "setHandlesVisible",
+        "setLinkHandlesVisible",
+        "update_node_layout",
+        "center_text_item",
+        "serialize",
+        "deserialize",
+        "add_connection",
+        "remove_connection",
+        "notify_connections",
+        "itemChange",
+        "setSizeKeepCenter"
+      ],
+      "classes": [
+        "ConnectionItem",
+        "LinkHandle",
+        "ResizeHandle",
+        "NodeItem"
+      ],
+      "exports": [],
+      "imports": [
+        "utils/tasks_io.py",
+        "utils/directory_finder.py",
+        "models/task.py",
+        "ui/custom_widgets/collapsable_section.py",
+        "resources/styles/__init__.py"
+      ],
+      "usedBy": [
+        "tests/test_node_serialization.py",
+        "ui/mindmap_screen.py"
+      ]
+    },
+    {
+      "path": "ui/custom_widgets/text_edit_toolbar.py",
+      "fileType": "module",
+      "stage": "main",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 159,
+      "size": 6061,
+      "summary": "Main orchestration code. Classes: TextEditToolbar. Functions: __init__, toggleBold, toggleItalic, toggleUnderline",
+      "functions": [
+        "__init__",
+        "toggleBold",
+        "toggleItalic",
+        "toggleUnderline",
+        "changeFontSize",
+        "insertBulletList",
+        "insertNumberedList",
+        "initEditorToolbar",
+        "insertTable"
+      ],
+      "classes": [
+        "TextEditToolbar"
+      ],
+      "exports": [],
+      "imports": [
+        "resources/styles/__init__.py"
+      ],
+      "usedBy": [
+        "ui/notes_screen.py"
+      ]
+    },
+    {
+      "path": "ui/dashboard_child_view/add_task_group.py",
+      "fileType": "module",
+      "stage": "main",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 314,
+      "size": 12432,
+      "summary": "Main orchestration code. Classes: AddGridDialog. Functions: __init__, calculate_optimal_size, initUI, loadCategories",
+      "functions": [
+        "__init__",
+        "calculate_optimal_size",
+        "initUI",
+        "loadCategories",
+        "onCreateNewCategory",
+        "refreshCategoryList",
+        "addGroupSave",
+        "get_grid_config"
+      ],
+      "classes": [
+        "AddGridDialog"
+      ],
+      "exports": [],
+      "imports": [
+        "utils/dashboard_config.py",
+        "utils/categories_config.py",
+        "models/task.py"
+      ],
+      "usedBy": [
+        "ui/dashboard_screen.py"
+      ]
+    },
+    {
+      "path": "ui/dashboard_child_view/grid_layout.py",
+      "fileType": "module",
+      "stage": "main",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 490,
+      "size": 21502,
+      "summary": "Main orchestration code. Classes: GridLayout. Functions: __init__, load_known_tasks, eventFilter, initUI",
+      "functions": [
+        "__init__",
+        "load_known_tasks",
+        "eventFilter",
+        "initUI",
+        "initCentralWidget",
+        "passFilter",
+        "initManageTasksNav",
+        "initCardGridLayout",
+        "rearrangeGridLayout",
+        "addTaskCard",
+        "handleCardHover",
+        "safe_update_geometry",
+        "safe_update_parent_geometry",
+        "collapseAllCards",
+        "_cleanupExpandedCards",
+        "removeTaskCard",
+        "clearGridLayout",
+        "onFilterChanged",
+        "resizeEvent",
+        "updateSingleTask"
+      ],
+      "classes": [
+        "GridLayout"
+      ],
+      "exports": [],
+      "imports": [
+        "models/task.py",
+        "resources/styles/__init__.py",
+        "ui/custom_widgets/filter_image.py",
+        "ui/task_files/task_card_lite.py",
+        "utils/tasks_io.py"
+      ],
+      "usedBy": [
+        "ui/dashboard_screen.py"
+      ]
+    },
+    {
+      "path": "ui/dashboard_screen.py",
+      "fileType": "module",
+      "stage": "main",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 816,
+      "size": 36004,
+      "summary": "Main orchestration code. Classes: DashboardScreen. Functions: __init__, loadGridLayouts, eventFilter, initUI",
+      "functions": [
+        "__init__",
+        "loadGridLayouts",
+        "eventFilter",
+        "initUI",
+        "initCentralWidget",
+        "initBannerSpacer",
+        "addSeparator",
+        "initLayoutGrouping",
+        "initTasksLayout",
+        "createDashboardHeader",
+        "iterrateGridLayouts",
+        "make_enter_event",
+        "custom_enter_event",
+        "make_leave_event",
+        "custom_leave_event",
+        "removeGridSection",
+        "updateSingleGridLayout",
+        "openExpandedCardOverlay",
+        "addGroupTask",
+        "cancelAddGroup",
+        "saveAddGroup",
+        "propagateTaskDeletion",
+        "checkAndPromptMissingCategory",
+        "completeSaveActions",
+        "clear_layout"
+      ],
+      "classes": [
+        "DashboardScreen"
+      ],
+      "exports": [],
+      "imports": [
+        "models/task.py",
+        "resources/styles/__init__.py",
+        "ui/task_files/task_card_expanded.py",
+        "utils/dashboard_config.py",
+        "utils/directory_finder.py",
+        "utils/data_manager.py",
+        "ui/dashboard_child_view/add_task_group.py",
+        "ui/dashboard_child_view/grid_layout.py",
+        "utils/project_dashboard_sync.py"
+      ],
+      "usedBy": [
+        "main.py"
+      ]
+    },
+    {
+      "path": "ui/gantt_chart_view.py",
+      "fileType": "module",
+      "stage": "main",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 743,
+      "size": 27840,
+      "summary": "Main orchestration code. Classes: GanttBarItem, GanttTimeline, GanttItemEditDialog. Functions: __init__, mousePressEvent, mouseMoveEvent, mouseReleaseEvent",
+      "functions": [
+        "__init__",
+        "mousePressEvent",
+        "mouseMoveEvent",
+        "mouseReleaseEvent",
+        "mouseDoubleClickEvent",
+        "paint",
+        "calculateTimelineBounds",
+        "renderChart",
+        "drawTimelineHeader",
+        "dateToX",
+        "xToDate",
+        "updateItemDatesFromPosition",
+        "editItem",
+        "dragEnterEvent",
+        "dragMoveEvent",
+        "dropEvent",
+        "initUI",
+        "pickColor",
+        "save",
+        "loadData",
+        "createHeader",
+        "createToolbar",
+        "addCustomItem",
+        "addAllPhases",
+        "addPhaseToGantt"
+      ],
+      "classes": [
+        "GanttBarItem",
+        "GanttTimeline",
+        "GanttItemEditDialog",
+        "GanttChartView"
+      ],
+      "exports": [],
+      "imports": [
+        "models/gantt_item.py",
+        "models/phase.py",
+        "utils/gantt_io.py",
+        "utils/projects_io.py",
+        "resources/styles/__init__.py"
+      ],
+      "usedBy": [
+        "main.py"
+      ]
+    },
+    {
+      "path": "ui/mindmap_screen.py",
+      "fileType": "module",
+      "stage": "main",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 822,
+      "size": 32226,
+      "summary": "Main orchestration code. Classes: ZoomableGraphicsView, SpatialTracker, MindMapScreen. Functions: __init__, wheelEvent, _notify_zoom_change, keyPressEvent",
+      "functions": [
+        "__init__",
+        "wheelEvent",
+        "_notify_zoom_change",
+        "keyPressEvent",
+        "get_zoom_percentage",
+        "add_object",
+        "remove_object",
+        "update_object",
+        "get_content_bounds",
+        "_expand_bounds",
+        "_recalculate_bounds",
+        "get_objects_in_rect",
+        "clear",
+        "eventFilter",
+        "initUI",
+        "initCentralWidget",
+        "initBannerSpacer",
+        "addSeparator",
+        "initPanelHorizontalContainer",
+        "initLeftPanelWidget",
+        "initRightPanelWidget",
+        "add_node",
+        "save_mind_map",
+        "load_mind_map",
+        "load_mindmap_data"
+      ],
+      "classes": [
+        "ZoomableGraphicsView",
+        "SpatialTracker",
+        "MindMapScreen",
+        "GridScene"
+      ],
+      "exports": [],
+      "imports": [
+        "utils/tasks_io.py",
+        "utils/directory_finder.py",
+        "ui/custom_widgets/mindmap_nodes.py",
+        "ui/custom_widgets/collapsable_section.py",
+        "resources/styles/__init__.py",
+        "utils/mindmap_io.py"
+      ],
+      "usedBy": [
+        "main.py"
+      ]
+    },
+    {
+      "path": "ui/notes_screen.py",
+      "fileType": "module",
+      "stage": "main",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 294,
+      "size": 12193,
+      "summary": "Main orchestration code. Classes: NotesScreen. Functions: __init__, initUI, initCentralWidget, initBannerSpacer",
+      "functions": [
+        "__init__",
+        "initUI",
+        "initCentralWidget",
+        "initBannerSpacer",
+        "addSeparator",
+        "initPanelHorizontalContainer",
+        "initLeftNotePanel",
+        "initNotesPanelHeader",
+        "createNewNote",
+        "saveCurrentNote",
+        "deleteCurrentNote",
+        "loadSelectedNote",
+        "initNotesPanelList",
+        "updateNotesList",
+        "loadNotes",
+        "initRightNotePanel",
+        "initNotesDisplayPanel"
+      ],
+      "classes": [
+        "NotesScreen"
+      ],
+      "exports": [],
+      "imports": [
+        "utils/notes_io.py",
+        "utils/directory_finder.py",
+        "models/note.py",
+        "models/task.py",
+        "ui/custom_widgets/text_edit_toolbar.py",
+        "ui/custom_widgets/collapsable_section.py",
+        "resources/styles/__init__.py"
+      ],
+      "usedBy": [
+        "main.py"
+      ]
+    },
+    {
+      "path": "ui/planning_screen.py",
+      "fileType": "module",
+      "stage": "main",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 2271,
+      "size": 93362,
+      "summary": "Main orchestration code. Classes: ScheduledTask, StyledTaskItem, StyledProjectItem. Functions: __init__, initUI, _getPriorityStyle, sizeHint",
+      "functions": [
+        "__init__",
+        "initUI",
+        "_getPriorityStyle",
+        "sizeHint",
+        "_calculateFontSizeForTitle",
+        "loadProjectData",
+        "_getStatusStyle",
+        "_getTaskBorderColor",
+        "mousePressEvent",
+        "_getStatusIcon",
+        "_onItemClicked",
+        "resizeEvent",
+        "startDrag",
+        "dragEnterEvent",
+        "dragMoveEvent",
+        "dragLeaveEvent",
+        "dropEvent",
+        "_getWeekStart",
+        "updateWeekView",
+        "previousWeek",
+        "nextWeek",
+        "updateDayView",
+        "previousDay",
+        "nextDay",
+        "_createDraggableList"
+      ],
+      "classes": [
+        "ScheduledTask",
+        "StyledTaskItem",
+        "StyledProjectItem",
+        "DraggableTaskList",
+        "WeeklyViewWidget",
+        "DailyViewWidget",
+        "DropZoneWidget",
+        "DraggableScheduledList",
+        "PlanningScreen"
+      ],
+      "exports": [],
+      "imports": [
+        "models/task.py",
+        "resources/styles/__init__.py",
+        "ui/task_files/task_card_expanded.py",
+        "utils/app_config.py",
+        "utils/tasks_io.py",
+        "utils/projects_io.py",
+        "models/project.py",
+        "ui/project_files/project_card_expanded.py"
+      ],
+      "usedBy": [
+        "main.py"
+      ]
+    },
+    {
+      "path": "ui/projects_screen.py",
+      "fileType": "module",
+      "stage": "main",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 555,
+      "size": 20665,
+      "summary": "Main orchestration code. Classes: ProjectsScreen. Functions: __init__, initUI, initBannerSpacer, addSeparator",
+      "functions": [
+        "__init__",
+        "initUI",
+        "initBannerSpacer",
+        "addSeparator",
+        "initFilterSection",
+        "initContentArea",
+        "createEmptyState",
+        "loadProjects",
+        "displayProjects",
+        "applyFilters",
+        "onSearchTextChanged",
+        "onStatusFilterChanged",
+        "onPriorityFilterChanged",
+        "onArchivedCheckboxChanged",
+        "onClearFilters",
+        "onAddProject",
+        "onImportProject",
+        "onProjectClicked",
+        "refreshProjects"
+      ],
+      "classes": [
+        "ProjectsScreen"
+      ],
+      "exports": [],
+      "imports": [
+        "models/project.py",
+        "models/task.py",
+        "utils/projects_io.py",
+        "resources/styles/__init__.py",
+        "ui/project_files/project_card.py",
+        "ui/project_files/project_dialog.py"
+      ],
+      "usedBy": [
+        "main.py"
+      ]
+    },
+    {
+      "path": "ui/project_files/draggable_task_item.py",
+      "fileType": "module",
+      "stage": "main",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 173,
+      "size": 6567,
+      "summary": "Main orchestration code. Classes: DraggableTaskItem. Functions: __init__, initUI, getStatusIcon, getPriorityColor",
+      "functions": [
+        "__init__",
+        "initUI",
+        "getStatusIcon",
+        "getPriorityColor",
+        "mousePressEvent",
+        "mouseMoveEvent",
+        "mouseReleaseEvent"
+      ],
+      "classes": [
+        "DraggableTaskItem"
+      ],
+      "exports": [],
+      "imports": [
+        "models/task.py"
+      ],
+      "usedBy": [
+        "ui/project_files/phase_widget.py"
+      ]
+    },
+    {
+      "path": "ui/project_files/phase_dialog.py",
+      "fileType": "module",
+      "stage": "main",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 203,
+      "size": 7091,
+      "summary": "Main orchestration code. Classes: PhaseDialog. Functions: __init__, initUI, fillFields, onSave",
+      "functions": [
+        "__init__",
+        "initUI",
+        "fillFields",
+        "onSave",
+        "getInputStyle",
+        "getSecondaryButtonStyle"
+      ],
+      "classes": [
+        "PhaseDialog"
+      ],
+      "exports": [],
+      "imports": [
+        "models/phase.py",
+        "resources/styles/__init__.py"
+      ],
+      "usedBy": [
+        "ui/project_files/phase_widget.py",
+        "ui/project_files/project_detail_view.py"
+      ]
+    },
+    {
+      "path": "ui/project_files/phase_widget.py",
+      "fileType": "module",
+      "stage": "main",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 783,
+      "size": 29578,
+      "summary": "Main orchestration code. Classes: PhaseWidget. Functions: __init__, loadTasks, initUI, createHeader",
+      "functions": [
+        "__init__",
+        "loadTasks",
+        "initUI",
+        "createHeader",
+        "toggleExpand",
+        "createTaskItem",
+        "getStatusIcon",
+        "getPriorityColor",
+        "onTaskClicked",
+        "onTaskSaveCompleted",
+        "onTaskCanceled",
+        "onTaskDeleted",
+        "closeTaskDetail",
+        "onAddTask",
+        "onTaskSaved",
+        "refreshTasks",
+        "onEditPhase",
+        "onPhaseEdited",
+        "onDeletePhase",
+        "onMarkAsCurrent",
+        "dragEnterEvent",
+        "dragLeaveEvent",
+        "dropEvent",
+        "updateContainerStyle",
+        "mousePressEvent"
+      ],
+      "classes": [
+        "PhaseWidget"
+      ],
+      "exports": [],
+      "imports": [
+        "models/phase.py",
+        "models/project.py",
+        "models/task.py",
+        "utils/projects_io.py",
+        "utils/tasks_io.py",
+        "resources/styles/__init__.py",
+        "ui/project_files/draggable_task_item.py",
+        "ui/task_files/task_card_expanded.py",
+        "ui/project_files/task_dialog.py",
+        "ui/project_files/phase_dialog.py"
+      ],
+      "usedBy": [
+        "ui/project_files/project_detail_view.py"
+      ]
+    },
+    {
+      "path": "ui/project_files/project_card.py",
+      "fileType": "module",
+      "stage": "main",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 275,
+      "size": 9873,
+      "summary": "Main orchestration code. Classes: ProjectCard. Functions: __init__, initUI, createStatusBadge, getStatusColor",
+      "functions": [
+        "__init__",
+        "initUI",
+        "createStatusBadge",
+        "getStatusColor",
+        "getPriorityColor",
+        "getPhaseInfo",
+        "mousePressEvent"
+      ],
+      "classes": [
+        "ProjectCard"
+      ],
+      "exports": [],
+      "imports": [
+        "models/project.py",
+        "utils/projects_io.py",
+        "models/task.py"
+      ],
+      "usedBy": [
+        "ui/projects_screen.py"
+      ]
+    },
+    {
+      "path": "ui/project_files/project_card_expanded.py",
+      "fileType": "module",
+      "stage": "main",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 851,
+      "size": 31349,
+      "summary": "Main orchestration code. Classes: ProjectCardExpanded. Functions: calculate_optimal_card_size, __init__, loadProjectData, refresh",
+      "functions": [
+        "calculate_optimal_card_size",
+        "__init__",
+        "loadProjectData",
+        "refresh",
+        "initUI",
+        "createHeader",
+        "createProjectInfoSection",
+        "createPhaseProgressSection",
+        "createPhaseItem",
+        "createCurrentPhaseTasksSection",
+        "createTaskItem",
+        "handle_frame_click",
+        "onTaskFrameClicked",
+        "onChecklistItemToggled",
+        "onTaskCheckboxToggled",
+        "checkAndAdvancePhase",
+        "createFooter"
+      ],
+      "classes": [
+        "ProjectCardExpanded"
+      ],
+      "exports": [],
+      "imports": [
+        "models/project.py",
+        "models/task.py",
+        "utils/projects_io.py",
+        "utils/tasks_io.py",
+        "resources/styles/__init__.py"
+      ],
+      "usedBy": [
+        "ui/planning_screen.py"
+      ]
+    },
+    {
+      "path": "ui/project_files/project_detail_view.py",
+      "fileType": "module",
+      "stage": "main",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 926,
+      "size": 34600,
+      "summary": "Main orchestration code. Classes: ProjectDetailView. Functions: __init__, loadProjectData, initUI, initCentralWidget",
+      "functions": [
+        "__init__",
+        "loadProjectData",
+        "initUI",
+        "initCentralWidget",
+        "initBannerSpacer",
+        "setupLayout",
+        "createHeader",
+        "createInfoSection",
+        "getStatusColor",
+        "getPriorityColor",
+        "createActionButtons",
+        "populatePhases",
+        "onBackClicked",
+        "onEditProject",
+        "onProjectEdited",
+        "onMenuClicked",
+        "onLinkMindmap",
+        "onUnlinkMindmap",
+        "onViewGanttChart",
+        "onViewMindmap",
+        "onAddPhase",
+        "onPhaseSaved",
+        "updateInfoSection",
+        "onPhaseUpdated",
+        "onPhaseDeleted"
+      ],
+      "classes": [
+        "ProjectDetailView"
+      ],
+      "exports": [],
+      "imports": [
+        "utils/constants.py",
+        "models/project.py",
+        "utils/projects_io.py",
+        "utils/mindmap_io.py",
+        "resources/styles/__init__.py",
+        "ui/project_files/project_dialog.py",
+        "ui/project_files/phase_widget.py",
+        "models/task.py",
+        "ui/project_files/phase_dialog.py"
+      ],
+      "usedBy": [
+        "main.py"
+      ]
+    },
+    {
+      "path": "ui/project_files/project_dialog.py",
+      "fileType": "module",
+      "stage": "main",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 351,
+      "size": 12879,
+      "summary": "Main orchestration code. Classes: ProjectDialog. Functions: __init__, initUI, fillFields, onColorPicker",
+      "functions": [
+        "__init__",
+        "initUI",
+        "fillFields",
+        "onColorPicker",
+        "updateColorButton",
+        "onSave",
+        "getProjectData",
+        "getInputStyle",
+        "getSecondaryButtonStyle"
+      ],
+      "classes": [
+        "ProjectDialog"
+      ],
+      "exports": [],
+      "imports": [
+        "models/project.py",
+        "models/task.py",
+        "resources/styles/__init__.py"
+      ],
+      "usedBy": [
+        "ui/projects_screen.py",
+        "ui/project_files/project_detail_view.py"
+      ]
+    },
+    {
+      "path": "ui/project_files/task_dialog.py",
+      "fileType": "module",
+      "stage": "main",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 239,
+      "size": 8707,
+      "summary": "Main orchestration code. Classes: TaskDialog. Functions: __init__, initUI, onSave, getInputStyle",
+      "functions": [
+        "__init__",
+        "initUI",
+        "onSave",
+        "getInputStyle",
+        "getSecondaryButtonStyle"
+      ],
+      "classes": [
+        "TaskDialog"
+      ],
+      "exports": [],
+      "imports": [
+        "models/task.py",
+        "resources/styles/__init__.py"
+      ],
+      "usedBy": [
+        "ui/project_files/phase_widget.py"
+      ]
+    },
+    {
+      "path": "ui/task_files/task_card_expanded.py",
+      "fileType": "module",
+      "stage": "main",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 2171,
+      "size": 85809,
+      "summary": "Main orchestration code. Classes: TaskCardExpanded. Functions: calculate_optimal_card_size, __init__, resizeEvent, checkForDPIChange",
+      "functions": [
+        "calculate_optimal_card_size",
+        "__init__",
+        "resizeEvent",
+        "checkForDPIChange",
+        "refreshTextForDPI",
+        "store_initial_task_state",
+        "initUI",
+        "initCentralWidget",
+        "initLeftPanelWidget",
+        "initRightPanelWidget",
+        "createTitleSection",
+        "_on_title_edit_finished",
+        "updateTaskTitle",
+        "createProjectPhaseSection",
+        "createStatusPrioritySection",
+        "updateTaskStatus",
+        "updateTaskPriority",
+        "createDescriptionSection",
+        "_on_description_changed",
+        "updateTaskDescription",
+        "createDatesSection",
+        "showCalendar",
+        "updateDueDate",
+        "createCategorySection",
+        "updateTaskCategory"
+      ],
+      "classes": [
+        "TaskCardExpanded"
+      ],
+      "exports": [],
+      "imports": [
+        "utils/app_config.py",
+        "models/task.py",
+        "resources/styles/__init__.py",
+        "ui/custom_widgets/collapsable_section.py",
+        "ui/task_files/task_settings_menu.py",
+        "utils/categories_config.py",
+        "utils/directory_finder.py",
+        "utils/data_manager.py"
+      ],
+      "usedBy": [
+        "ui/dashboard_screen.py",
+        "ui/planning_screen.py",
+        "ui/project_files/phase_widget.py"
+      ]
+    },
+    {
+      "path": "ui/task_files/task_card_lite.py",
+      "fileType": "module",
+      "stage": "main",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 605,
+      "size": 24719,
+      "summary": "Main orchestration code. Classes: TaskCardLite. Functions: calculate_optimal_card_size, __init__, sizeHint, minimumSizeHint",
+      "functions": [
+        "calculate_optimal_card_size",
+        "__init__",
+        "sizeHint",
+        "minimumSizeHint",
+        "enterEvent",
+        "leaveEvent",
+        "_checkCollapseCard",
+        "_periodicCollapseCheck",
+        "expandCard",
+        "_onHeightChanged",
+        "_onExpandFinished",
+        "_notifyParentLayoutUpdate",
+        "collapseCard",
+        "_onCollapseFinished",
+        "mousePressEvent",
+        "setRowPosition",
+        "initUI",
+        "initCentralWidget",
+        "generateCompactUI",
+        "generateDetailContent",
+        "set_smart_title_height"
+      ],
+      "classes": [
+        "TaskCardLite"
+      ],
+      "exports": [],
+      "imports": [
+        "models/task.py",
+        "resources/styles/__init__.py",
+        "utils/constants.py"
+      ],
+      "usedBy": [
+        "ui/custom_widgets/filter_image.py",
+        "ui/dashboard_child_view/grid_layout.py"
+      ]
+    },
+    {
+      "path": "ui/task_files/task_settings_menu.py",
+      "fileType": "module",
+      "stage": "helpers",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 297,
+      "size": 11633,
+      "summary": "Support or shared utility code. Classes: TaskSettingsMenu. Functions: __init__, refresh, _init_ui, _create_row",
+      "functions": [
+        "__init__",
+        "refresh",
+        "_init_ui",
+        "_create_row",
+        "_on_toggle",
+        "calculate_optimal_card_size"
+      ],
+      "classes": [
+        "TaskSettingsMenu"
+      ],
+      "exports": [],
+      "imports": [],
+      "usedBy": [
+        "ui/task_files/task_card_expanded.py"
+      ]
+    },
+    {
+      "path": "ui/welcome_screen.py",
+      "fileType": "module",
+      "stage": "main",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 56,
+      "size": 2384,
+      "summary": "Main orchestration code. Classes: WelcomeScreen. Functions: __init__",
+      "functions": [
+        "__init__"
+      ],
+      "classes": [
+        "WelcomeScreen"
+      ],
+      "exports": [],
+      "imports": [
+        "resources/styles/__init__.py"
+      ],
+      "usedBy": [
+        "main.py"
+      ]
+    },
+    {
+      "path": "ui/__init__.py",
+      "fileType": "module",
+      "stage": "main",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 1,
+      "size": 0,
+      "summary": "Main orchestration code. Type: module",
+      "functions": [],
+      "classes": [],
+      "exports": [],
+      "imports": [],
+      "usedBy": []
+    },
+    {
+      "path": "utils/app_config.py",
+      "fileType": "config",
+      "stage": "start",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 170,
+      "size": 7673,
+      "summary": "Entry or startup logic. Classes: AppConfig. Functions: __new__, _initialize, _get_app_data_dir, _ensure_directories_exist",
+      "functions": [
+        "__new__",
+        "_initialize",
+        "_get_app_data_dir",
+        "_ensure_directories_exist",
+        "get_file_path",
+        "get_system_info"
+      ],
+      "classes": [
+        "AppConfig"
+      ],
+      "exports": [],
+      "imports": [],
+      "usedBy": [
+        "main.py",
+        "tests/test_tasks_io.py",
+        "ui/planning_screen.py",
+        "ui/task_files/task_card_expanded.py",
+        "utils/dashboard_config.py",
+        "utils/directory_migration.py",
+        "utils/gantt_io.py",
+        "utils/mindmap_io.py",
+        "utils/notes_io.py",
+        "utils/projects_io.py",
+        "utils/tasks_io.py"
+      ]
+    },
+    {
+      "path": "utils/categories_config.py",
+      "fileType": "config",
+      "stage": "helpers",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 179,
+      "size": 6853,
+      "summary": "Support or shared utility code. Classes: CategoriesConfigManager. Functions: get_categories_file_path, get_default_categories, initialize_categories_config, load_categories",
+      "functions": [
+        "get_categories_file_path",
+        "get_default_categories",
+        "initialize_categories_config",
+        "load_categories",
+        "save_categories",
+        "add_category",
+        "remove_category",
+        "rename_category",
+        "get_category_count",
+        "category_exists"
+      ],
+      "classes": [
+        "CategoriesConfigManager"
+      ],
+      "exports": [],
+      "imports": [],
+      "usedBy": [
+        "ui/dashboard_child_view/add_task_group.py",
+        "ui/task_files/task_card_expanded.py"
+      ]
+    },
+    {
+      "path": "utils/config_loader.py",
+      "fileType": "config",
+      "stage": "helpers",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 186,
+      "size": 7349,
+      "summary": "Support or shared utility code. Classes: ConfigSection, YamlConfig. Functions: __init__, to_dict, update, __new__",
+      "functions": [
+        "__init__",
+        "to_dict",
+        "update",
+        "__new__",
+        "load_config",
+        "_load_file",
+        "_update_from_dict",
+        "save_user_config",
+        "get_section",
+        "set_section"
+      ],
+      "classes": [
+        "ConfigSection",
+        "YamlConfig"
+      ],
+      "exports": [],
+      "imports": [],
+      "usedBy": [
+        "utils/dashboard_config.py"
+      ]
+    },
+    {
+      "path": "utils/constants.py",
+      "fileType": "module",
+      "stage": "helpers",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 74,
+      "size": 2771,
+      "summary": "Support or shared utility code. Type: module",
+      "functions": [],
+      "classes": [],
+      "exports": [],
+      "imports": [],
+      "usedBy": [
+        "main.py",
+        "ui/project_files/project_detail_view.py",
+        "ui/task_files/task_card_lite.py"
+      ]
+    },
+    {
+      "path": "utils/dashboard_config.py",
+      "fileType": "config",
+      "stage": "helpers",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 384,
+      "size": 15063,
+      "summary": "Support or shared utility code. Classes: DashboardConfigManager. Functions: get_all_grid_layouts, save_grid_layouts, load_grid_layouts, add_grid_layout",
+      "functions": [
+        "get_all_grid_layouts",
+        "save_grid_layouts",
+        "load_grid_layouts",
+        "add_grid_layout",
+        "update_grid_filter",
+        "update_grid_properties",
+        "delete_grid_layout"
+      ],
+      "classes": [
+        "DashboardConfigManager"
+      ],
+      "exports": [],
+      "imports": [
+        "utils/config_loader.py",
+        "utils/app_config.py"
+      ],
+      "usedBy": [
+        "main.py",
+        "ui/dashboard_child_view/add_task_group.py",
+        "ui/dashboard_screen.py",
+        "utils/project_dashboard_sync.py"
+      ]
+    },
+    {
+      "path": "utils/data_manager.py",
+      "fileType": "module",
+      "stage": "helpers",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 214,
+      "size": 9082,
+      "summary": "Support or shared utility code. Classes: DataManager. Functions: __new__, __init__, _load_all_data, reload_all_data",
+      "functions": [
+        "__new__",
+        "__init__",
+        "_load_all_data",
+        "reload_all_data",
+        "get_tasks",
+        "get_task",
+        "add_task",
+        "remove_task",
+        "save_task",
+        "get_tasks_by_project",
+        "get_tasks_by_phase",
+        "get_tasks_by_category",
+        "get_projects",
+        "get_project",
+        "add_project",
+        "remove_project",
+        "save_project",
+        "get_phases",
+        "get_phase",
+        "get_phases_by_project",
+        "add_phase",
+        "remove_phase",
+        "save_phase",
+        "get_data_summary"
+      ],
+      "classes": [
+        "DataManager"
+      ],
+      "exports": [],
+      "imports": [
+        "models/task.py",
+        "models/project.py",
+        "models/phase.py",
+        "utils/tasks_io.py",
+        "utils/projects_io.py"
+      ],
+      "usedBy": [
+        "main.py",
+        "ui/dashboard_screen.py",
+        "ui/task_files/task_card_expanded.py"
+      ]
+    },
+    {
+      "path": "utils/directory_finder.py",
+      "fileType": "module",
+      "stage": "helpers",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 39,
+      "size": 1875,
+      "summary": "Support or shared utility code. Functions: resource_path",
+      "functions": [
+        "resource_path"
+      ],
+      "classes": [],
+      "exports": [],
+      "imports": [],
+      "usedBy": [
+        "main.py",
+        "ui/custom_widgets/collapsable_sections/details_section.py",
+        "ui/custom_widgets/mindmap_nodes.py",
+        "ui/dashboard_screen.py",
+        "ui/mindmap_screen.py",
+        "ui/notes_screen.py",
+        "ui/task_files/task_card_expanded.py",
+        "utils/directory_migration.py",
+        "utils/tasks_io.py"
+      ]
+    },
+    {
+      "path": "utils/directory_migration.py",
+      "fileType": "module",
+      "stage": "helpers",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 97,
+      "size": 3879,
+      "summary": "Support or shared utility code. Functions: migrate_data_if_needed",
+      "functions": [
+        "migrate_data_if_needed"
+      ],
+      "classes": [],
+      "exports": [],
+      "imports": [
+        "utils/directory_finder.py",
+        "utils/app_config.py"
+      ],
+      "usedBy": [
+        "main.py"
+      ]
+    },
+    {
+      "path": "utils/gantt_io.py",
+      "fileType": "module",
+      "stage": "helpers",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 151,
+      "size": 4754,
+      "summary": "Support or shared utility code. Functions: _get_gantt_file_path, load_gantt_charts_from_json, save_gantt_charts_to_json, load_gantt_chart_for_project",
+      "functions": [
+        "_get_gantt_file_path",
+        "load_gantt_charts_from_json",
+        "save_gantt_charts_to_json",
+        "load_gantt_chart_for_project",
+        "save_gantt_chart",
+        "delete_gantt_chart"
+      ],
+      "classes": [],
+      "exports": [],
+      "imports": [
+        "models/gantt_item.py",
+        "utils/app_config.py"
+      ],
+      "usedBy": [
+        "ui/gantt_chart_view.py"
+      ]
+    },
+    {
+      "path": "utils/mindmap_io.py",
+      "fileType": "module",
+      "stage": "helpers",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 405,
+      "size": 12271,
+      "summary": "Support or shared utility code. Functions: get_mindmaps_file, load_mindmaps_from_json, save_mindmaps_to_json, create_mindmap",
+      "functions": [
+        "get_mindmaps_file",
+        "load_mindmaps_from_json",
+        "save_mindmaps_to_json",
+        "create_mindmap",
+        "update_mindmap",
+        "delete_mindmap",
+        "link_mindmap_to_project",
+        "unlink_mindmap_from_project",
+        "get_mindmaps_for_project",
+        "get_unlinked_mindmaps"
+      ],
+      "classes": [],
+      "exports": [],
+      "imports": [
+        "models/mindmap.py",
+        "utils/app_config.py",
+        "utils/projects_io.py"
+      ],
+      "usedBy": [
+        "ui/mindmap_screen.py",
+        "ui/project_files/project_detail_view.py"
+      ]
+    },
+    {
+      "path": "utils/notes_io.py",
+      "fileType": "module",
+      "stage": "helpers",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 151,
+      "size": 5475,
+      "summary": "Support or shared utility code. Functions: save_note_to_json, load_notes_from_json, delete_note_from_json",
+      "functions": [
+        "save_note_to_json",
+        "load_notes_from_json",
+        "delete_note_from_json"
+      ],
+      "classes": [],
+      "exports": [],
+      "imports": [
+        "models/note.py",
+        "utils/app_config.py"
+      ],
+      "usedBy": [
+        "ui/notes_screen.py"
+      ]
+    },
+    {
+      "path": "utils/projects_io.py",
+      "fileType": "module",
+      "stage": "helpers",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 801,
+      "size": 25225,
+      "summary": "Support or shared utility code. Functions: load_projects_from_json, save_projects_to_json, load_phases_from_json, save_phases_to_json",
+      "functions": [
+        "load_projects_from_json",
+        "save_projects_to_json",
+        "load_phases_from_json",
+        "save_phases_to_json",
+        "create_project",
+        "create_phase",
+        "delete_project",
+        "delete_phase",
+        "move_task_to_phase",
+        "add_task_to_phase",
+        "remove_task_from_phase",
+        "load_scheduled_projects",
+        "save_scheduled_projects",
+        "schedule_project",
+        "unschedule_project",
+        "export_project_to_json",
+        "import_project_from_json"
+      ],
+      "classes": [],
+      "exports": [],
+      "imports": [
+        "utils/app_config.py",
+        "models/project.py",
+        "models/phase.py",
+        "models/task.py",
+        "utils/tasks_io.py"
+      ],
+      "usedBy": [
+        "migrate_phase_tasks.py",
+        "models/mindmap.py",
+        "models/project.py",
+        "models/task.py",
+        "test_projects_module.py",
+        "ui/gantt_chart_view.py",
+        "ui/planning_screen.py",
+        "ui/projects_screen.py",
+        "ui/project_files/phase_widget.py",
+        "ui/project_files/project_card.py",
+        "ui/project_files/project_card_expanded.py",
+        "ui/project_files/project_detail_view.py",
+        "utils/data_manager.py",
+        "utils/mindmap_io.py",
+        "utils/project_dashboard_sync.py"
+      ]
+    },
+    {
+      "path": "utils/project_dashboard_sync.py",
+      "fileType": "module",
+      "stage": "helpers",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 128,
+      "size": 4285,
+      "summary": "Support or shared utility code. Functions: ensure_project_groups_exist, create_project_grid_layout, remove_project_grid_layout, update_project_grid_name",
+      "functions": [
+        "ensure_project_groups_exist",
+        "create_project_grid_layout",
+        "remove_project_grid_layout",
+        "update_project_grid_name"
+      ],
+      "classes": [],
+      "exports": [],
+      "imports": [
+        "utils/dashboard_config.py",
+        "utils/projects_io.py"
+      ],
+      "usedBy": [
+        "ui/dashboard_screen.py"
+      ]
+    },
+    {
+      "path": "utils/tasks_io.py",
+      "fileType": "module",
+      "stage": "helpers",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 464,
+      "size": 20732,
+      "summary": "Support or shared utility code. Functions: invalidate_tasks_cache, load_tasks_from_json, save_task_to_json",
+      "functions": [
+        "invalidate_tasks_cache",
+        "load_tasks_from_json",
+        "save_task_to_json"
+      ],
+      "classes": [],
+      "exports": [],
+      "imports": [
+        "utils/app_config.py",
+        "utils/directory_finder.py",
+        "models/task.py"
+      ],
+      "usedBy": [
+        "migrate_phase_tasks.py",
+        "models/phase.py",
+        "models/project.py",
+        "tests/test_tasks_io.py",
+        "test_cache.py",
+        "test_projects_module.py",
+        "ui/custom_widgets/collapsable_sections/details_section.py",
+        "ui/custom_widgets/mindmap_nodes.py",
+        "ui/dashboard_child_view/grid_layout.py",
+        "ui/mindmap_screen.py",
+        "ui/planning_screen.py",
+        "ui/project_files/phase_widget.py",
+        "ui/project_files/project_card_expanded.py",
+        "utils/data_manager.py",
+        "utils/projects_io.py"
+      ]
+    },
+    {
+      "path": "utils/task_io_settings.py",
+      "fileType": "module",
+      "stage": "helpers",
+      "lang": "py",
+      "ext": ".py",
+      "lines": 1,
+      "size": 0,
+      "summary": "Support or shared utility code. Type: module",
+      "functions": [],
+      "classes": [],
+      "exports": [],
+      "imports": [],
+      "usedBy": []
+    }
+  ]
+}

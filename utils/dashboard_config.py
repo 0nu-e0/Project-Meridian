@@ -102,7 +102,8 @@ class DashboardConfigManager:
                 grid.filter.status = filter_data.get('status', [])
                 grid.filter.category = filter_data.get('category', [])
                 grid.filter.due = filter_data.get('due', [])
-                
+                grid.filter.project_id = filter_data.get('project_id', None)
+
                 grid_layouts.append(grid)
             
             # logger.info(f"Successfully loaded {len(grid_layouts)} grid layouts from configuration")
@@ -180,6 +181,8 @@ class DashboardConfigManager:
                         grid_data['filter']['category'] = grid.filter.category
                     if hasattr(grid.filter, 'due'):
                         grid_data['filter']['due'] = grid.filter.due
+                    if hasattr(grid.filter, 'project_id') and grid.filter.project_id:
+                        grid_data['filter']['project_id'] = grid.filter.project_id
                     # Include legacy fields if present
                     if hasattr(grid.filter, 'type'):
                         grid_data['filter']['type'] = grid.filter.type
@@ -236,43 +239,12 @@ class DashboardConfigManager:
             logger.error(f"Error loading configuration: {e}")
             return []
         
-        # Extract grid layouts
+        # Extract grid layouts as plain dicts (same format as get_all_grid_layouts)
         try:
-            layouts_data = yaml_data.get('dashboard', {}).get('grid_layouts', [])
-            
-            # Convert to grid layout objects - customize this part for your application
-            grid_layouts = []
-            for layout_data in layouts_data:
-                # Create an instance of your grid layout class
-                # This is a placeholder - replace with your actual class
-                grid = GridLayout(
-                    id=layout_data.get('id'),
-                    name=layout_data.get('name'),
-                    position=layout_data.get('position'),
-                    columns=layout_data.get('columns', 3)
-                )
-                
-                # Set up filters if present
-                filter_data = layout_data.get('filter', {})
-                if filter_data:
-                    grid.filter = GridFilter()
-                    grid.filter.category = filter_data.get('category', [])
-                    grid.filter.status = filter_data.get('status', [])
-                    grid.filter.due = filter_data.get('due', [])
-                    
-                    # Handle legacy fields
-                    if 'type' in filter_data:
-                        grid.filter.type = filter_data['type']
-                    if 'priority' in filter_data:
-                        grid.filter.priority = filter_data['priority']
-                    if 'tags' in filter_data:
-                        grid.filter.tags = filter_data['tags']
-                
-                grid_layouts.append(grid)
-            
+            grid_layouts = yaml_data.get('dashboard', {}).get('grid_layouts', [])
             logger.info(f"Loaded {len(grid_layouts)} grid layouts from configuration")
             return grid_layouts
-            
+
         except Exception as e:
             logger.error(f"Error parsing grid layouts: {e}")
             return []

@@ -58,6 +58,8 @@ class ProjectDetailView(QWidget):
     """
 
     backClicked = pyqtSignal()  # Emitted when back button is clicked
+    ganttChartClicked = pyqtSignal(str)  # Emitted when Gantt chart button is clicked (project_id)
+    taskUpdated = pyqtSignal()  # Emitted when a task in this project is updated
 
     def __init__(self, project_id: str, logger, parent=None):
         super().__init__(parent)
@@ -379,6 +381,13 @@ class ProjectDetailView(QWidget):
         buttons_layout = QHBoxLayout()
         buttons_layout.setSpacing(10)
 
+        # Gantt Chart button
+        gantt_btn = AnimatedButton("📊 View Gantt Chart")
+        gantt_btn.setStyleSheet(AppStyles.button_normal())
+        gantt_btn.setFixedHeight(35)
+        gantt_btn.clicked.connect(self.onViewGanttChart)
+        buttons_layout.addWidget(gantt_btn)
+
         # View Mindmap button (if linked) or Link Mindmap button (if not linked)
         if self.project.mindmap_id:
             mindmap_btn = AnimatedButton("🧠 View Mindmap")
@@ -451,6 +460,7 @@ class ProjectDetailView(QWidget):
             phase_widget.phaseUpdated.connect(self.onPhaseUpdated)
             phase_widget.phaseDeleted.connect(self.onPhaseDeleted)
             phase_widget.phaseReordered.connect(self.onPhaseReordered)
+            phase_widget.taskUpdated.connect(self.taskUpdated.emit)  # Propagate task updates
 
             # Set a minimum width for phase widgets
             phase_widget.setMinimumWidth(300)
@@ -678,6 +688,10 @@ class ProjectDetailView(QWidget):
                     "Error",
                     "Failed to unlink mindmap. Please try again."
                 )
+
+    def onViewGanttChart(self):
+        """Handle view Gantt chart button click"""
+        self.ganttChartClicked.emit(self.project_id)
 
     def onViewMindmap(self):
         """Handle view mindmap button click"""

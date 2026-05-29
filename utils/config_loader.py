@@ -92,12 +92,12 @@ class YamlConfig:
             self._config_path = Path(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'Project_Manager', 'data', 'app_config.yaml'))
             self._user_config_path = Path(os.path.expanduser("~/.myapp/user_config.yaml"))
             
-            # print(f"Looking for config at: {self._config_path}")
-            # if os.path.exists(self._config_path):
-            #     print(f"File exists!")
-            # else:
-            #     pass
-                # print(f"File does not exist")
+            print(f"Looking for config at: {self._config_path}")
+            if os.path.exists(self._config_path):
+                print(f"File exists!")
+            else:
+                pass
+                print(f"File does not exist")
                 
             self.load_config()
             self._loaded = True

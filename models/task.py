@@ -149,14 +149,211 @@ class Task(QObject):
         self.sprint_id: Optional[str] = None
         self.milestone_id: Optional[str] = None
 
-        # Comment Activities
-        self.entries: List[TaskEntry] = []    
-        self.time_logs: List[TimeLog] = [] 
-
         # Checklist items
-        self.checklist: List[Dict[str, any]] = [] 
+        self.checklist: List[Dict[str, any]] = []
+
+        # Per-task section visibility settings (key → bool, default True/visible)
+        self.visible_sections: Dict[str, bool] = {}
 
         self.check_archived()
+
+    def to_dict(self) -> dict:
+        """Serialize Task to a dictionary matching the tasks JSON file format."""
+        return {
+            'id': self.id,
+            'title': self.title,
+            'description': self.description,
+            'project_id': self.project_id,
+            'phase_id': self.phase_id,
+            'category': self.category.value if isinstance(self.category, TaskCategory) else (self.category if isinstance(self.category, str) else TaskCategory.FEATURE.value),
+            'creation_date': self.creation_date.strftime('%Y-%m-%d, %H:%M:%S') if self.creation_date else None,
+            'start_date': self.start_date.strftime('%Y-%m-%d, %H:%M:%S') if self.start_date else None,
+            'due_date': self.due_date.strftime('%Y-%m-%d, %H:%M:%S') if self.due_date else None,
+            'completion_date': self.completion_date.strftime('%Y-%m-%d, %H:%M:%S') if self.completion_date else None,
+            'reminder_date': self.reminder_date.strftime('%Y-%m-%d, %H:%M:%S') if self.reminder_date else None,
+            'modified_date': self.modified_date.strftime('%Y-%m-%d, %H:%M:%S') if self.modified_date else None,
+            'status': self.status.name if self.status else TaskStatus.NOT_STARTED.name,
+            'priority': self.priority.name if self.priority else TaskPriority.MEDIUM.name,
+            'percentage_complete': self.percentage_complete,
+            'estimated_hours': self.estimated_hours,
+            'actual_hours': self.actual_hours,
+            'cost_estimate': self.cost_estimate,
+            'actual_cost': self.actual_cost,
+            'assignee': self.assignee,
+            'creator': self.creator,
+            'modified_by': self.modified_by,
+            'parent_task_id': self.parent_task_id,
+            'sprint_id': self.sprint_id,
+            'milestone_id': self.milestone_id,
+            'story_points': self.story_points,
+            'dependencies': list(self.dependencies),
+            'blocked_by': list(self.blocked_by),
+            'watchers': list(self.watchers),
+            'collaborators': list(self.collaborators),
+            'tags': list(self.tags),
+            'custom_fields': self.custom_fields,
+            'attachments': [
+                {
+                    'path_or_url': a.path_or_url,
+                    'file_name': os.path.basename(a.path_or_url),
+                    'added_date': a.upload_date.strftime('%m/%d/%Y %H:%M'),
+                    'added_by': a.user_id,
+                    'file_type': a.file_type,
+                }
+                for a in self.attachments
+            ],
+            'checklist': [
+                {'text': item['text'], 'checked': item.get('checked', False)}
+                if isinstance(item, dict) else {'text': item, 'checked': False}
+                for item in self.checklist
+            ],
+            'visible_sections': self.visible_sections,
+            'time_logs': [
+                {
+                    'id': log.id,
+                    'hours': log.hours,
+                    'user_id': log.user_id,
+                    'description': log.description,
+                    'timestamp': log.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+                }
+                for log in self.time_logs
+            ],
+            'activities': [
+                {
+                    'text': entry.content,
+                    'timestamp': entry.timestamp.strftime('%m/%d/%Y %H:%M'),
+                    'type': entry.entry_type,
+                    'edited': entry.edited,
+                    'edit_timestamp': entry.edit_timestamp.strftime('%m/%d/%Y %H:%M') if entry.edit_timestamp else None,
+                    'user_id': entry.user_id,
+                }
+                for entry in self.entries
+            ],
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'Task':
+        """Deserialize a Task from a dictionary (inverse of to_dict)."""
+        task = cls(
+            title=data.get('title', 'Untitled'),
+            description=data.get('description', ''),
+            project_id=data.get('project_id'),
+        )
+
+        if 'id' in data:
+            task.id = data['id']
+        task.phase_id = data.get('phase_id')
+
+        if 'status' in data:
+            status_value = data['status'].replace(' ', '_').upper()
+            try:
+                task.status = TaskStatus[status_value]
+            except KeyError:
+                task.status = TaskStatus.NOT_STARTED
+
+        if 'priority' in data:
+            try:
+                task.priority = TaskPriority[data['priority'].upper()]
+            except KeyError:
+                task.priority = TaskPriority.MEDIUM
+
+        if 'category' in data:
+            category_value = data['category']
+            try:
+                task.category = TaskCategory[category_value.replace(' ', '_').upper()]
+            except KeyError:
+                task.category = category_value
+
+        date_fields = ['creation_date', 'start_date', 'due_date', 'completion_date', 'reminder_date', 'modified_date']
+        for field in date_fields:
+            raw = data.get(field)
+            if raw:
+                for fmt in ('%Y-%m-%d, %H:%M:%S', '%Y-%m-%dT%H:%M:%S', '%Y-%m-%d %H:%M:%S'):
+                    try:
+                        setattr(task, field, datetime.strptime(raw, fmt))
+                        break
+                    except ValueError:
+                        continue
+
+        for field in ['assignee', 'creator', 'modified_by', 'parent_task_id', 'sprint_id', 'milestone_id']:
+            if field in data:
+                setattr(task, field, data[field])
+
+        task.percentage_complete = data.get('percentage_complete', 0)
+        task.estimated_hours = float(data.get('estimated_hours', 0.0))
+        task.actual_hours = float(data.get('actual_hours', 0.0))
+        task.cost_estimate = float(data.get('cost_estimate', 0.0))
+        task.actual_cost = float(data.get('actual_cost', 0.0))
+        task.story_points = data.get('story_points')
+
+        task.dependencies = set(data.get('dependencies', []))
+        task.blocked_by = set(data.get('blocked_by', []))
+        task.watchers = set(data.get('watchers', []))
+        task.collaborators = set(data.get('collaborators', []))
+        task.tags = set(data.get('tags', []))
+        task.custom_fields = data.get('custom_fields', {})
+
+        task.attachments = []
+        for a in data.get('attachments', []):
+            attachment = Attachment(
+                path_or_url=a['path_or_url'],
+                user_id=a.get('added_by', 'System'),
+                description=a.get('file_name', ''),
+            )
+            if 'added_date' in a:
+                try:
+                    attachment.upload_date = datetime.strptime(a['added_date'], '%m/%d/%Y %H:%M')
+                except ValueError:
+                    pass
+            attachment.file_type = a.get('file_type')
+            task.attachments.append(attachment)
+
+        task.visible_sections = data.get('visible_sections', {})
+
+        task.checklist = []
+        for item in data.get('checklist', []):
+            if isinstance(item, dict) and 'text' in item:
+                task.checklist.append({'text': item['text'], 'checked': item.get('checked', False)})
+            elif isinstance(item, str):
+                task.checklist.append({'text': item, 'checked': False})
+
+        task.time_logs = []
+        for log_data in data.get('time_logs', []):
+            log = TimeLog(
+                hours=log_data.get('hours', 0),
+                user_id=log_data.get('user_id', 'System'),
+                description=log_data.get('description', ''),
+            )
+            if 'id' in log_data:
+                log.id = log_data['id']
+            if 'timestamp' in log_data:
+                try:
+                    log.timestamp = datetime.strptime(log_data['timestamp'], '%Y-%m-%d %H:%M:%S')
+                except ValueError:
+                    pass
+            task.time_logs.append(log)
+
+        task.entries = []
+        for entry_data in data.get('activities', []):
+            entry = TaskEntry(
+                content=entry_data.get('text', ''),
+                entry_type=entry_data.get('type', 'comment'),
+                user_id=entry_data.get('user_id', 'System'),
+            )
+            if 'timestamp' in entry_data:
+                try:
+                    entry.timestamp = datetime.strptime(entry_data['timestamp'], '%m/%d/%Y %H:%M')
+                except ValueError:
+                    pass
+            entry.edited = entry_data.get('edited', False)
+            if entry.edited and entry_data.get('edit_timestamp'):
+                try:
+                    entry.edit_timestamp = datetime.strptime(entry_data['edit_timestamp'], '%m/%d/%Y %H:%M')
+                except ValueError:
+                    pass
+            task.entries.append(entry)
+
+        return task
 
     def check_archived(self):
         # print(f"checking for archived for {self.title}, with category: {self.status}")
@@ -212,6 +409,8 @@ class Task(QObject):
         if not self.due_date:
             return 0.0
         total_duration = (self.due_date - self.creation_date).days
+        if total_duration == 0:
+            return 0.0
         remaining_duration = (self.due_date - datetime.now()).days
         return (remaining_duration / total_duration) * (100 - self.percentage_complete)
 

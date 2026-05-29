@@ -1123,4 +1123,20 @@ class CollapsibleSection(QWidget):
             # Connect with new index
             checkbox.stateChanged.connect(partial(self._on_checklist_item_state_changed, i))
 
+            # Also need to reconnect remove button with correct index
+            widget = item_data['widget']
+            item_layout = widget.layout()
+            # Remove button is at index 2 in the layout (checkbox, label, remove_button)
+            remove_button = item_layout.itemAt(2).widget()
+
+            # Disconnect all previous connections
+            try:
+                remove_button.disconnect()
+            except RuntimeError:
+                pass  # No connections to disconnect
+
+            # Reconnect with updated index
+            item_text = item_data['text']
+            remove_button.clicked.connect(partial(self.remove_checklist_item, i, item_text))
+
     

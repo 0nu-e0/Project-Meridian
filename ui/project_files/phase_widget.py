@@ -49,6 +49,7 @@ class PhaseWidget(QWidget):
     phaseUpdated = pyqtSignal(str)  # Emits phase_id when updated
     phaseDeleted = pyqtSignal(str)  # Emits phase_id when deleted
     phaseReordered = pyqtSignal(str, int)  # Emits (phase_id, new_position) when dragged to new position
+    taskUpdated = pyqtSignal()  # Emits when a task in this phase is updated/deleted
 
     def __init__(self, phase: Phase, project: Project, logger):
         super().__init__()
@@ -375,6 +376,8 @@ class PhaseWidget(QWidget):
             self.project.invalidate_task_cache()
         self.closeTaskDetail()
         self.refreshTasks()
+        # Emit signal to notify that a task was updated
+        self.taskUpdated.emit()
 
     def onTaskCanceled(self):
         """Handle task dialog cancel"""
@@ -387,6 +390,8 @@ class PhaseWidget(QWidget):
             self.project.invalidate_task_cache()
         self.closeTaskDetail()
         self.refreshTasks()
+        # Emit signal to notify that a task was deleted
+        self.taskUpdated.emit()
 
     def closeTaskDetail(self):
         """Close the task detail overlay"""
@@ -468,17 +473,29 @@ class PhaseWidget(QWidget):
         # Reload tasks
         self.loadTasks()
 
-        # Clear existing task widgets
-        while self.content_layout.count() > 1:  # Keep the Add Task button
-            item = self.content_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
+        # Clear existing task widgets (remove all items except the Add Task button and stretch)
+        # Count backwards to avoid index issues
+        items_to_remove = []
+        for i in range(self.content_layout.count()):
+            item = self.content_layout.itemAt(i)
+            if item and item.widget():
+                widget = item.widget()
+                # Don't remove the Add Task button
+                if not isinstance(widget, QPushButton):
+                    items_to_remove.append(widget)
 
-        # Re-add task items
+        # Remove collected widgets
+        for widget in items_to_remove:
+            self.content_layout.removeWidget(widget)
+            widget.deleteLater()
+
+        # Re-add task items (insert before the Add Task button)
+        insert_position = 0
         if self.tasks:
             for task in self.tasks:
                 task_item = self.createTaskItem(task)
-                self.content_layout.insertWidget(self.content_layout.count() - 1, task_item)
+                self.content_layout.insertWidget(insert_position, task_item)
+                insert_position += 1
         else:
             # Empty state
             empty_label = QLabel("No tasks in this phase yet")

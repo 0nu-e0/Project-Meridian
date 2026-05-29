@@ -91,13 +91,13 @@ class MainWindow(QWidget):
         # before DataManager tries to load data (which internally uses AppConfig)
         from utils.app_config import AppConfig
         self.app_config = AppConfig()
-        # self.logger.info(f"AppConfig initialized: {self.app_config.app_data_dir}")
+        self.logger.info(f"AppConfig initialized: {self.app_config.app_data_dir}")
 
         # Initialize DataManager once at startup
         self.data_manager = DataManager(self.logger, self.app_config)
         # Load all data into memory
         self.data_manager._load_all_data()
-        # self.logger.info(f"DataManager initialized: {self.data_manager.get_data_summary()}")
+        self.logger.info(f"DataManager initialized: {self.data_manager.get_data_summary()}")
 
         # Set window flags to make it act like a main window
         self.setWindowFlags(Qt.Window)
@@ -372,12 +372,49 @@ class MainWindow(QWidget):
         # Connect back button to return to projects screen
         project_detail_view.backClicked.connect(self.returnToProjectsScreen)
 
+        # Connect Gantt chart button
+        project_detail_view.ganttChartClicked.connect(self.showGanttChart)
+
+        # Connect task update signal to refresh dashboard
+        project_detail_view.taskUpdated.connect(self.dashboard_screen.refreshDashboard)
+
         # Add to stacked widget and show it
         self.stacked_widget.addWidget(project_detail_view)
         self.stacked_widget.setCurrentWidget(project_detail_view)
 
         # Update banner header
         self.banner_header.setText("Project Details")
+
+    def showGanttChart(self, project_id):
+        """Show the Gantt chart view for the given project ID"""
+        from ui.gantt_chart_view import GanttChartView
+
+        # Create a new Gantt chart view
+        gantt_view = GanttChartView(project_id, self.logger)
+        gantt_view.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+        # Connect back button to return to project detail
+        gantt_view.backClicked.connect(lambda: self.returnFromGanttChart(project_id))
+
+        # Add to stacked widget and show it
+        self.stacked_widget.addWidget(gantt_view)
+        self.stacked_widget.setCurrentWidget(gantt_view)
+
+        # Update banner header
+        self.banner_header.setText("Gantt Chart")
+
+    def returnFromGanttChart(self, project_id):
+        """Return to project detail view from Gantt chart"""
+        from ui.gantt_chart_view import GanttChartView
+
+        # Remove the current Gantt chart view
+        current_widget = self.stacked_widget.currentWidget()
+        if isinstance(current_widget, GanttChartView):
+            self.stacked_widget.removeWidget(current_widget)
+            current_widget.deleteLater()
+
+        # Show the project detail view again
+        self.showProjectDetail(project_id)
 
     def returnToProjectsScreen(self):
         """Return to the projects screen from project detail view"""

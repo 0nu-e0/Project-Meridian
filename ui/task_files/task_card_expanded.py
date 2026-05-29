@@ -37,8 +37,8 @@ from PyQt5.QtGui import QDesktopServices, QGuiApplication, QIcon, QPixmap, QResi
 from PyQt5.QtWidgets import (QApplication, QCalendarWidget, QComboBox, QFileDialog,
                              QGridLayout, QHBoxLayout, QInputDialog, QLabel, QLineEdit,
                              QListView, QListWidget, QListWidgetItem, QMessageBox,
-                             QPushButton, QScrollArea, QSizePolicy, QSpinBox, QTabWidget,
-                             QTextEdit, QToolButton, QVBoxLayout, QWidget)
+                             QPushButton, QScrollArea, QSizePolicy, QSpinBox, QStackedWidget,
+                             QTabWidget, QTextEdit, QToolButton, QVBoxLayout, QWidget)
 
 # Local application imports
 from utils.app_config import AppConfig
@@ -105,9 +105,20 @@ class TaskCardExpanded(QWidget):
 
         # Initialize widget references to None for proper cleanup
         self._calendar_widget = None
-        self.dialog_container = None
-        self.overlay = None
-        self.task_settings_menu = None
+
+        # Section widget refs — populated during initUI; used by apply_section_visibility()
+        self.description_section_widget = None
+        self.activity_section_widget = None
+        self.status_priority_widget = None
+        self.details_section = None
+        self.dependencies_section = None
+        self.category_section_widget = None
+        self.project_phase_section_widget = None
+
+        # Debounce timer for auto-saving checklist changes
+        self._save_debounce_timer = QTimer()
+        self._save_debounce_timer.setSingleShot(True)
+        self._save_debounce_timer.timeout.connect(self._debounced_save)
 
         self.setWindowFlags(Qt.FramelessWindowHint)
         self.setWindowModality(Qt.ApplicationModal)
@@ -179,20 +190,36 @@ class TaskCardExpanded(QWidget):
             'entries': list(task.entries), 
             'time_logs': list(task.time_logs),  
             'attachments': list(task.attachments),
-            'checklist': list(self.task.checklist)
+            'checklist': list(self.task.checklist),
+            'visible_sections': dict(task.visible_sections) if task.visible_sections else {},
         }
         
     def initUI(self):
         self.initCentralWidget()
         self.initLeftPanelWidget()
         self.initRightPanelWidget()
+        self._initSettingsView()
+        self.apply_section_visibility()
 
     def initCentralWidget(self):
         self.setObjectName("card_container")
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.main_layout = QHBoxLayout(self)
+
+        outer_layout = QVBoxLayout(self)
+        outer_layout.setContentsMargins(0, 0, 0, 0)
+        outer_layout.setSpacing(0)
+
+        self.stacked_widget = QStackedWidget()
+        self.stacked_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        outer_layout.addWidget(self.stacked_widget)
+
+        # Page 0: main task edit view
+        self._main_view_widget = QWidget()
+        self._main_view_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.main_layout = QHBoxLayout(self._main_view_widget)
         self.main_layout.setContentsMargins(0, 0, 0, 0)
         self.main_layout.setSpacing(0)
+        self.stacked_widget.addWidget(self._main_view_widget)  # index 0
 
     def initLeftPanelWidget(self):
         main_widget = QWidget()
@@ -205,10 +232,17 @@ class TaskCardExpanded(QWidget):
         if hasattr(self.task, 'project_id') and (self.task.project_id or self.task.phase_id):
             left_layout.addLayout(self.createProjectPhaseSection())
 
-        left_layout.addLayout(self.createDescriptionSection(), 1)
-        left_layout.addWidget(self.createActivitySection(), 3)
+        # Description — wrap in a widget so setVisible() works for toggling
+        self.description_section_widget = QWidget()
+        self.description_section_widget.setStyleSheet("background-color: transparent;")
+        self.description_section_widget.setLayout(self.createDescriptionSection())
+        left_layout.addWidget(self.description_section_widget, 1)
 
-        self.main_layout.addWidget(main_widget,stretch=3)
+        # Activity — already returns a QWidget
+        self.activity_section_widget = self.createActivitySection()
+        left_layout.addWidget(self.activity_section_widget, 3)
+
+        self.main_layout.addWidget(main_widget, stretch=3)
 
     def initRightPanelWidget(self):
         main_widget = QWidget()
@@ -216,13 +250,30 @@ class TaskCardExpanded(QWidget):
         right_layout = QVBoxLayout(main_widget)
         right_layout.setContentsMargins(0, 15, 15, 0)
 
-        right_layout.addLayout(self.createStatusPrioritySection())
+        # Status/Priority — wrap for visibility toggling
+        self.status_priority_widget = QWidget()
+        self.status_priority_widget.setStyleSheet("background-color: transparent;")
+        self.status_priority_widget.setLayout(self.createStatusPrioritySection())
+        right_layout.addWidget(self.status_priority_widget)
+
+        # Collapsible sections (details, dependencies, attachments, checklist)
+        # Individual section widget refs are stored inside create*Section methods
         right_layout.addLayout(self.initCollapsableSections())
-        right_layout.addLayout(self.createCategorySection())
-        right_layout.addLayout(self.createProjectPhaseSelectionSection())
-        #right_layout.addStretch(1)
+
+        # Category — wrap for visibility toggling
+        self.category_section_widget = QWidget()
+        self.category_section_widget.setStyleSheet("background-color: transparent;")
+        self.category_section_widget.setLayout(self.createCategorySection())
+        right_layout.addWidget(self.category_section_widget)
+
+        # Project/Phase selection — wrap for visibility toggling
+        self.project_phase_section_widget = QWidget()
+        self.project_phase_section_widget.setStyleSheet("background-color: transparent;")
+        self.project_phase_section_widget.setLayout(self.createProjectPhaseSelectionSection())
+        right_layout.addWidget(self.project_phase_section_widget)
+
         right_layout.addLayout(self.createButtonSection())
-        
+
         self.main_layout.addWidget(main_widget, stretch=2)
 
     def createTitleSection(self):
@@ -916,16 +967,75 @@ class TaskCardExpanded(QWidget):
 
     def _handleSaveClick(self):
         """Handle the save button click - save task and emit appropriate signal"""
+        # Stop any pending debounced save
+        self._save_debounce_timer.stop()
+
+        # Show loading overlay
+        self._show_save_overlay()
+
+        # Store is_new_task before processing
         is_new_task = self.task is None
 
-        # Save the task using DataManager
-        self.data_manager.save_task(self.task)
+        # Use QTimer to defer save operation to allow UI to update
+        QTimer.singleShot(10, lambda: self._perform_save(is_new_task))
 
-        # Emit the appropriate signal with the task object
-        if is_new_task:
-            self.saveCompleted.emit(self.task, self.grid_id)
-        else:
-            self.newTaskUpdate.emit(self.task, self.grid_id)
+    def _perform_save(self, is_new_task):
+        """Actually perform the save operation"""
+        try:
+            # Save the task using DataManager
+            self.data_manager.save_task(self.task)
+
+            # Emit the appropriate signal with the task object
+            if is_new_task:
+                self.saveCompleted.emit(self.task, self.grid_id)
+            else:
+                self.newTaskUpdate.emit(self.task, self.grid_id)
+        finally:
+            # Hide loading overlay
+            self._hide_save_overlay()
+
+    def _show_save_overlay(self):
+        """Show a semi-transparent overlay with loading spinner"""
+        # Create overlay widget if it doesn't exist
+        if not hasattr(self, '_save_overlay'):
+            from PyQt5.QtWidgets import QFrame
+            from PyQt5.QtCore import Qt
+
+            self._save_overlay = QFrame(self)
+            self._save_overlay.setStyleSheet("""
+                QFrame {
+                    background-color: rgba(0, 0, 0, 0.5);
+                }
+            """)
+
+            # Create loading label
+            self._save_label = QLabel("Saving...", self._save_overlay)
+            self._save_label.setStyleSheet("""
+                QLabel {
+                    color: white;
+                    font-size: 16px;
+                    font-weight: bold;
+                    background-color: transparent;
+                }
+            """)
+            self._save_label.setAlignment(Qt.AlignCenter)
+
+            # Position label in center
+            overlay_layout = QVBoxLayout(self._save_overlay)
+            overlay_layout.addWidget(self._save_label)
+
+        # Resize and show overlay
+        self._save_overlay.setGeometry(self.rect())
+        self._save_overlay.raise_()
+        self._save_overlay.show()
+
+        # Force immediate UI update
+        QApplication.processEvents()
+
+    def _hide_save_overlay(self):
+        """Hide the save overlay"""
+        if hasattr(self, '_save_overlay'):
+            self._save_overlay.hide()
 
     def createButtonSection(self):
         layout = QHBoxLayout()
@@ -1408,10 +1518,13 @@ class TaskCardExpanded(QWidget):
         else:
             self.logger.debug("found teams")
                 
+        # Store ref for visibility toggling
+        self.details_section = details_section
+
         # Add section to layout
         section_layout.addWidget(details_section)
         section_layout.addStretch()
-        
+
         return section_layout
 
     def createDependenciesSection(self):
@@ -1443,11 +1556,15 @@ class TaskCardExpanded(QWidget):
         if not self.task.dependencies:
             dependencies_section.toggle_collapsed()
 
+        # Store ref for visibility toggling
+        self.dependencies_section = dependencies_section
+
         section_layout.addWidget(dependencies_section)
         section_layout.addStretch()
-        
+
         return section_layout
-    
+
+
     def createChecklistSection(self):
         section_layout = QVBoxLayout()
         section_layout.setContentsMargins(0, 0, 15, 0)
@@ -1880,6 +1997,7 @@ class TaskCardExpanded(QWidget):
         task.attachments = self.initial_state['attachments']
 
         task.checklist = self.initial_state['checklist']
+        task.visible_sections = self.initial_state.get('visible_sections', {})
 
     def deleteTask(self):
         confirm = QMessageBox.question(
@@ -1950,24 +2068,6 @@ class TaskCardExpanded(QWidget):
             self._calendar_widget.close()
             self._calendar_widget = None
 
-        # Clean up dialog container if exists
-        if self.dialog_container is not None:
-            self.dialog_container.close()
-            self.dialog_container.deleteLater()
-            self.dialog_container = None
-
-        # Clean up overlay if exists
-        if self.overlay is not None:
-            self.overlay.close()
-            self.overlay.deleteLater()
-            self.overlay = None
-
-        # Clean up settings menu if exists
-        if self.task_settings_menu is not None:
-            self.task_settings_menu.close()
-            self.task_settings_menu.deleteLater()
-            self.task_settings_menu = None
-
         super().closeEvent(event)
 
     def closeWindow(self):
@@ -1977,24 +2077,39 @@ class TaskCardExpanded(QWidget):
         self.close()
         self.deleteLater()
 
+    def _debounced_save(self):
+        """Debounced save method - called after 500ms of no checklist changes"""
+        self.data_manager.save_task(self.task)
+
+    def _schedule_debounced_save(self):
+        """Schedule a debounced save - restarts timer if already running"""
+        self._save_debounce_timer.stop()
+        self._save_debounce_timer.start(500)  # 500ms delay
+
     def addChecklistItem(self, text):
         """Add checklist item to the current task"""
         # Check the flag to prevent recursion during loading
         if hasattr(self, '_loading_checklist_items') and self._loading_checklist_items:
             return
-            
+
         # Add to the Task object's checklist list
         self.task.checklist.append({
             'text': text,
             'checked': False
         })
 
+        # Schedule debounced save (waits 500ms after last change)
+        self._schedule_debounced_save()
+
     def removeChecklistItem(self, text):
         """Remove a checklist item from the task"""
         if hasattr(self.task, 'checklist'):
             # Remove the item with matching text
             self.task.checklist = [item for item in self.task.checklist if item['text'] != text]
-    
+
+            # Schedule debounced save (waits 500ms after last change)
+            self._schedule_debounced_save()
+
     def updateCheckboxState(self, text, checked):
         """Update the task's checklist item state"""
         # Find the item with matching text in the task's checklist
@@ -2002,51 +2117,55 @@ class TaskCardExpanded(QWidget):
             if item['text'] == text:
                 # Update the checked state
                 self.task.checklist[i]['checked'] = checked
+
+                # Schedule debounced save (waits 500ms after last change)
+                self._schedule_debounced_save()
                 break
         
+    # ------------------------------------------------------------------
+    # Settings view — lives on page 1 of self.stacked_widget
+    # ------------------------------------------------------------------
+
+    def _initSettingsView(self):
+        """Create the TaskSettingsMenu and register it as stacked-widget page 1."""
+        self.settings_view = TaskSettingsMenu(task=self.task)
+        self.settings_view.setAttribute(Qt.WA_StyledBackground, True)
+        self.settings_view.setStyleSheet(AppStyles.expanded_task_card())
+        self.settings_view.back_requested.connect(self._on_settings_back)
+        self.settings_view.settings_changed.connect(self._on_settings_changed)
+        self.stacked_widget.addWidget(self.settings_view)  # index 1
+
+    def apply_section_visibility(self):
+        """Show/hide each toggleable section based on task.visible_sections.
+        Defaults to visible (True) for any key not present in the dict.
+        """
+        vs = getattr(self.task, 'visible_sections', {})
+        section_map = {
+            'description':            self.description_section_widget,
+            'activity':               self.activity_section_widget,
+            'status_priority':        self.status_priority_widget,
+            'details':                self.details_section,
+            'dependencies':           self.dependencies_section,
+            'attachments':            getattr(self, 'attachments_section', None),
+            'checklist':              getattr(self, 'checklist_section', None),
+            'category':               self.category_section_widget,
+            'project_phase_selection': self.project_phase_section_widget,
+        }
+        for key, widget in section_map.items():
+            if widget is not None:
+                widget.setVisible(vs.get(key, True))
+
+    def _on_settings_back(self):
+        """Return to the main task view."""
+        self.stacked_widget.setCurrentIndex(0)
+
+    def _on_settings_changed(self, new_visible_sections: dict):
+        """Live-update section visibility as the user toggles checkboxes."""
+        self.task.visible_sections = new_visible_sections
+        self.apply_section_visibility()
+
     def settingsMenu(self):
-        window = self.window()
-        
-        # Create a container widget that covers the entire main window.
-        self.dialog_container = QWidget(window)
-        # Make the container completely transparent so it doesn't override child styling.
-        self.dialog_container.setAttribute(Qt.WA_StyledBackground, True)
-        self.dialog_container.setAttribute(Qt.WA_TranslucentBackground, True)
-        self.dialog_container.setStyleSheet("background-color: transparent;")
-        self.dialog_container.setWindowFlags(Qt.FramelessWindowHint)
-        self.dialog_container.setGeometry(window.rect())
-        
-        # Create the semi-transparent overlay.
-        self.overlay = QWidget(self.dialog_container)
-        self.overlay.setStyleSheet("background-color: rgba(0, 0, 0, 0.5);")
-        self.overlay.setGeometry(self.dialog_container.rect())
-        self.overlay.installEventFilter(self)
-
-        # pass_grid_id  = self.grid_layout_map[grid_id]
-        
-        # Create the expanded card as a child of the container.
-        self.task_settings_menu = TaskSettingsMenu(
-            logger=self.logger,
-            task=self.task,
-            grid_id=self.grid_id,
-            parent_view=self,
-            parent=self.dialog_container
-        )
-
-        # Set the object name so the style sheet applies.
-        self.task_settings_menu.setObjectName("card_container")
-        # Enable styled backgrounds so that the style sheet paints the background.
-        self.task_settings_menu.setAttribute(Qt.WA_StyledBackground, True)
-        # Notice: We do NOT set WA_TranslucentBackground here, so that the style sheet's background color is visible.
-        self.task_settings_menu.setStyleSheet(AppStyles.expanded_task_card())
-
-        # Calculate optimal dimensions and center the expanded card.
-        card_width, card_height = self.task_settings_menu.calculate_optimal_card_size(window)
-        center_x = (self.dialog_container.width() - card_width) // 2
-        center_y = (self.dialog_container.height() - card_height) // 2
-        self.task_settings_menu.setGeometry(center_x, center_y, card_width, card_height)
-        self.task_settings_menu.setWindowFlags(Qt.FramelessWindowHint)
-        self.task_settings_menu.raise_()
-        
-        # Show the container (which holds both the overlay and the expanded card)
-        self.dialog_container.show()
+        """Switch the overlay content to the settings page."""
+        # Sync checkboxes to reflect any changes made since last visit
+        self.settings_view.refresh()
+        self.stacked_widget.setCurrentIndex(1)

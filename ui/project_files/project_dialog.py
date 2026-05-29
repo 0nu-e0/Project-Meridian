@@ -283,9 +283,6 @@ class ProjectDialog(QDialog):
         if self.mode == "edit" and self.project:
             self.project_data['project_id'] = self.project.id
 
-        # Store project data for getProjectData() method
-        self.project_data = project_data
-
         # Emit signal with project data
         self.projectSaved.emit(self.project_data)
 

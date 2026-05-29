@@ -243,10 +243,9 @@ def delete_mindmap(mindmap_id: str, logger: logging.Logger) -> bool:
         logger.error(f"Mindmap {mindmap_id} not found")
         return False
 
-    # Remove mindmap
-    mindmap = mindmaps.pop(mindmap_id)
+    mindmap = mindmaps[mindmap_id]
 
-    # If linked to a project, unlink it
+    # If linked to a project, unlink it first
     if mindmap.project_id:
         try:
             from utils.projects_io import load_projects_from_json, save_projects_to_json
@@ -260,11 +259,14 @@ def delete_mindmap(mindmap_id: str, logger: logging.Logger) -> bool:
         except Exception as e:
             logger.error(f"Error unlinking project: {e}")
 
-    # Save
+    # Remove and save only after any pre-save work is done
+    mindmaps.pop(mindmap_id)
     success = save_mindmaps_to_json(mindmaps, logger)
 
     if success:
         logger.info(f"Deleted mindmap: {mindmap.title} (ID: {mindmap_id})")
+    else:
+        logger.error(f"Failed to save after deleting mindmap {mindmap_id}")
 
     return success
 

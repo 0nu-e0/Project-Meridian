@@ -431,12 +431,11 @@ class ProjectCardExpanded(QWidget):
         """)
         layout.addWidget(section_title)
 
-        # Load tasks for current phase
+        # Load tasks for current phase - use phase_id from tasks instead of phase.task_ids
         all_tasks = load_tasks_from_json(self.logger)
-        phase_task_ids = self.current_phase.task_ids
-        self.logger.info(f"Current phase '{self.current_phase.name}' has task_ids: {phase_task_ids}")
-        phase_tasks = [all_tasks[tid] for tid in phase_task_ids if tid in all_tasks]
-        self.logger.info(f"Loaded {len(phase_tasks)} tasks for current phase")
+        # Filter tasks by phase_id (more reliable than phase.task_ids)
+        phase_tasks = [task for task in all_tasks.values() if task.phase_id == self.current_phase.id]
+        self.logger.info(f"Current phase '{self.current_phase.name}' has {len(phase_tasks)} tasks (filtered by phase_id)")
 
         if not phase_tasks:
             no_tasks_label = QLabel("No tasks in this phase")
@@ -699,7 +698,7 @@ class ProjectCardExpanded(QWidget):
                             else:
                                 dt = timestamp
                             meta_text += f" • {dt.strftime('%b %d, %Y')}"
-                        except:
+                        except (ValueError, TypeError):
                             pass
 
                     meta_label = QLabel(meta_text)

@@ -17,9 +17,9 @@ from PyQt5.QtWidgets import (QApplication, QDesktopWidget, QGraphicsLineItem, QG
                              QMessageBox, QInputDialog, QListWidgetItem, QScrollArea, QTreeWidget, QTreeWidgetItem, QFileDialog,
                              QStyleFactory, QListView, QLayout, 
                              )
-from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot, QEvent, QSize, QDateTime, QUrl, QTimer, QPointF, QLineF
-from PyQt5.QtGui import (QColor, QPainter, QBrush, QPen, QMovie, QTextCharFormat, QColor, QIcon, QPixmap, QDesktopServices, 
-                        
+from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot, QEvent, QSize, QDateTime, QUrl, QTimer, QPointF, QLineF, QRectF
+from PyQt5.QtGui import (QColor, QPainter, QBrush, QPen, QMovie, QTextCharFormat, QIcon, QPixmap, QDesktopServices,
+                         QLinearGradient, QRadialGradient, QPainterPath
                         )
 
 from PyQt5.QtSvg import QSvgWidget
@@ -28,8 +28,8 @@ logger = logging.getLogger(__name__)
 
 
 
-class ConnectionItem(QGraphicsLineItem):
-    """Line connecting two nodes via specific link handles."""
+class ConnectionItem(QGraphicsPathItem):
+    """Bezier curve connecting two nodes via specific link handles."""
 
     def __init__(self, start_node, start_handle, end_node, end_handle):
         super().__init__()
@@ -38,10 +38,15 @@ class ConnectionItem(QGraphicsLineItem):
         self.end_node = end_node
         self.end_handle = end_handle
 
-        pen = QPen(QColor("blue"))
-        pen.setWidth(2)
+        pen = QPen(QColor(70, 130, 180))  # Steel blue
+        pen.setWidth(3)
+        pen.setCapStyle(Qt.RoundCap)
+        pen.setJoinStyle(Qt.RoundJoin)
         self.setPen(pen)
         self.setZValue(-1)
+
+        # Enable caching for better performance
+        self.setCacheMode(QGraphicsPathItem.DeviceCoordinateCache)
 
         self.dragging_start = False
         self.dragging_end = False
@@ -65,7 +70,35 @@ class ConnectionItem(QGraphicsLineItem):
             return
         start = self._handle_pos(self.start_node, self.start_handle)
         end = self._handle_pos(self.end_node, self.end_handle)
-        self.setLine(QLineF(start, end))
+
+        # Create bezier curve path
+        path = QPainterPath(start)
+
+        # Calculate control points for smooth curves
+        dx = end.x() - start.x()
+        dy = end.y() - start.y()
+
+        # Determine curve direction based on handle positions
+        if self.start_handle in ["left", "right"]:
+            # Horizontal start
+            ctrl_offset = abs(dx) * 0.5
+            ctrl1 = QPointF(start.x() + (ctrl_offset if self.start_handle == "right" else -ctrl_offset), start.y())
+        else:
+            # Vertical start
+            ctrl_offset = abs(dy) * 0.5
+            ctrl1 = QPointF(start.x(), start.y() + (ctrl_offset if self.start_handle == "bottom" else -ctrl_offset))
+
+        if self.end_handle in ["left", "right"]:
+            # Horizontal end
+            ctrl_offset = abs(dx) * 0.5
+            ctrl2 = QPointF(end.x() + (ctrl_offset if self.end_handle == "left" else -ctrl_offset), end.y())
+        else:
+            # Vertical end
+            ctrl_offset = abs(dy) * 0.5
+            ctrl2 = QPointF(end.x(), end.y() + (ctrl_offset if self.end_handle == "top" else -ctrl_offset))
+
+        path.cubicTo(ctrl1, ctrl2, end)
+        self.setPath(path)
 
     def detach(self):
         if self.start_node:
@@ -112,11 +145,17 @@ class ConnectionItem(QGraphicsLineItem):
 
     def mouseMoveEvent(self, event):
         if self.dragging_start:
-            self.setLine(QLineF(event.scenePos(), self._handle_pos(self.end_node, self.end_handle)))
+            # Create temporary straight path during drag
+            path = QPainterPath(event.scenePos())
+            path.lineTo(self._handle_pos(self.end_node, self.end_handle))
+            self.setPath(path)
             event.accept()
             return
         if self.dragging_end:
-            self.setLine(QLineF(self._handle_pos(self.start_node, self.start_handle), event.scenePos()))
+            # Create temporary straight path during drag
+            path = QPainterPath(self._handle_pos(self.start_node, self.start_handle))
+            path.lineTo(event.scenePos())
+            self.setPath(path)
             event.accept()
             return
         super().mouseMoveEvent(event)
@@ -148,9 +187,12 @@ class LinkHandle(QGraphicsEllipseItem):
         self.handle_position_flag = handle_position_flag
         self.logger = logger or logging.getLogger(__name__)
 
-        # Style: gray fill, no outline
-        self.setBrush(QBrush(QColor(150, 150, 150)))
-        self.setPen(QPen(Qt.NoPen))
+        # Modern style: gradient fill with border
+        gradient = QRadialGradient(radius, radius, radius)
+        gradient.setColorAt(0, QColor(100, 149, 237))
+        gradient.setColorAt(1, QColor(70, 130, 180))
+        self.setBrush(QBrush(gradient))
+        self.setPen(QPen(QColor(50, 100, 150), 1.5))
 
         # We do manual dragging to avoid recursion with ItemIsMovable
         self.setAcceptHoverEvents(True)
@@ -300,10 +342,9 @@ class ResizeHandle(QGraphicsRectItem):
         super().__init__(0, 0, size, size, parent_node)
         self.parent_node = parent_node
         self.corner_flag = corner_flag
-        # Set a transparent brush for no fill.
-        self.setBrush(QBrush(Qt.transparent))
-        # Set a pen for the outline (here a gray color).
-        self.setPen(QPen(QColor(150, 150, 150)))
+        # Modern style with solid fill and border
+        self.setBrush(QBrush(QColor(100, 149, 237, 180)))  # Semi-transparent blue
+        self.setPen(QPen(QColor(70, 130, 180), 2))
         
         # We do NOT set ItemIsMovable to avoid recursion.
         self.setAcceptHoverEvents(True)
@@ -367,11 +408,12 @@ class ResizeHandle(QGraphicsRectItem):
 class NodeItem(QGraphicsEllipseItem):
     """
     A node:
-      - Always visible ellipse with text in the center
+      - Modern styled ellipse with gradient fill and shadow
       - Four corner handles (and link handles) that appear only if selected
       - Resizes around its center
       - Grows if text is bigger than default
       - Movable, selectable, and snaps its center to grid intersections
+      - Performance optimized with caching
     """
     def __init__(self, width=120, height=80, text="Node", parent=None, logger=None):
         super().__init__(0, 0, width, height, parent)
@@ -383,9 +425,23 @@ class NodeItem(QGraphicsEllipseItem):
         self.connections = set()
         self.pending_connections = []
 
-        # Make the ellipse easy to see:
-        self.setPen(QPen(QColor("black"), 2))   # black outline, 2 px thick
-        self.setBrush(QBrush(QColor("lightblue")))  # fill with light blue
+        # Modern styling with gradient
+        self.base_color = QColor(100, 149, 237)  # Cornflower blue
+        self.hover_color = QColor(135, 206, 250)  # Light sky blue
+        self.selected_color = QColor(30, 144, 255)  # Dodger blue
+
+        self.setPen(QPen(QColor(70, 130, 180), 2))  # Steel blue outline
+        self.updateBrush(False, False)
+
+        # Enable caching for better performance
+        self.setCacheMode(QGraphicsEllipseItem.DeviceCoordinateCache)
+
+        # Add drop shadow for depth
+        self.shadow = QGraphicsDropShadowEffect()
+        self.shadow.setBlurRadius(15)
+        self.shadow.setColor(QColor(0, 0, 0, 80))
+        self.shadow.setOffset(2, 2)
+        self.setGraphicsEffect(self.shadow)
 
         # Let the user select and move the node and send geometry changes
         self.setFlags(
@@ -395,6 +451,8 @@ class NodeItem(QGraphicsEllipseItem):
         )
         # Accept hover events on the node
         self.setAcceptHoverEvents(True)
+
+        self.is_hovered = False
 
         # Create a text item. By default, we'll wrap at (width - 10).
         self.text_item = QGraphicsTextItem(text, self)
@@ -432,9 +490,31 @@ class NodeItem(QGraphicsEllipseItem):
         # Explicitly snap the initial position so that the node's center lies on a grid intersection.
         self.setPos(self.snapPosition())
 
+    def updateBrush(self, hovered, selected):
+        """Update the node's brush based on hover and selection state."""
+        # Create radial gradient for modern look
+        gradient = QRadialGradient(self.width / 2, self.height / 2, max(self.width, self.height) / 2)
+
+        if selected:
+            color = self.selected_color
+        elif hovered:
+            color = self.hover_color
+        else:
+            color = self.base_color
+
+        # Lighter center, darker edges for depth
+        gradient.setColorAt(0, color.lighter(120))
+        gradient.setColorAt(1, color)
+
+        self.setBrush(QBrush(gradient))
+
     def snapPosition(self):
-        """Compute and return a snapped top-left position so that the node’s center aligns with grid intersections."""
-        grid_size = 25
+        """Compute and return a snapped top-left position so that the node's center aligns with grid intersections."""
+        # Get grid size from scene instead of hardcoding
+        grid_size = 25  # Default fallback
+        if self.scene() and hasattr(self.scene(), 'grid_size'):
+            grid_size = self.scene().grid_size
+
         # current position (top-left)
         pos = self.pos()
         # compute center from current top-left:
@@ -443,22 +523,36 @@ class NodeItem(QGraphicsEllipseItem):
         snapped_center_x = round(center.x() / grid_size) * grid_size
         snapped_center_y = round(center.y() / grid_size) * grid_size
         snapped_center = QPointF(snapped_center_x, snapped_center_y)
-        # Compute new top-left so that the node’s center is at the snapped center.
+        # Compute new top-left so that the node's center is at the snapped center.
         return snapped_center - QPointF(self.width / 2, self.height / 2)
     
     def hoverEnterEvent(self, event):
         # Show link handles on hover
+        self.is_hovered = True
         self.setLinkHandlesVisible(True)
+        self.updateBrush(True, self.isSelected())
+        # Enhance shadow on hover
+        self.shadow.setBlurRadius(20)
+        self.shadow.setOffset(3, 3)
         super().hoverEnterEvent(event)
 
     def hoverLeaveEvent(self, event):
         # Hide link handles when not hovered
+        self.is_hovered = False
         self.setLinkHandlesVisible(False)
+        self.updateBrush(False, self.isSelected())
+        # Restore shadow
+        self.shadow.setBlurRadius(15)
+        self.shadow.setOffset(2, 2)
         super().hoverLeaveEvent(event)
 
     def mouseReleaseEvent(self, event):
         super().mouseReleaseEvent(event)
-        grid_size = 25
+        # Get grid size from scene instead of hardcoding
+        grid_size = 25  # Default fallback
+        if self.scene() and hasattr(self.scene(), 'grid_size'):
+            grid_size = self.scene().grid_size
+
         # Compute the node's center based on its current position.
         center = self.pos() + QPointF(self.width / 2, self.height / 2)
         snapped_center_x = round(center.x() / grid_size) * grid_size
@@ -487,6 +581,9 @@ class NodeItem(QGraphicsEllipseItem):
         Position bounding rect, corner handles, and text.
         """
         self.setRect(0, 0, self.width, self.height)
+
+        # Update brush with new dimensions
+        self.updateBrush(self.is_hovered, self.isSelected())
 
         # If you want the handles to be slightly outside the corners:
         size = self.handle_bottom_left.rect().width()  # typically 10
@@ -569,16 +666,34 @@ class NodeItem(QGraphicsEllipseItem):
     def itemChange(self, change, value):
         if change == QGraphicsItem.ItemSelectedHasChanged:
             self.setHandlesVisible(bool(value))
+            self.updateBrush(self.is_hovered, bool(value))
         elif change == QGraphicsItem.ItemPositionChange:
-            grid_size = 25
-            center = value + QPointF(self.width / 2, self.height / 2)
-            snapped_center_x = round(center.x() / grid_size) * grid_size
-            snapped_center_y = round(center.y() / grid_size) * grid_size
-            snapped_center = QPointF(snapped_center_x, snapped_center_y)
-            new_pos = snapped_center - QPointF(self.width / 2, self.height / 2)
-            return new_pos
+            # Check if snap-to-grid is enabled
+            snap_enabled = True
+            if self.scene() and hasattr(self.scene(), 'snap_to_grid'):
+                snap_enabled = self.scene().snap_to_grid
+
+            if snap_enabled:
+                # Get grid size from scene instead of hardcoding
+                grid_size = 25  # Default fallback
+                if self.scene() and hasattr(self.scene(), 'grid_size'):
+                    grid_size = self.scene().grid_size
+
+                center = value + QPointF(self.width / 2, self.height / 2)
+                snapped_center_x = round(center.x() / grid_size) * grid_size
+                snapped_center_y = round(center.y() / grid_size) * grid_size
+                snapped_center = QPointF(snapped_center_x, snapped_center_y)
+                new_pos = snapped_center - QPointF(self.width / 2, self.height / 2)
+                return new_pos
+            else:
+                # No snapping, return the value as-is
+                return value
         elif change == QGraphicsItem.ItemPositionHasChanged:
             self.notify_connections()
+            # Update spatial tracker when position changes
+            if self.scene() and hasattr(self.scene(), 'spatial_tracker'):
+                bounds = self.sceneBoundingRect()
+                self.scene().spatial_tracker.update_object(self.id, bounds)
         return super().itemChange(change, value)
 
     def setSizeKeepCenter(self, new_w, new_h):
@@ -590,5 +705,9 @@ class NodeItem(QGraphicsEllipseItem):
         offset = old_center - new_center
         self.setPos(self.pos() + offset)
         self.notify_connections()
+        # Update spatial tracker after resize
+        if self.scene() and hasattr(self.scene(), 'spatial_tracker'):
+            bounds = self.sceneBoundingRect()
+            self.scene().spatial_tracker.update_object(self.id, bounds)
 
   

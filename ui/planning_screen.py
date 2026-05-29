@@ -67,64 +67,60 @@ class StyledTaskItem(QWidget):
     def initUI(self):
         from PyQt5.QtCore import Qt
 
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 6, 10, 6)
-        layout.setSpacing(4)
+        # Set size policy to expand horizontally with parent
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
 
-        # Title with word wrap and dynamic font sizing
-        title_label = QLabel(self.task.title)
-        title_label.setWordWrap(True)  # Allow wrapping to multiple lines
-        title_label.setMaximumWidth(230)  # Force wrapping at this width
-        title_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)  # Allow vertical expansion
-        # Auto-adjust font size to fit in available width (accounting for margins)
-        available_width = 230  # Card width minus margins (10px left + 10px right)
-        # Try to fit text - if a single word is too long, reduce font size
-        font_size = self._calculateFontSizeForTitle(self.task.title, available_width, 11, bold=True)
-        title_font = QFont()
-        title_font.setPointSize(font_size)
-        title_font.setBold(True)
-        title_label.setFont(title_font)
-        title_label.setStyleSheet("color: white;")
-        layout.addWidget(title_label)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(6)
+
+        # Title with word wrap - use pixel-based font size for consistency across DPI
+        self.title_label = QLabel(self.task.title)
+        self.title_label.setWordWrap(True)
+        self.title_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+        self.title_label.setStyleSheet("color: white; font-size: 13px; font-weight: bold;")
+        layout.addWidget(self.title_label)
 
         # Info row (priority + category)
         info_layout = QHBoxLayout()
         info_layout.setSpacing(8)
 
-        # Priority badge (fixed height)
+        # Priority badge
         priority_label = QLabel(self.task.priority.name)
         priority_label.setStyleSheet(self._getPriorityStyle())
-        priority_label.setFixedHeight(16)
+        priority_label.setFixedHeight(20)
         priority_label.setAlignment(Qt.AlignCenter)
         info_layout.addWidget(priority_label)
 
-        # Category (fixed height)
+        # Category
         category_label = QLabel(self.task.category.value)
-        category_label.setStyleSheet("color: #95a5a6; font-size: 10px;")
-        category_label.setFixedHeight(16)
+        category_label.setStyleSheet("color: #bdc3c7; font-size: 11px;")
+        category_label.setFixedHeight(20)
         category_label.setAlignment(Qt.AlignVCenter)
         info_layout.addWidget(category_label)
 
         info_layout.addStretch()
         layout.addLayout(info_layout)
 
-        # NO fixed height - let card expand based on title wrapping
-
-        # Set overall styling
+        # Modern card styling with shadow effect
         self.setStyleSheet("""
             StyledTaskItem {
-                background-color: #2c3e50;
-                border-radius: 5px;
-                border: 1px solid #34495e;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #34495e, stop:1 #2c3e50);
+                border-radius: 8px;
+                border: 1px solid #3d5a6b;
+                border-left: 4px solid #3498db;
             }
             StyledTaskItem:hover {
-                background-color: #34495e;
-                border: 1px solid #3498db;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #3d5a6b, stop:1 #34495e);
+                border: 1px solid #5dade2;
+                border-left: 4px solid #5dade2;
             }
         """)
 
     def _getPriorityStyle(self) -> str:
-        """Get style for priority badge"""
+        """Get style for priority badge - uses pixel-based font for DPI consistency"""
         colors = {
             TaskPriority.CRITICAL: "#c0392b",
             TaskPriority.HIGH: "#e74c3c",
@@ -134,12 +130,13 @@ class StyledTaskItem(QWidget):
         }
         bg_color = colors.get(self.task.priority, "#95a5a6")
         return f"""
-            padding: 2px 8px;
+            padding: 3px 10px;
             background-color: {bg_color};
             color: white;
-            border-radius: 3px;
-            font-size: 9px;
+            border-radius: 10px;
+            font-size: 10px;
             font-weight: bold;
+            text-transform: uppercase;
         """
 
     def sizeHint(self):
@@ -329,16 +326,20 @@ class StyledProjectItem(QWidget):
                 }
             """)
         else:
-            # List mode: use standard border matching task cards
+            # List mode: modern card styling matching task cards
             self.setStyleSheet("""
                 StyledProjectItem {
-                    background-color: #2c3e50;
-                    border-radius: 5px;
-                    border: 1px solid #34495e;
+                    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                        stop:0 #34495e, stop:1 #2c3e50);
+                    border-radius: 8px;
+                    border: 1px solid #3d5a6b;
+                    border-left: 4px solid #27ae60;
                 }
                 StyledProjectItem:hover {
-                    background-color: #34495e;
-                    border: 1px solid #3498db;
+                    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                        stop:0 #3d5a6b, stop:1 #34495e);
+                    border: 1px solid #52c77a;
+                    border-left: 4px solid #52c77a;
                 }
                 QLabel {
                     background-color: transparent;
@@ -346,8 +347,8 @@ class StyledProjectItem(QWidget):
             """)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 6, 10, 6)
-        layout.setSpacing(4)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(6)
 
         if not self.project:
             # Error state
@@ -447,24 +448,39 @@ class StyledProjectItem(QWidget):
                 no_tasks_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
                 layout.addWidget(no_tasks_label)
         else:
-            # LIST MODE: Simple display - EXACTLY matching task card style
-            # Title (COPIED FROM StyledTaskItem)
+            # LIST MODE: Display like task cards with status and progress info
+            # Title - use pixel-based font for DPI consistency
             title_label = QLabel(self.project.title)
-            title_font = QFont()
-            title_font.setPointSize(11)
-            title_font.setBold(True)
-            title_label.setFont(title_font)
-            title_label.setWordWrap(False)
-            title_label.setFixedHeight(18)
-            # Truncate text if too long (EXACT COPY from StyledTaskItem)
-            metrics = title_label.fontMetrics()
-            elided_text = metrics.elidedText(self.project.title, Qt.ElideRight, 250)
-            title_label.setText(elided_text)
-            title_label.setStyleSheet("color: #27ae60;")
+            title_label.setWordWrap(True)
+            title_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+            title_label.setStyleSheet("color: white; font-size: 13px; font-weight: bold;")
             layout.addWidget(title_label)
 
-            # Set fixed height for list mode to match task cards
-            self.setFixedHeight(50)
+            # Info row (status + progress) - matching task card info row
+            info_layout = QHBoxLayout()
+            info_layout.setSpacing(8)
+
+            # Status badge (like priority badge in tasks)
+            status_label = QLabel(self.project.status.value)
+            status_label.setStyleSheet(self._getStatusStyle())
+            status_label.setFixedHeight(20)
+            status_label.setAlignment(Qt.AlignCenter)
+            info_layout.addWidget(status_label)
+
+            # Progress/Phase info (like category in tasks)
+            if self.current_phase:
+                phase_info = f"{self.current_phase.name}"
+            else:
+                phase_info = "No phases"
+
+            phase_label = QLabel(phase_info)
+            phase_label.setStyleSheet("color: #bdc3c7; font-size: 11px;")
+            phase_label.setFixedHeight(20)
+            phase_label.setAlignment(Qt.AlignVCenter)
+            info_layout.addWidget(phase_label)
+
+            info_layout.addStretch()
+            layout.addLayout(info_layout)
 
     def sizeHint(self):
         """Override sizeHint to return proper height for wrapped content"""
@@ -481,6 +497,26 @@ class StyledProjectItem(QWidget):
             hint.setWidth(max(250, hint.width()))
 
         return hint
+
+    def _getStatusStyle(self) -> str:
+        """Get style for status badge (similar to priority badge in tasks)"""
+        from models.project import ProjectStatus
+        status_colors = {
+            ProjectStatus.PLANNING: "#3498db",      # Blue
+            ProjectStatus.ACTIVE: "#f39c12",        # Orange
+            ProjectStatus.ON_HOLD: "#95a5a6",       # Gray
+            ProjectStatus.COMPLETED: "#27ae60",     # Green
+            ProjectStatus.CANCELLED: "#e74c3c"      # Red
+        }
+        bg_color = status_colors.get(self.project.status, "#95a5a6")
+        return f"""
+            padding: 2px 8px;
+            background-color: {bg_color};
+            color: white;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: bold;
+        """
 
     def _getTaskBorderColor(self, task) -> str:
         """Get border color for individual task based on its priority"""
@@ -601,7 +637,7 @@ class DraggableTaskList(QListWidget):
                 continue
             widget = self.itemWidget(item)
             if widget and (isinstance(widget, StyledTaskItem) or isinstance(widget, StyledProjectItem)):
-                widget.setMinimumWidth(list_width - 10)
+                widget.setMinimumWidth(list_width - 20)
                 widget.updateGeometry()
                 item.setSizeHint(widget.sizeHint())
 
@@ -1090,6 +1126,10 @@ class DropZoneWidget(QWidget):
         item.setData(Qt.UserRole + 3, self.date.toString(Qt.ISODate))  # Store date
 
         if task:
+            # Calculate max width early for use in child widgets
+            list_width = self.task_list.viewport().width()
+            max_width = list_width - 20 if list_width > 0 else 270  # Account for margins
+
             # Create a styled widget for the scheduled task
             task_widget = QWidget()
             task_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
@@ -1243,26 +1283,21 @@ class DropZoneWidget(QWidget):
             # Use Expanding horizontally so it fills the width, Minimum vertically to fit content
             task_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
 
-            # Set a maximum width to prevent the widget from expanding beyond the list
-            # This will be dynamically updated, but set an initial constraint
-            task_widget.setMaximumWidth(16777215)  # Qt's QWIDGETSIZE_MAX
+            # Set the maximum width calculated earlier
+            task_widget.setMaximumWidth(max_width)
 
-            # Add to list
+            # Add to list first, then set sizing
             self.task_list.addItem(item)
             self.task_list.setItemWidget(item, task_widget)
 
-            # Calculate size hint with proper width constraint
-            # The list widget's viewport width is the maximum width available
-            list_width = self.task_list.viewport().width()
-            if list_width > 0:
-                task_widget.setMaximumWidth(list_width - 10)  # Account for margins
-
-            # Force layout to recalculate with the width constraint
-            task_layout.activate()
+            # Force layout to recalculate and set proper size hint
             task_widget.adjustSize()
+            task_widget.updateGeometry()
 
-            # Now get the size hint which should have proper height for wrapped text
-            item.setSizeHint(task_widget.sizeHint())
+            # Get natural size hint and add small buffer for borders
+            hint = task_widget.sizeHint()
+            hint.setHeight(hint.height() + 4)  # Small buffer for borders/padding
+            item.setSizeHint(hint)
         else:
             # Fallback if task not found
             item.setText(task_title)
@@ -1365,7 +1400,7 @@ class DropZoneWidget(QWidget):
         # Calculate size hint with proper width constraint
         list_width = self.task_list.viewport().width()
         if list_width > 0:
-            widget.setMaximumWidth(list_width - 10)  # Account for margins
+            widget.setMaximumWidth(list_width - 20)  # Account for margins
 
         # Force widget to calculate its proper size (important for wrapped text)
         widget.adjustSize()
@@ -1406,7 +1441,7 @@ class DropZoneWidget(QWidget):
                 widget = self.task_list.itemWidget(item)
                 if widget:
                     # Set maximum width to prevent overflow
-                    widget.setMaximumWidth(list_width - 10)
+                    widget.setMaximumWidth(list_width - 20)
                     # Force the widget to recalculate its size
                     widget.updateGeometry()
                     item.setSizeHint(widget.sizeHint())
@@ -1626,9 +1661,9 @@ class PlanningScreen(QWidget):
             if week_start <= scheduled_task.scheduled_date <= week_end:
                 current_week_task_ids.add(scheduled_task.task_id)
 
-        # Filter for priority tasks
+        # Filter for priority tasks (exclude tasks that belong to projects via phase_id)
         all_priority_tasks = sorted(
-            (task for task in self.all_tasks if not task.archived),
+            (task for task in self.all_tasks if not task.archived and not task.phase_id),
             key=lambda t: t.priority.value,
             reverse=True  # highest priority first
         )
@@ -1666,7 +1701,7 @@ class PlanningScreen(QWidget):
             # Set width to fill list
             list_width = self.task_list.viewport().width()
             if list_width > 0:
-                widget.setMinimumWidth(list_width - 10)
+                widget.setMinimumWidth(list_width - 20)
 
             widget.adjustSize()
             widget.updateGeometry()
@@ -1732,7 +1767,7 @@ class PlanningScreen(QWidget):
                 # Set width to fill list
                 list_width = self.task_list.viewport().width()
                 if list_width > 0:
-                    widget.setMinimumWidth(list_width - 10)
+                    widget.setMinimumWidth(list_width - 20)
 
                 item.setSizeHint(widget.sizeHint())
 
@@ -1776,7 +1811,7 @@ class PlanningScreen(QWidget):
             # Set width to fill list
             list_width = self.task_list.viewport().width()
             if list_width > 0:
-                widget.setMinimumWidth(list_width - 10)
+                widget.setMinimumWidth(list_width - 20)
 
             widget.adjustSize()
             widget.updateGeometry()
@@ -1953,50 +1988,62 @@ class PlanningScreen(QWidget):
 
         self.logger.info(f"Project clicked from schedule: {project_id}")
 
-        # Get the main window
-        window = self.window()
+        # Close any existing project detail first
+        if hasattr(self, 'project_detail_dialog') and self.project_detail_dialog:
+            self.closeProjectDetail()
+
+        # Find the scheduled date for this project
+        scheduled_date = QDate.currentDate()  # Default
+        for schedule_id, project_data in self.scheduled_projects.items():
+            if project_data['project_id'] == project_id:
+                scheduled_date = project_data['scheduled_date']
+                break
 
         # Get the main window
         window = self.window()
 
-        # Create overlay to dim background
-        self.overlay = QWidget(window)
-        self.overlay.setStyleSheet("background-color: rgba(0, 0, 0, 0.5);")
-        self.overlay.setGeometry(window.rect())
+        # Create overlay
         self.overlay = QWidget(window)
         self.overlay.setStyleSheet("background-color: rgba(0, 0, 0, 0.5);")
         self.overlay.setGeometry(window.rect())
         self.overlay.show()
         self.overlay.installEventFilter(self)
 
-        # Create project detail view
-        self.project_detail_dialog = ProjectDetailView(project_id, self.logger, parent=window)
-        self.project_detail_dialog.backClicked.connect(self.closeProjectDetail)
+        # Create project detail dialog
+        self.project_detail_dialog = ProjectCardExpanded(
+            project_id=project_id,
+            scheduled_date=scheduled_date,
+            logger=self.logger,
+            parent=window
+        )
+        self.project_detail_dialog.closeRequested.connect(self.closeProjectDetail)
+        self.project_detail_dialog.taskClicked.connect(self.showTaskDetail)  # Open task detail when task is clicked
+        self.project_detail_dialog.setObjectName("card_container")
+        self.project_detail_dialog.setAttribute(Qt.WA_StyledBackground, True)
+        self.project_detail_dialog.setStyleSheet(AppStyles.expanded_task_card())
 
-        # Size and position
-        width = int(window.width() * 0.8)
-        height = int(window.height() * 0.9)
-        x = (window.width() - width) // 2
-        y = (window.height() - height) // 2
-        self.project_detail_dialog.setGeometry(x, y, width, height)
+        # Calculate size and center
+        card_width, card_height = ProjectCardExpanded.calculate_optimal_card_size(window)
+        center_x = (window.width() - card_width) // 2
+        center_y = (window.height() - card_height) // 2
+        self.project_detail_dialog.setGeometry(center_x, center_y, card_width, card_height)
+        self.project_detail_dialog.setWindowFlags(Qt.FramelessWindowHint)
+
         self.project_detail_dialog.show()
         self.project_detail_dialog.raise_()
 
     def closeProjectDetail(self):
         """Close project detail view"""
-        if hasattr(self, 'project_detail_dialog') and self.project_detail_dialog:
+        if self.project_detail_dialog:
             self.project_detail_dialog.close()
             self.project_detail_dialog.deleteLater()
             self.project_detail_dialog = None
 
-        if hasattr(self, 'overlay') and self.overlay:
+        if self.overlay:
             self.overlay.hide()
             self.overlay.close()
             self.overlay.deleteLater()
             self.overlay = None
-
-        # Refresh scheduled tasks to update project cards with any task changes
-        self.refreshScheduledTasks()
 
     def onTaskUnscheduled(self, schedule_id: str, task_id: str):
         """Handle task being dragged back to the left panel to unschedule"""
@@ -2079,15 +2126,19 @@ class PlanningScreen(QWidget):
 
     def showTaskDetail(self, task: Task):
         """Show task detail using existing TaskCardExpanded widget"""
+        # Close any existing task detail first
+        if hasattr(self, 'task_detail_dialog') and self.task_detail_dialog:
+            self.closeTaskDetail()
+
         # Get the main window
         window = self.window()
 
-        # Create overlay
-        self.overlay = QWidget(window)
-        self.overlay.setStyleSheet("background-color: rgba(0, 0, 0, 0.5);")
-        self.overlay.setGeometry(window.rect())
-        self.overlay.show()
-        self.overlay.installEventFilter(self)
+        # Create task overlay (separate from project overlay)
+        self.task_overlay = QWidget(window)
+        self.task_overlay.setStyleSheet("background-color: rgba(0, 0, 0, 0.5);")
+        self.task_overlay.setGeometry(window.rect())
+        self.task_overlay.show()
+        self.task_overlay.installEventFilter(self)
 
         # Create task detail dialog
         self.task_detail_dialog = TaskCardExpanded(
@@ -2125,20 +2176,64 @@ class PlanningScreen(QWidget):
             self.task_detail_dialog.deleteLater()
             self.task_detail_dialog = None
 
-        if self.overlay:
-            self.overlay.hide()  # Hide immediately
-            self.overlay.close()
-            self.overlay.deleteLater()
-            self.overlay = None
+        if hasattr(self, 'task_overlay') and self.task_overlay:
+            self.task_overlay.hide()  # Hide immediately
+            self.task_overlay.close()
+            self.task_overlay.deleteLater()
+            self.task_overlay = None
 
-    def onTaskSaved(self, _task, _grid_id):
+    def _updateSingleTaskInList(self, task):
+        """Update a single task in the task list without full reload"""
+        # Skip if task is archived or belongs to a project (has phase_id)
+        if task.archived or task.phase_id:
+            # Task shouldn't be in list - remove it if present
+            self._removeTaskFromList(task.id)
+            return
+
+        # Find the task in the list by ID
+        found_index = None
+        for i in range(self.task_list.count()):
+            item = self.task_list.item(i)
+            if item.data(Qt.UserRole) == task.id:
+                found_index = i
+                break
+
+        if found_index is not None:
+            # Task exists - update the widget
+            item = self.task_list.item(found_index)
+            widget = StyledTaskItem(task)
+            widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+
+            list_width = self.task_list.viewport().width()
+            if list_width > 0:
+                widget.setMinimumWidth(list_width - 20)
+
+            widget.adjustSize()
+            widget.updateGeometry()
+            item.setSizeHint(widget.sizeHint())
+
+            self.task_list.setItemWidget(item, widget)
+        else:
+            # Task doesn't exist - do a full reload to properly sort and categorize
+            # (This is rare - usually only when creating a new task)
+            self.task_list.clear()
+            self.loadTasks()
+
+    def _removeTaskFromList(self, task_id):
+        """Remove a task from the list by ID"""
+        for i in range(self.task_list.count()):
+            item = self.task_list.item(i)
+            if item.data(Qt.UserRole) == task_id:
+                self.task_list.takeItem(i)
+                break
+
+    def onTaskSaved(self, task, _grid_id):
         """Handle task save - refresh task list"""
         # Close the task detail and overlay
         self.closeTaskDetail()
 
-        # Reload tasks to reflect changes in the left panel
-        self.task_list.clear()
-        self.loadTasks()
+        # Optimized: Only update the specific task instead of reloading everything
+        self._updateSingleTaskInList(task)
 
         # Refresh scheduled tasks to update any changes
         self.refreshScheduledTasks()
@@ -2162,11 +2257,15 @@ class PlanningScreen(QWidget):
 
     def eventFilter(self, obj, event):
         """Handle overlay clicks to close dialog"""
-        if obj == self.overlay and event.type() == event.MouseButtonPress:
-            # Check which dialog is open and close the appropriate one
-            if hasattr(self, 'project_detail_dialog') and self.project_detail_dialog:
-                self.closeProjectDetail()
-            elif hasattr(self, 'task_detail_dialog') and self.task_detail_dialog:
+        from PyQt5.QtCore import QEvent
+        if event.type() == QEvent.MouseButtonPress:
+            # Handle task overlay clicks (task overlay takes priority)
+            if hasattr(self, 'task_overlay') and obj == self.task_overlay:
                 self.closeTaskDetail()
-            return True
+                return True
+            # Handle project overlay clicks
+            elif hasattr(self, 'overlay') and obj == self.overlay:
+                if hasattr(self, 'project_detail_dialog') and self.project_detail_dialog:
+                    self.closeProjectDetail()
+                return True
         return super().eventFilter(obj, event)
