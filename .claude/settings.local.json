@@ -8,7 +8,14 @@
       "Bash(timeout 8 python:*)",
       "Bash(timeout 10 python:*)",
       "Bash(python3:*)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "PowerShell(py -0p)",
+      "PowerShell(.\\\\venv\\\\Scripts\\\\python.exe -m pip install -r requirements.txt)",
+      "PowerShell(.\\\\venv\\\\Scripts\\\\python.exe -c \"import yaml, qasync; from PyQt5 import QtWidgets; print\\('imports OK'\\)\")",
+      "PowerShell($env:QT_DEBUG_PLUGINS='1'; .\\\\venv\\\\Scripts\\\\python.exe -c \"from PyQt5 import QtWidgets; import sys; app = QtWidgets.QApplication\\(sys.argv\\); print\\('QApplication OK'\\)\")",
+      "PowerShell(cmd /c \"set QT_DEBUG_PLUGINS=1&& venv\\\\Scripts\\\\python.exe -c \"\"from PyQt5 import QtWidgets; import sys; app = QtWidgets.QApplication\\(sys.argv\\); print\\('OK'\\)\"\" > qtdebug.log 2>&1\")",
+      "PowerShell(cmd /c \"venv\\\\Scripts\\\\python.exe -c \"\"from PyQt5 import QtWidgets, QtCore; print\\(QtCore.QLibraryInfo.location\\(QtCore.QLibraryInfo.PluginsPath\\)\\)\"\" 2>&1\")",
+      "PowerShell(cmd /c \"set QT_PLUGIN_PATH=%CD%\\\\venv\\\\Lib\\\\site-packages\\\\PyQt5\\\\Qt5\\\\plugins&& venv\\\\Scripts\\\\python.exe -c \"\"from PyQt5 import QtWidgets; import sys; app = QtWidgets.QApplication\\(sys.argv\\); print\\('QApplication OK'\\)\"\" 2>&1\")"
     ],
     "deny": [],
     "ask": []
