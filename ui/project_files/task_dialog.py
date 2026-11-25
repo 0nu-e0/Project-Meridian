@@ -28,11 +28,13 @@
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
-    QTextEdit, QPushButton, QComboBox, QFormLayout, QWidget, QMessageBox
+    QTextEdit, QPushButton, QComboBox, QFormLayout, QWidget
 )
 
+from ui.custom_widgets import dialogs
 from models.task import TaskPriority, TaskStatus
 from resources.styles import AppStyles
+from resources.styles import AppColors
 
 
 class TaskDialog(QDialog):
@@ -63,10 +65,10 @@ class TaskDialog(QDialog):
         self.setWindowTitle("Add Task to Phase")
         self.setModal(True)
         self.setMinimumWidth(500)
-        self.setStyleSheet("""
-            QDialog {
-                background-color: #2c3e50;
-            }
+        self.setStyleSheet(f"""
+            QDialog {{
+                background-color: {AppColors.surface};
+            }}
         """)
 
         # Main layout
@@ -76,12 +78,12 @@ class TaskDialog(QDialog):
 
         # Title
         title_label = QLabel("Add Task to Phase")
-        title_label.setStyleSheet("""
-            QLabel {
+        title_label.setStyleSheet(f"""
+            QLabel {{
                 font-size: 20px;
                 font-weight: bold;
-                color: #ecf0f1;
-            }
+                color: {AppColors.text_primary};
+            }}
         """)
         layout.addWidget(title_label)
 
@@ -158,7 +160,7 @@ class TaskDialog(QDialog):
             # Validate title
             title = self.title_input.text().strip()
             if not title:
-                QMessageBox.warning(self, "Validation Error", "Task title is required.")
+                dialogs.warning(self, "Validation Error", "Task title is required.")
                 self._saving = False  # Reset flag on validation failure
                 return
 
@@ -183,56 +185,56 @@ class TaskDialog(QDialog):
 
     def getInputStyle(self):
         """Get stylesheet for input widgets"""
-        return """
-            QLineEdit, QTextEdit, QComboBox {
+        return f"""
+            QLineEdit, QTextEdit, QComboBox {{
                 padding: 8px;
-                border: 2px solid #3498db;
+                border: 2px solid {AppColors.accent};
                 border-radius: 5px;
-                background-color: #34495e;
-                color: #ecf0f1;
+                background-color: {AppColors.surface_raised};
+                color: {AppColors.text_primary};
                 font-size: 12px;
-            }
-            QLineEdit:focus, QTextEdit:focus, QComboBox:focus {
-                border: 2px solid #5dade2;
-            }
-            QLineEdit::placeholder, QTextEdit::placeholder {
-                color: #7f8c8d;
-            }
-            QComboBox::drop-down {
+            }}
+            QLineEdit:focus, QTextEdit:focus, QComboBox:focus {{
+                border: 2px solid {AppColors.accent_light};
+            }}
+            QLineEdit::placeholder, QTextEdit::placeholder {{
+                color: {AppColors.text_faint};
+            }}
+            QComboBox::drop-down {{
                 border: none;
                 width: 20px;
-            }
-            QComboBox::down-arrow {
+            }}
+            QComboBox::down-arrow {{
                 image: none;
                 border-left: 4px solid transparent;
                 border-right: 4px solid transparent;
-                border-top: 6px solid #ecf0f1;
+                border-top: 6px solid {AppColors.text_primary};
                 margin-right: 8px;
-            }
-            QComboBox QAbstractItemView {
-                background-color: #2c3e50;
-                border: 2px solid #3498db;
-                selection-background-color: #3498db;
-                color: #ecf0f1;
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: {AppColors.surface};
+                border: 2px solid {AppColors.accent};
+                selection-background-color: {AppColors.accent};
+                color: {AppColors.text_primary};
                 padding: 4px;
-            }
+            }}
         """
 
     def getSecondaryButtonStyle(self):
         """Get stylesheet for secondary button"""
-        return """
-            QPushButton {
-                background-color: #34495e;
-                color: #ecf0f1;
-                border: 2px solid #7f8c8d;
+        return f"""
+            QPushButton {{
+                background-color: {AppColors.surface_raised};
+                color: {AppColors.text_primary};
+                border: 2px solid {AppColors.text_faint};
                 border-radius: 5px;
                 font-size: 13px;
                 font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #7f8c8d;
-            }
-            QPushButton:pressed {
-                background-color: #95a5a6;
-            }
+            }}
+            QPushButton:hover {{
+                background-color: {AppColors.text_faint};
+            }}
+            QPushButton:pressed {{
+                background-color: {AppColors.text_muted};
+            }}
         """

@@ -32,6 +32,8 @@ WINDOW_DEFAULT_WIDTH_RATIO = 0.90  # 90% of screen width
 WINDOW_DEFAULT_HEIGHT_RATIO = 0.90  # 90% of screen height
 WINDOW_MIN_WIDTH_RATIO = 0.5  # 50% of screen width
 WINDOW_MIN_HEIGHT_RATIO = 0.5  # 50% of screen height
+WINDOW_MIN_WIDTH = 960  # Smallest usable window, in pixels
+WINDOW_MIN_HEIGHT = 640
 
 # Layout spacing constants
 LAYOUT_NO_SPACING = 0
@@ -53,11 +55,9 @@ CARD_PADDING = 8
 CARD_DETAIL_SPACING = 4
 CARD_MIN_SPACING = 20
 CARD_MIN_READABLE_WIDTH = 200
+CARD_TARGET_WIDTH = 380  # Cards flex around this width to fill each row evenly
 CARD_OPTIMAL_CHARACTER_COUNT = 25
 CARD_MIN_HEIGHT_FOR_CONTENT = 120
-CARD_TARGET_CARDS_PER_ROW_DIVISOR = 400
-CARD_MIN_CARDS_PER_ROW = 4
-CARD_MARGIN_MULTIPLIER = 40
 CARD_HEIGHT_ASPECT_RATIO = 1.5
 
 # Animation constants
@@ -65,8 +65,18 @@ ANIMATION_DURATION_MS = 200  # milliseconds
 ANIMATION_COLLAPSE_DURATION_MS = 150  # milliseconds (slightly faster collapse)
 ANIMATION_UPDATE_INTERVAL_MS = 50  # milliseconds
 
+# Banner constants
+BANNER_HEIGHT = 75  # Shared by the main banner; screens sit directly below it
+
 # Drawer constants
 DRAWER_SPACING = 20
+DRAWER_WIDTH_RATIO = 0.2  # 20% of window width, clamped below
+DRAWER_MIN_WIDTH = 200
+DRAWER_MAX_WIDTH = 320
+
+# Splitter constants (left panel : right panel)
+SIDE_PANEL_STRETCH = 1
+MAIN_PANEL_STRETCH = 4
 
 # Due date calculation constants (days)
 DUE_SOON_THRESHOLD_DAYS = 3

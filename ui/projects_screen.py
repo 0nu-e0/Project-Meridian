@@ -25,14 +25,13 @@
 # Author: Jereme Shaver
 # -----------------------------------------------------------------------------
 
-from PyQt5.QtCore import Qt, pyqtSignal, QSize
+from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QScrollArea, QGridLayout, QFrame, QPushButton,
-    QLineEdit, QComboBox, QCheckBox, QFileDialog, QMessageBox,
-    QSpacerItem, QSizePolicy
+    QScrollArea, QGridLayout, QFrame, QLineEdit, QComboBox, QCheckBox, QFileDialog
 )
 
+from ui.custom_widgets import dialogs
 from models.project import ProjectStatus
 from models.task import TaskPriority
 from utils.projects_io import (
@@ -41,6 +40,7 @@ from utils.projects_io import (
 )
 from resources.styles import AppStyles, AnimatedButton
 from ui.project_files.project_card import ProjectCard
+from resources.styles import AppColors
 
 
 class ProjectsScreen(QWidget):
@@ -73,7 +73,6 @@ class ProjectsScreen(QWidget):
 
         # Banner header
         # self.initBannerHeader()
-        self.initBannerSpacer()
 
         # Separator
         self.addSeparator()
@@ -86,14 +85,6 @@ class ProjectsScreen(QWidget):
 
         # Scrollable content area
         self.initContentArea()
-
-    def initBannerSpacer(self):
-        self.banner_widget = QWidget()
-        self.banner_layout = QVBoxLayout(self.banner_widget)
-        banner_height = int(self.height()*0.15) 
-        self.banner_spacer = QSpacerItem(1, banner_height, QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.banner_layout.addSpacerItem(self.banner_spacer)
-        self.main_layout.addWidget(self.banner_widget)
 
     # def initBannerHeader(self):
     #     """Create banner header like dashboard"""
@@ -132,13 +123,13 @@ class ProjectsScreen(QWidget):
         separator = QFrame()
         separator.setFrameShape(QFrame.HLine)
         separator.setFixedHeight(2)
-        separator.setStyleSheet("background-color: #00FFB2;")  # Cyan separator
+        separator.setStyleSheet(f"background-color: {AppColors.button_toggle};")  # Cyan separator
         self.main_layout.addWidget(separator)
 
     def initFilterSection(self):
         """Create filter controls section"""
         filter_widget = QWidget()
-        filter_widget.setStyleSheet("background-color: #13151A;")  # Dark accent background
+        filter_widget.setStyleSheet(f"background-color: {AppColors.accent_background_color};")  # Dark accent background
         filter_layout = QHBoxLayout(filter_widget)
         filter_layout.setContentsMargins(20, 15, 20, 15)
         filter_layout.setSpacing(15)
@@ -146,22 +137,7 @@ class ProjectsScreen(QWidget):
         # Search box
         self.search_box = QLineEdit()
         self.search_box.setPlaceholderText("🔍 Search projects...")
-        self.search_box.setStyleSheet("""
-            QLineEdit {
-                background-color: #34495e;
-                border: 2px solid #3498db;
-                border-radius: 5px;
-                padding: 8px 12px;
-                color: #ecf0f1;
-                font-size: 13px;
-            }
-            QLineEdit:focus {
-                border: 2px solid #5dade2;
-            }
-            QLineEdit::placeholder {
-                color: #7f8c8d;
-            }
-        """)
+        self.search_box.setStyleSheet(AppStyles.line_edit_accent())
         self.search_box.setFixedWidth(300)
         self.search_box.setFixedHeight(36)
         self.search_box.textChanged.connect(self.onSearchTextChanged)
@@ -176,37 +152,7 @@ class ProjectsScreen(QWidget):
         self.status_filter.addItem("All")
         for status in ProjectStatus:
             self.status_filter.addItem(status.value)
-        self.status_filter.setStyleSheet("""
-            QComboBox {
-                background-color: #34495e;
-                border: 2px solid #3498db;
-                border-radius: 5px;
-                padding: 6px 10px;
-                color: #ecf0f1;
-                font-size: 13px;
-            }
-            QComboBox:hover {
-                border: 2px solid #5dade2;
-            }
-            QComboBox::drop-down {
-                width: 20px;
-                border: none;
-            }
-            QComboBox::down-arrow {
-                image: none;
-                border-left: 4px solid transparent;
-                border-right: 4px solid transparent;
-                border-top: 4px solid #ecf0f1;
-                margin-right: 5px;
-            }
-            QComboBox QAbstractItemView {
-                background-color: #2c3e50;
-                border: 2px solid #3498db;
-                selection-background-color: #3498db;
-                color: #ecf0f1;
-                padding: 4px;
-            }
-        """)
+        self.status_filter.setStyleSheet(AppStyles.combo_box_accent())
         self.status_filter.setFixedHeight(36)
         self.status_filter.setMinimumWidth(140)
         self.status_filter.currentTextChanged.connect(self.onStatusFilterChanged)
@@ -221,37 +167,7 @@ class ProjectsScreen(QWidget):
         self.priority_filter.addItem("All")
         for priority in TaskPriority:
             self.priority_filter.addItem(priority.name)
-        self.priority_filter.setStyleSheet("""
-            QComboBox {
-                background-color: #34495e;
-                border: 2px solid #3498db;
-                border-radius: 5px;
-                padding: 6px 10px;
-                color: #ecf0f1;
-                font-size: 13px;
-            }
-            QComboBox:hover {
-                border: 2px solid #5dade2;
-            }
-            QComboBox::drop-down {
-                width: 20px;
-                border: none;
-            }
-            QComboBox::down-arrow {
-                image: none;
-                border-left: 4px solid transparent;
-                border-right: 4px solid transparent;
-                border-top: 4px solid #ecf0f1;
-                margin-right: 5px;
-            }
-            QComboBox QAbstractItemView {
-                background-color: #2c3e50;
-                border: 2px solid #3498db;
-                selection-background-color: #3498db;
-                color: #ecf0f1;
-                padding: 4px;
-            }
-        """)
+        self.priority_filter.setStyleSheet(AppStyles.combo_box_accent())
         self.priority_filter.setFixedHeight(36)
         self.priority_filter.setMinimumWidth(140)
         self.priority_filter.currentTextChanged.connect(self.onPriorityFilterChanged)
@@ -259,28 +175,7 @@ class ProjectsScreen(QWidget):
 
         # Show archived checkbox
         self.archived_checkbox = QCheckBox("Show Archived")
-        self.archived_checkbox.setStyleSheet("""
-            QCheckBox {
-                color: #ecf0f1;
-                font-size: 13px;
-                font-weight: bold;
-                spacing: 8px;
-            }
-            QCheckBox::indicator {
-                width: 18px;
-                height: 18px;
-                border: 2px solid #3498db;
-                border-radius: 3px;
-                background-color: #34495e;
-            }
-            QCheckBox::indicator:checked {
-                background-color: #3498db;
-                border-color: #3498db;
-            }
-            QCheckBox::indicator:hover {
-                border: 2px solid #5dade2;
-            }
-        """)
+        self.archived_checkbox.setStyleSheet(AppStyles.checkbox_accent())
         self.archived_checkbox.stateChanged.connect(self.onArchivedCheckboxChanged)
         filter_layout.addWidget(self.archived_checkbox)
 
@@ -289,6 +184,7 @@ class ProjectsScreen(QWidget):
 
         # Import button
         self.import_project_btn = AnimatedButton("📥 Import")
+        self.import_project_btn.setToolTip("Bring in a project exported from Project Meridian")
         self.import_project_btn.setStyleSheet(AppStyles.button_normal())
         self.import_project_btn.setFixedHeight(40)
         self.import_project_btn.clicked.connect(self.onImportProject)
@@ -296,6 +192,7 @@ class ProjectsScreen(QWidget):
 
         # Add Project button
         self.add_project_btn = AnimatedButton("+ New Project")
+        self.add_project_btn.setToolTip("Start a new project")
         self.add_project_btn.setStyleSheet(AppStyles.add_button())
         self.add_project_btn.setFixedHeight(40)
         self.add_project_btn.clicked.connect(self.onAddProject)
@@ -303,6 +200,7 @@ class ProjectsScreen(QWidget):
 
         # Clear filters button
         clear_btn = AnimatedButton("Clear Filters")
+        clear_btn.setToolTip("Show all projects again")
         clear_btn.setStyleSheet(AppStyles.button_normal())
         clear_btn.setFixedHeight(36)
         clear_btn.clicked.connect(self.onClearFilters)
@@ -498,7 +396,9 @@ class ProjectsScreen(QWidget):
                     status=project_data['status'],
                     priority=project_data['priority'],
                     color=project_data['color'],
-                    logger=self.logger
+                    logger=self.logger,
+                    start_date=project_data.get('start_date'),
+                    target_completion=project_data.get('target_completion')
                 )
 
                 if project:
@@ -506,7 +406,7 @@ class ProjectsScreen(QWidget):
                     self.loadProjects()
 
                     # Show success message
-                    QMessageBox.information(
+                    dialogs.information(
                         self,
                         "Success",
                         f"Project '{project.title}' created successfully!"
@@ -526,20 +426,20 @@ class ProjectsScreen(QWidget):
                 new_project_id = import_project_from_json(file_path, self.logger)
                 if new_project_id:
                     self.loadProjects()
-                    QMessageBox.information(
+                    dialogs.information(
                         self,
                         "Success",
                         "Project imported successfully!"
                     )
                 else:
-                    QMessageBox.warning(
+                    dialogs.warning(
                         self,
                         "Import Failed",
                         "Failed to import project. Check the log for details."
                     )
             except Exception as e:
                 self.logger.error(f"Error importing project: {e}")
-                QMessageBox.critical(
+                dialogs.critical(
                     self,
                     "Error",
                     f"Error importing project: {str(e)}"

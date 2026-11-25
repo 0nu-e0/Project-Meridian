@@ -32,11 +32,11 @@ from PyQt5.QtWidgets import (
     QScrollArea, QFrame, QProgressBar, QCheckBox
 )
 
-from models.project import Project
 from models.task import TaskStatus
 from utils.projects_io import load_projects_from_json, load_phases_from_json
 from utils.tasks_io import load_tasks_from_json
 from resources.styles import AppStyles
+from resources.styles import AppColors
 
 
 class ProjectCardExpanded(QWidget):
@@ -144,24 +144,24 @@ class ProjectCardExpanded(QWidget):
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
         scroll_area.setFrameShape(QFrame.NoFrame)
-        scroll_area.setStyleSheet("""
-            QScrollArea {
-                background-color: #2c3e50;
+        scroll_area.setStyleSheet(f"""
+            QScrollArea {{
+                background-color: {AppColors.surface};
                 border: none;
-            }
-            QScrollBar:vertical {
-                background-color: #34495e;
+            }}
+            QScrollBar:vertical {{
+                background-color: {AppColors.surface_raised};
                 width: 12px;
                 border-radius: 6px;
-            }
-            QScrollBar::handle:vertical {
-                background-color: #7f8c8d;
+            }}
+            QScrollBar::handle:vertical {{
+                background-color: {AppColors.text_faint};
                 border-radius: 6px;
                 min-height: 20px;
-            }
-            QScrollBar::handle:vertical:hover {
-                background-color: #95a5a6;
-            }
+            }}
+            QScrollBar::handle:vertical:hover {{
+                background-color: {AppColors.text_muted};
+            }}
         """)
 
         # Content widget
@@ -189,11 +189,11 @@ class ProjectCardExpanded(QWidget):
     def createHeader(self):
         """Create the header section"""
         header = QFrame()
-        header.setStyleSheet("""
-            QFrame {
-                background-color: #34495e;
-                border-bottom: 2px solid #3498db;
-            }
+        header.setStyleSheet(f"""
+            QFrame {{
+                background-color: {AppColors.surface_raised};
+                border-bottom: 2px solid {AppColors.accent};
+            }}
         """)
 
         layout = QVBoxLayout(header)
@@ -202,22 +202,22 @@ class ProjectCardExpanded(QWidget):
 
         # Title
         title_label = QLabel(f"📁 {self.project.title if self.project else 'Project'}")
-        title_label.setStyleSheet("""
-            QLabel {
+        title_label.setStyleSheet(f"""
+            QLabel {{
                 font-size: 24px;
                 font-weight: bold;
-                color: #ecf0f1;
-            }
+                color: {AppColors.text_primary};
+            }}
         """)
         layout.addWidget(title_label)
 
         # Scheduled date
         date_label = QLabel(f"Scheduled for: {self.scheduled_date.toString('dddd, MMMM d, yyyy')}")
-        date_label.setStyleSheet("""
-            QLabel {
+        date_label.setStyleSheet(f"""
+            QLabel {{
                 font-size: 13px;
-                color: #bdc3c7;
-            }
+                color: {AppColors.text_secondary};
+            }}
         """)
         layout.addWidget(date_label)
 
@@ -226,12 +226,12 @@ class ProjectCardExpanded(QWidget):
     def createProjectInfoSection(self):
         """Create project information section"""
         section = QFrame()
-        section.setStyleSheet("""
-            QFrame {
-                background-color: #34495e;
+        section.setStyleSheet(f"""
+            QFrame {{
+                background-color: {AppColors.surface_raised};
                 border-radius: 8px;
                 padding: 15px;
-            }
+            }}
         """)
 
         layout = QVBoxLayout(section)
@@ -239,12 +239,12 @@ class ProjectCardExpanded(QWidget):
 
         # Section title
         section_title = QLabel("Project Information")
-        section_title.setStyleSheet("""
-            QLabel {
+        section_title.setStyleSheet(f"""
+            QLabel {{
                 font-size: 16px;
                 font-weight: bold;
-                color: #3498db;
-            }
+                color: {AppColors.accent};
+            }}
         """)
         layout.addWidget(section_title)
 
@@ -252,12 +252,12 @@ class ProjectCardExpanded(QWidget):
         if self.project.description:
             desc_label = QLabel(self.project.description)
             desc_label.setWordWrap(True)
-            desc_label.setStyleSheet("""
-                QLabel {
+            desc_label.setStyleSheet(f"""
+                QLabel {{
                     font-size: 13px;
-                    color: #ecf0f1;
+                    color: {AppColors.text_primary};
                     padding: 5px;
-                }
+                }}
             """)
             layout.addWidget(desc_label)
 
@@ -266,22 +266,22 @@ class ProjectCardExpanded(QWidget):
 
         # Status
         status_label = QLabel(f"Status: {self.project.status.value}")
-        status_label.setStyleSheet("""
-            QLabel {
+        status_label.setStyleSheet(f"""
+            QLabel {{
                 font-size: 12px;
-                color: #bdc3c7;
-            }
+                color: {AppColors.text_secondary};
+            }}
         """)
         info_layout.addWidget(status_label)
 
         # Created date
         if self.project.creation_date:
             created_label = QLabel(f"Created: {self.project.creation_date.strftime('%Y-%m-%d')}")
-            created_label.setStyleSheet("""
-                QLabel {
+            created_label.setStyleSheet(f"""
+                QLabel {{
                     font-size: 12px;
-                    color: #bdc3c7;
-                }
+                    color: {AppColors.text_secondary};
+                }}
             """)
             info_layout.addWidget(created_label)
 
@@ -293,12 +293,12 @@ class ProjectCardExpanded(QWidget):
     def createPhaseProgressSection(self):
         """Create phase progress section"""
         section = QFrame()
-        section.setStyleSheet("""
-            QFrame {
-                background-color: #34495e;
+        section.setStyleSheet(f"""
+            QFrame {{
+                background-color: {AppColors.surface_raised};
                 border-radius: 8px;
                 padding: 15px;
-            }
+            }}
         """)
 
         layout = QVBoxLayout(section)
@@ -306,12 +306,12 @@ class ProjectCardExpanded(QWidget):
 
         # Section title
         section_title = QLabel("Phase Progress")
-        section_title.setStyleSheet("""
-            QLabel {
+        section_title.setStyleSheet(f"""
+            QLabel {{
                 font-size: 16px;
                 font-weight: bold;
-                color: #3498db;
-            }
+                color: {AppColors.accent};
+            }}
         """)
         layout.addWidget(section_title)
 
@@ -327,10 +327,10 @@ class ProjectCardExpanded(QWidget):
         phase_frame = QFrame()
         is_current = phase.id == self.current_phase.id if self.current_phase else False
 
-        border_color = "#27ae60" if is_current else "#7f8c8d"
+        border_color = AppColors.success if is_current else AppColors.text_faint
         phase_frame.setStyleSheet(f"""
             QFrame {{
-                background-color: #2c3e50;
+                background-color: {AppColors.surface};
                 border-left: 4px solid {border_color};
                 border-radius: 4px;
                 padding: 10px;
@@ -344,26 +344,26 @@ class ProjectCardExpanded(QWidget):
         header_layout = QHBoxLayout()
 
         phase_name = QLabel(f"Phase {index + 1}: {phase.name}")
-        phase_name.setStyleSheet("""
-            QLabel {
+        phase_name.setStyleSheet(f"""
+            QLabel {{
                 font-size: 14px;
                 font-weight: bold;
-                color: #ecf0f1;
-            }
+                color: {AppColors.text_primary};
+            }}
         """)
         header_layout.addWidget(phase_name)
 
         if is_current:
             current_badge = QLabel("CURRENT")
-            current_badge.setStyleSheet("""
-                QLabel {
-                    background-color: #27ae60;
+            current_badge.setStyleSheet(f"""
+                QLabel {{
+                    background-color: {AppColors.success};
                     color: white;
                     padding: 2px 8px;
                     border-radius: 3px;
                     font-size: 10px;
                     font-weight: bold;
-                }
+                }}
             """)
             header_layout.addWidget(current_badge)
 
@@ -376,19 +376,19 @@ class ProjectCardExpanded(QWidget):
         progress_bar.setValue(int(progress))
         progress_bar.setTextVisible(True)
         progress_bar.setFormat(f"{int(progress)}%")
-        progress_bar.setStyleSheet("""
-            QProgressBar {
-                border: 1px solid #7f8c8d;
+        progress_bar.setStyleSheet(f"""
+            QProgressBar {{
+                border: 1px solid {AppColors.text_faint};
                 border-radius: 4px;
                 text-align: center;
-                background-color: #34495e;
+                background-color: {AppColors.surface_raised};
                 color: white;
                 height: 20px;
-            }
-            QProgressBar::chunk {
-                background-color: #3498db;
+            }}
+            QProgressBar::chunk {{
+                background-color: {AppColors.accent};
                 border-radius: 3px;
-            }
+            }}
         """)
         layout.addWidget(progress_bar)
 
@@ -396,11 +396,11 @@ class ProjectCardExpanded(QWidget):
         task_count = phase.get_task_count()
         completed_count = phase.get_completed_task_count()
         task_count_label = QLabel(f"{completed_count}/{task_count} tasks completed")
-        task_count_label.setStyleSheet("""
-            QLabel {
+        task_count_label.setStyleSheet(f"""
+            QLabel {{
                 font-size: 11px;
-                color: #95a5a6;
-            }
+                color: {AppColors.text_muted};
+            }}
         """)
         layout.addWidget(task_count_label)
 
@@ -409,12 +409,12 @@ class ProjectCardExpanded(QWidget):
     def createCurrentPhaseTasksSection(self):
         """Create section showing tasks in current phase"""
         section = QFrame()
-        section.setStyleSheet("""
-            QFrame {
-                background-color: #34495e;
+        section.setStyleSheet(f"""
+            QFrame {{
+                background-color: {AppColors.surface_raised};
                 border-radius: 8px;
                 padding: 15px;
-            }
+            }}
         """)
 
         layout = QVBoxLayout(section)
@@ -422,31 +422,30 @@ class ProjectCardExpanded(QWidget):
 
         # Section title
         section_title = QLabel(f"Current Phase Tasks: {self.current_phase.name}")
-        section_title.setStyleSheet("""
-            QLabel {
+        section_title.setStyleSheet(f"""
+            QLabel {{
                 font-size: 16px;
                 font-weight: bold;
-                color: #3498db;
-            }
+                color: {AppColors.accent};
+            }}
         """)
         layout.addWidget(section_title)
 
-        # Load tasks for current phase
+        # Load tasks for current phase - use phase_id from tasks instead of phase.task_ids
         all_tasks = load_tasks_from_json(self.logger)
-        phase_task_ids = self.current_phase.task_ids
-        self.logger.info(f"Current phase '{self.current_phase.name}' has task_ids: {phase_task_ids}")
-        phase_tasks = [all_tasks[tid] for tid in phase_task_ids if tid in all_tasks]
-        self.logger.info(f"Loaded {len(phase_tasks)} tasks for current phase")
+        # Filter tasks by phase_id (more reliable than phase.task_ids)
+        phase_tasks = [task for task in all_tasks.values() if task.phase_id == self.current_phase.id]
+        self.logger.info(f"Current phase '{self.current_phase.name}' has {len(phase_tasks)} tasks (filtered by phase_id)")
 
         if not phase_tasks:
             no_tasks_label = QLabel("No tasks in this phase")
-            no_tasks_label.setStyleSheet("""
-                QLabel {
+            no_tasks_label.setStyleSheet(f"""
+                QLabel {{
                     font-size: 12px;
-                    color: #7f8c8d;
+                    color: {AppColors.text_faint};
                     font-style: italic;
                     padding: 10px;
-                }
+                }}
             """)
             layout.addWidget(no_tasks_label)
         else:
@@ -461,20 +460,20 @@ class ProjectCardExpanded(QWidget):
         """Create a widget for a single task with checklist and comments"""
         task_frame = QFrame()
         task_frame.setCursor(Qt.PointingHandCursor)
-        task_frame.setStyleSheet("""
-            QFrame {
-                background-color: #2c3e50;
+        task_frame.setStyleSheet(f"""
+            QFrame {{
+                background-color: {AppColors.surface};
                 border-radius: 5px;
                 padding: 12px;
-                border-left: 4px solid #3498db;
-                border-top: 1px solid #34495e;
-                border-right: 1px solid #34495e;
-                border-bottom: 1px solid #34495e;
-            }
-            QFrame:hover {
-                background-color: #34495e;
-                border-left: 4px solid #5dade2;
-            }
+                border-left: 4px solid {AppColors.accent};
+                border-top: 1px solid {AppColors.surface_raised};
+                border-right: 1px solid {AppColors.surface_raised};
+                border-bottom: 1px solid {AppColors.surface_raised};
+            }}
+            QFrame:hover {{
+                background-color: {AppColors.surface_raised};
+                border-left: 4px solid {AppColors.accent_light};
+            }}
         """)
 
         # Store task reference for click handling
@@ -506,24 +505,24 @@ class ProjectCardExpanded(QWidget):
         checkbox = QCheckBox()
         checkbox.setChecked(task.status == TaskStatus.COMPLETED)
         checkbox.setEnabled(True)  # Make it interactive
-        checkbox.setStyleSheet("""
-            QCheckBox {
+        checkbox.setStyleSheet(f"""
+            QCheckBox {{
                 spacing: 5px;
-            }
-            QCheckBox::indicator {
+            }}
+            QCheckBox::indicator {{
                 width: 18px;
                 height: 18px;
-                border: 2px solid #7f8c8d;
+                border: 2px solid {AppColors.text_faint};
                 border-radius: 3px;
-                background-color: #34495e;
-            }
-            QCheckBox::indicator:hover {
-                border-color: #3498db;
-            }
-            QCheckBox::indicator:checked {
-                background-color: #27ae60;
-                border-color: #27ae60;
-            }
+                background-color: {AppColors.surface_raised};
+            }}
+            QCheckBox::indicator:hover {{
+                border-color: {AppColors.accent};
+            }}
+            QCheckBox::indicator:checked {{
+                background-color: {AppColors.success};
+                border-color: {AppColors.success};
+            }}
         """)
         # Connect checkbox to task completion handler
         checkbox.stateChanged.connect(
@@ -533,25 +532,25 @@ class ProjectCardExpanded(QWidget):
 
         # Task title
         task_title = QLabel(task.title)
-        task_title.setStyleSheet("""
-            QLabel {
+        task_title.setStyleSheet(f"""
+            QLabel {{
                 font-size: 14px;
-                color: #ecf0f1;
+                color: {AppColors.text_primary};
                 font-weight: bold;
-            }
+            }}
         """)
         top_layout.addWidget(task_title, 1)
 
         # Priority badge
         priority_badge = QLabel(task.priority.name)
         priority_colors = {
-            'CRITICAL': '#c0392b',
-            'HIGH': '#e74c3c',
-            'MEDIUM': '#f39c12',
-            'LOW': '#3498db',
-            'TRIVIAL': '#95a5a6'
+            'CRITICAL': AppColors.danger_dark,
+            'HIGH': AppColors.danger,
+            'MEDIUM': AppColors.warning,
+            'LOW': AppColors.accent,
+            'TRIVIAL': AppColors.text_muted
         }
-        bg_color = priority_colors.get(task.priority.name, '#95a5a6')
+        bg_color = priority_colors.get(task.priority.name, AppColors.text_muted)
         priority_badge.setStyleSheet(f"""
             QLabel {{
                 background-color: {bg_color};
@@ -589,24 +588,24 @@ class ProjectCardExpanded(QWidget):
                     item_checkbox = QCheckBox()
                     item_checkbox.setChecked(False)  # Only showing incomplete items
                     item_checkbox.setEnabled(True)  # Make it interactive
-                    item_checkbox.setStyleSheet("""
-                        QCheckBox {
+                    item_checkbox.setStyleSheet(f"""
+                        QCheckBox {{
                             spacing: 5px;
-                        }
-                        QCheckBox::indicator {
+                        }}
+                        QCheckBox::indicator {{
                             width: 14px;
                             height: 14px;
-                            border: 2px solid #7f8c8d;
+                            border: 2px solid {AppColors.text_faint};
                             border-radius: 2px;
-                            background-color: #34495e;
-                        }
-                        QCheckBox::indicator:hover {
-                            border-color: #3498db;
-                        }
-                        QCheckBox::indicator:checked {
-                            background-color: #27ae60;
-                            border-color: #27ae60;
-                        }
+                            background-color: {AppColors.surface_raised};
+                        }}
+                        QCheckBox::indicator:hover {{
+                            border-color: {AppColors.accent};
+                        }}
+                        QCheckBox::indicator:checked {{
+                            background-color: {AppColors.success};
+                            border-color: {AppColors.success};
+                        }}
                     """)
                     # Connect checkbox to update handler
                     item_checkbox.stateChanged.connect(
@@ -616,11 +615,11 @@ class ProjectCardExpanded(QWidget):
 
                     # Checklist item text
                     item_text = QLabel(item.get('text', ''))
-                    item_text.setStyleSheet("""
-                        QLabel {
-                            color: #bdc3c7;
+                    item_text.setStyleSheet(f"""
+                        QLabel {{
+                            color: {AppColors.text_secondary};
                             font-size: 12px;
-                        }
+                        }}
                     """)
                     item_text.setWordWrap(False)
                     # Truncate if too long
@@ -634,12 +633,12 @@ class ProjectCardExpanded(QWidget):
                 # Show "X more items" if there are more than 3 incomplete items
                 if len(incomplete_items) > 3:
                     more_label = QLabel(f"   +{len(incomplete_items) - 3} more items...")
-                    more_label.setStyleSheet("""
-                        QLabel {
-                            color: #7f8c8d;
+                    more_label.setStyleSheet(f"""
+                        QLabel {{
+                            color: {AppColors.text_faint};
                             font-size: 11px;
                             font-style: italic;
-                        }
+                        }}
                     """)
                     checklist_layout.addWidget(more_label)
 
@@ -657,15 +656,15 @@ class ProjectCardExpanded(QWidget):
                 comments_layout.setContentsMargins(28, 4, 0, 0)
 
                 # Show up to 2 comments
-                for i, entry in enumerate(comment_entries[:2]):
+                for entry in comment_entries[:2]:
                     comment_frame = QFrame()
-                    comment_frame.setStyleSheet("""
-                        QFrame {
-                            background-color: #34495e;
-                            border-left: 3px solid #95a5a6;
+                    comment_frame.setStyleSheet(f"""
+                        QFrame {{
+                            background-color: {AppColors.surface_raised};
+                            border-left: 3px solid {AppColors.text_muted};
                             border-radius: 3px;
                             padding: 6px;
-                        }
+                        }}
                     """)
 
                     comment_layout = QVBoxLayout(comment_frame)
@@ -679,11 +678,11 @@ class ProjectCardExpanded(QWidget):
 
                     comment_text = QLabel(text)
                     comment_text.setWordWrap(True)
-                    comment_text.setStyleSheet("""
-                        QLabel {
-                            color: #ecf0f1;
+                    comment_text.setStyleSheet(f"""
+                        QLabel {{
+                            color: {AppColors.text_primary};
                             font-size: 11px;
-                        }
+                        }}
                     """)
                     comment_layout.addWidget(comment_text)
 
@@ -699,15 +698,15 @@ class ProjectCardExpanded(QWidget):
                             else:
                                 dt = timestamp
                             meta_text += f" • {dt.strftime('%b %d, %Y')}"
-                        except:
+                        except (ValueError, TypeError):
                             pass
 
                     meta_label = QLabel(meta_text)
-                    meta_label.setStyleSheet("""
-                        QLabel {
-                            color: #95a5a6;
+                    meta_label.setStyleSheet(f"""
+                        QLabel {{
+                            color: {AppColors.text_muted};
                             font-size: 10px;
-                        }
+                        }}
                     """)
                     comment_layout.addWidget(meta_label)
 
@@ -716,12 +715,12 @@ class ProjectCardExpanded(QWidget):
                 # Show "X more comments" if there are more than 2
                 if len(comment_entries) > 2:
                     more_label = QLabel(f"   +{len(comment_entries) - 2} more comments...")
-                    more_label.setStyleSheet("""
-                        QLabel {
-                            color: #7f8c8d;
+                    more_label.setStyleSheet(f"""
+                        QLabel {{
+                            color: {AppColors.text_faint};
                             font-size: 11px;
                             font-style: italic;
-                        }
+                        }}
                     """)
                     comments_layout.addWidget(more_label)
 
@@ -781,7 +780,6 @@ class ProjectCardExpanded(QWidget):
     def checkAndAdvancePhase(self):
         """Check if all tasks in current phase are complete and advance to next phase if so"""
         from models.task import TaskStatus
-        from utils.projects_io import load_phases_from_json, save_phases_to_json
 
         # Load all tasks
         all_tasks = load_tasks_from_json(self.logger)
@@ -798,27 +796,15 @@ class ProjectCardExpanded(QWidget):
         if all_complete:
             self.logger.info(f"All tasks in phase '{self.current_phase.name}' are complete. Advancing to next phase.")
 
-            # Find next phase
-            next_phase = None
-            for phase in self.phases:
-                if phase.order == self.current_phase.order + 1:
-                    next_phase = phase
-                    break
+            # Find the phase after this one (by position; stored orders can have gaps)
+            ordered = sorted(self.phases, key=lambda p: p.order)
+            position = next((i for i, p in enumerate(ordered) if p.id == self.current_phase.id), None)
+            next_phase = ordered[position + 1] if position is not None and position + 1 < len(ordered) else None
 
             if next_phase:
-                # Update phase current status
-                all_phases = load_phases_from_json(self.logger)
-
-                # Mark current phase as not current
-                if self.current_phase.id in all_phases:
-                    all_phases[self.current_phase.id].is_current = False
-
-                # Mark next phase as current
-                if next_phase.id in all_phases:
-                    all_phases[next_phase.id].is_current = True
-
-                # Save phases
-                save_phases_to_json(all_phases, self.logger)
+                # Updates both the phases' flags and the project's current phase
+                from utils.projects_io import set_current_phase
+                set_current_phase(self.current_phase.project_id, next_phase.id, self.logger)
 
                 self.logger.info(f"Advanced to next phase: {next_phase.name}")
 
@@ -830,11 +816,11 @@ class ProjectCardExpanded(QWidget):
     def createFooter(self):
         """Create footer with close button"""
         footer = QFrame()
-        footer.setStyleSheet("""
-            QFrame {
-                background-color: #34495e;
-                border-top: 2px solid #3498db;
-            }
+        footer.setStyleSheet(f"""
+            QFrame {{
+                background-color: {AppColors.surface_raised};
+                border-top: 2px solid {AppColors.accent};
+            }}
         """)
 
         layout = QHBoxLayout(footer)

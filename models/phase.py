@@ -37,7 +37,8 @@ class Phase(QObject):
     """
     Phase model representing a stage within a project.
 
-    Each phase contains an ordered list of tasks and tracks its own progress.
+    A task belongs to a phase when its phase_id is the phase's id. That is the only
+    record of membership; task_ids is worked out from it so the two can't disagree.
     """
 
     # Signals
@@ -58,8 +59,8 @@ class Phase(QObject):
         self.name = name
         self.description = description
 
-        # Relationships
-        self.task_ids: List[str] = []  # Ordered list of task IDs in this phase
+        # task_ids read from an older file, used once by reconcile_phase_membership()
+        self._legacy_task_ids: List[str] = []
 
         # Ordering & State
         self.order = order  # Sequence in project (0-based)
@@ -78,7 +79,6 @@ class Phase(QObject):
             'project_id': self.project_id,
             'name': self.name,
             'description': self.description,
-            'task_ids': self.task_ids,
             'order': self.order,
             'is_current': self.is_current,
             'collapsed': self.collapsed,
@@ -99,7 +99,7 @@ class Phase(QObject):
 
         # Restore fields
         phase.id = data['id']
-        phase.task_ids = data.get('task_ids', [])
+        phase._legacy_task_ids = list(data.get('task_ids', []))
         phase.is_current = data.get('is_current', False)
         phase.collapsed = data.get('collapsed', False)
 
@@ -113,6 +113,20 @@ class Phase(QObject):
 
         return phase
 
+    def get_tasks(self) -> list:
+        """Tasks in this phase, oldest first"""
+        from utils.tasks_io import load_tasks_from_json
+        from logging import getLogger
+
+        tasks = load_tasks_from_json(getLogger(__name__))
+        phase_tasks = [task for task in tasks.values() if task.phase_id == self.id]
+        return sorted(phase_tasks, key=lambda task: task.creation_date)
+
+    @property
+    def task_ids(self) -> List[str]:
+        """IDs of the tasks in this phase, oldest first (read-only; set task.phase_id instead)"""
+        return [task.id for task in self.get_tasks()]
+
     def get_progress_percentage(self) -> float:
         """
         Calculate phase completion percentage based on tasks.
@@ -120,14 +134,7 @@ class Phase(QObject):
         Returns:
             Float between 0.0 and 100.0
         """
-        from utils.tasks_io import load_tasks_from_json
-        from logging import getLogger
-
-        logger = getLogger(__name__)
-        tasks = load_tasks_from_json(logger)
-
-        # Get tasks in this phase
-        phase_tasks = [tasks[task_id] for task_id in self.task_ids if task_id in tasks]
+        phase_tasks = self.get_tasks()
 
         if not phase_tasks:
             return 0.0
@@ -142,7 +149,7 @@ class Phase(QObject):
         Returns:
             Integer count of tasks
         """
-        return len(self.task_ids)
+        return len(self.get_tasks())
 
     def get_completed_task_count(self) -> int:
         """
@@ -151,14 +158,6 @@ class Phase(QObject):
         Returns:
             Integer count of completed tasks
         """
-        from utils.tasks_io import load_tasks_from_json
-        from logging import getLogger
-
-        logger = getLogger(__name__)
-        tasks = load_tasks_from_json(logger)
-
-        # Get tasks in this phase
-        phase_tasks = [tasks[task_id] for task_id in self.task_ids if task_id in tasks]
-        completed_tasks = sum(1 for task in phase_tasks if task.status == TaskStatus.COMPLETED)
+        completed_tasks = sum(1 for task in self.get_tasks() if task.status == TaskStatus.COMPLETED)
 
         return completed_tasks

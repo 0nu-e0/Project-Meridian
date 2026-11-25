@@ -29,13 +29,15 @@ from PyQt5.QtCore import Qt, pyqtSignal, QDate
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QTextEdit, QComboBox, QDateEdit, QPushButton, QColorDialog,
-    QFormLayout, QWidget, QMessageBox
+    QFormLayout, QWidget
 )
 from PyQt5.QtGui import QColor
 
+from ui.custom_widgets import dialogs
 from models.project import ProjectStatus
 from models.task import TaskPriority
 from resources.styles import AppStyles
+from resources.styles import AppColors
 
 
 class ProjectDialog(QDialog):
@@ -57,7 +59,7 @@ class ProjectDialog(QDialog):
         self.mode = mode
         self.project = project
         self.logger = logger
-        self.selected_color = "#3498db"  # Default color
+        self.selected_color = AppColors.accent  # Default color
         self.project_data = None  # Store project data when saved
 
         # Pre-fill with project data if editing
@@ -75,10 +77,10 @@ class ProjectDialog(QDialog):
         self.setWindowTitle("New Project" if self.mode == "create" else "Edit Project")
         self.setModal(True)
         self.setMinimumWidth(500)
-        self.setStyleSheet("""
-            QDialog {
-                background-color: #2c3e50;
-            }
+        self.setStyleSheet(f"""
+            QDialog {{
+                background-color: {AppColors.surface};
+            }}
         """)
 
         # Main layout
@@ -88,12 +90,12 @@ class ProjectDialog(QDialog):
 
         # Title
         title_label = QLabel("New Project" if self.mode == "create" else "Edit Project")
-        title_label.setStyleSheet("""
-            QLabel {
+        title_label.setStyleSheet(f"""
+            QLabel {{
                 font-size: 20px;
                 font-weight: bold;
-                color: #ecf0f1;
-            }
+                color: {AppColors.text_primary};
+            }}
         """)
         layout.addWidget(title_label)
 
@@ -150,6 +152,7 @@ class ProjectDialog(QDialog):
         # Color picker
         color_layout = QHBoxLayout()
         self.color_button = QPushButton()
+        self.color_button.setToolTip("Pick the project's colour")
         self.color_button.setFixedSize(100, 30)
         self.updateColorButton()
         self.color_button.clicked.connect(self.onColorPicker)
@@ -162,7 +165,7 @@ class ProjectDialog(QDialog):
 
         # Add color picker row
         color_label = QLabel("Color:")
-        color_label.setStyleSheet("font-size: 12px; color: #ecf0f1;")
+        color_label.setStyleSheet(f"font-size: 12px; color: {AppColors.text_primary};")
         form_layout.addRow(color_label, color_layout)
 
         # Buttons
@@ -232,11 +235,11 @@ class ProjectDialog(QDialog):
         self.color_button.setStyleSheet(f"""
             QPushButton {{
                 background-color: {self.selected_color};
-                border: 2px solid #bdc3c7;
+                border: 2px solid {AppColors.text_secondary};
                 border-radius: 5px;
             }}
             QPushButton:hover {{
-                border: 2px solid #95a5a6;
+                border: 2px solid {AppColors.text_muted};
             }}
         """)
         self.color_button.setText("")
@@ -246,7 +249,7 @@ class ProjectDialog(QDialog):
         # Validate title
         title = self.title_input.text().strip()
         if not title:
-            QMessageBox.warning(self, "Validation Error", "Project title is required.")
+            dialogs.warning(self, "Validation Error", "Project title is required.")
             return
 
         # Get form data
@@ -283,9 +286,6 @@ class ProjectDialog(QDialog):
         if self.mode == "edit" and self.project:
             self.project_data['project_id'] = self.project.id
 
-        # Store project data for getProjectData() method
-        self.project_data = project_data
-
         # Emit signal with project data
         self.projectSaved.emit(self.project_data)
 
@@ -298,56 +298,56 @@ class ProjectDialog(QDialog):
 
     def getInputStyle(self):
         """Get stylesheet for input widgets"""
-        return """
-            QLineEdit, QTextEdit, QComboBox, QDateEdit {
+        return f"""
+            QLineEdit, QTextEdit, QComboBox, QDateEdit {{
                 padding: 8px;
-                border: 2px solid #3498db;
+                border: 2px solid {AppColors.accent};
                 border-radius: 5px;
-                background-color: #34495e;
-                color: #ecf0f1;
+                background-color: {AppColors.surface_raised};
+                color: {AppColors.text_primary};
                 font-size: 12px;
-            }
-            QLineEdit:focus, QTextEdit:focus, QComboBox:focus, QDateEdit:focus {
-                border: 2px solid #5dade2;
-            }
-            QLineEdit::placeholder, QTextEdit::placeholder {
-                color: #7f8c8d;
-            }
-            QComboBox::drop-down {
+            }}
+            QLineEdit:focus, QTextEdit:focus, QComboBox:focus, QDateEdit:focus {{
+                border: 2px solid {AppColors.accent_light};
+            }}
+            QLineEdit::placeholder, QTextEdit::placeholder {{
+                color: {AppColors.text_faint};
+            }}
+            QComboBox::drop-down {{
                 border: none;
                 width: 20px;
-            }
-            QComboBox::down-arrow {
+            }}
+            QComboBox::down-arrow {{
                 image: none;
                 border-left: 4px solid transparent;
                 border-right: 4px solid transparent;
-                border-top: 6px solid #ecf0f1;
+                border-top: 6px solid {AppColors.text_primary};
                 margin-right: 8px;
-            }
-            QComboBox QAbstractItemView {
-                background-color: #2c3e50;
-                border: 2px solid #3498db;
-                selection-background-color: #3498db;
-                color: #ecf0f1;
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: {AppColors.surface};
+                border: 2px solid {AppColors.accent};
+                selection-background-color: {AppColors.accent};
+                color: {AppColors.text_primary};
                 padding: 4px;
-            }
+            }}
         """
 
     def getSecondaryButtonStyle(self):
         """Get stylesheet for secondary button"""
-        return """
-            QPushButton {
-                background-color: #34495e;
-                color: #ecf0f1;
-                border: 2px solid #7f8c8d;
+        return f"""
+            QPushButton {{
+                background-color: {AppColors.surface_raised};
+                color: {AppColors.text_primary};
+                border: 2px solid {AppColors.text_faint};
                 border-radius: 5px;
                 font-size: 13px;
                 font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #7f8c8d;
-            }
-            QPushButton:pressed {
-                background-color: #95a5a6;
-            }
+            }}
+            QPushButton:hover {{
+                background-color: {AppColors.text_faint};
+            }}
+            QPushButton:pressed {{
+                background-color: {AppColors.text_muted};
+            }}
         """

@@ -21,7 +21,7 @@
 # SOFTWARE.
 # -----------------------------------------------------------------------------
 # File: task_card_lite.py
-# Description: Used to display the most basic form of the task cards in the 
+# Description: Used to display the most basic form of the task cards in the
 #              grid layout.
 # Author: Jereme Shaver
 # -----------------------------------------------------------------------------
@@ -32,49 +32,87 @@ from typing import Optional, Tuple
 
 # Third-party imports
 from PyQt5.QtCore import QEasingCurve, QEvent, QPropertyAnimation, QSize, Qt, QTimer, pyqtSignal
-from PyQt5.QtGui import QColor, QCursor, QFontMetrics, QGuiApplication
-from PyQt5.QtWidgets import (QApplication, QGraphicsDropShadowEffect, QGridLayout, QLabel,
-                             QScrollArea, QSizePolicy, QStyle, QVBoxLayout, QWidget)
+from PyQt5.QtGui import QColor, QCursor, QFontMetrics
+from PyQt5.QtWidgets import (QApplication, QGraphicsDropShadowEffect, QHBoxLayout, QLabel,
+                             QScrollArea, QSizePolicy, QVBoxLayout, QWidget)
 
 # Local application imports
 from models.task import Task
-from resources.styles import AppColors, AppStyles
+from resources.styles import AppColors
+from ui.custom_widgets.rich_text import DescriptionView
 from utils.constants import (ANIMATION_COLLAPSE_DURATION_MS, ANIMATION_DURATION_MS,
-                             ANIMATION_UPDATE_INTERVAL_MS, CARD_DETAIL_SPACING,
-                             CARD_HEIGHT_ASPECT_RATIO, CARD_MARGIN_MULTIPLIER,
-                             CARD_MIN_CARDS_PER_ROW, CARD_MIN_HEIGHT_FOR_CONTENT,
-                             CARD_MIN_READABLE_WIDTH, CARD_PADDING,
-                             CARD_TARGET_CARDS_PER_ROW_DIVISOR, LAYOUT_NO_SPACING)
+                             CARD_HEIGHT_ASPECT_RATIO, CARD_MIN_HEIGHT_FOR_CONTENT,
+                             CARD_MIN_READABLE_WIDTH, CARD_PADDING, CARD_TARGET_WIDTH,
+                             LAYOUT_NO_SPACING)
+
+# Tallest the hover preview of a description gets before it scrolls
+DESCRIPTION_PREVIEW_MAX_HEIGHT = 180
+
+
+def elide_lines(text, font, width, max_lines):
+    """Wrap text to width and cut it to max_lines, ending with an ellipsis if it was cut"""
+    metrics = QFontMetrics(font)
+    words = text.split()
+    lines, current = [], ""
+    for word in words:
+        candidate = f"{current} {word}".strip()
+        if metrics.horizontalAdvance(candidate) <= width or not current:
+            current = candidate
+        else:
+            lines.append(current)
+            current = word
+    if current:
+        lines.append(current)
+    if len(lines) <= max_lines:
+        return "\n".join(lines)
+    kept = lines[:max_lines]
+    kept[-1] = metrics.elidedText(" ".join(lines[max_lines - 1:]), Qt.ElideRight, width)
+    return "\n".join(kept)
+
+
+def badge(text, color):
+    label = QLabel(text)
+    font = label.font()
+    font.setPixelSize(11)
+    font.setBold(True)
+    label.setFont(font)
+    label.setAlignment(Qt.AlignCenter)
+    label.setStyleSheet(f"""
+        QLabel {{ background-color: {color}; color: white;
+                 border-radius: 4px; padding: 2px 8px; }}
+    """)
+    # Reserve the whole word, so a narrow card never squeezes it into "Mediu"
+    label.setMinimumWidth(QFontMetrics(font).horizontalAdvance(text) + 2 * 8 + 4)
+    label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+    return label
+
 
 class TaskCardLite(QWidget):
     card_count = 0
     cardClicked = pyqtSignal(object, str)
-    cardHovered = pyqtSignal(bool, int) 
+    cardHovered = pyqtSignal(bool, int)
+    archiveToggled = pyqtSignal(object)  # task: archive or unarchive it by hand
     filterPass = pyqtSignal(str)
 
-    @classmethod
-    def calculate_optimal_card_size(cls) -> Tuple[int, int]:
-        # Get screen dimensions using QGuiApplication instead of deprecated QDesktopWidget
-        screen = QGuiApplication.primaryScreen()
-        screen_geometry = screen.availableGeometry()
-        screen_width = screen_geometry.width()
-        screen_height = screen_geometry.height()
+    @staticmethod
+    def calculate_grid_layout(available_width: int, spacing: int) -> Tuple[int, int, int]:
+        """Return (columns, card_width, card_height) so a row of cards exactly fills available_width."""
+        available_width = max(CARD_MIN_READABLE_WIDTH, available_width)
 
-        # Calculate width
-        target_cards_per_row = max(
-            CARD_MIN_CARDS_PER_ROW,
-            screen_width // CARD_TARGET_CARDS_PER_ROW_DIVISOR
-        )
-        available_width = screen_width - (CARD_MARGIN_MULTIPLIER * (target_cards_per_row + 1))
-        card_width = max(CARD_MIN_READABLE_WIDTH, available_width // target_cards_per_row)
+        # Pick the column count whose card width lands closest to the target width
+        columns = max(1, round((available_width + spacing) / (CARD_TARGET_WIDTH + spacing)))
+        card_width = (available_width - spacing * (columns - 1)) // columns
 
-        # Calculate height
+        # Drop columns until cards are readable
+        while columns > 1 and card_width < CARD_MIN_READABLE_WIDTH:
+            columns -= 1
+            card_width = (available_width - spacing * (columns - 1)) // columns
+
         card_height = min(
             int(card_width / CARD_HEIGHT_ASPECT_RATIO),
             CARD_MIN_HEIGHT_FOR_CONTENT
         )
-
-        return card_width, card_height
+        return columns, card_width, card_height
 
     def __init__(self, logger: Logger, task: Task, grid_id: Optional[str] = None, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
@@ -83,8 +121,13 @@ class TaskCardLite(QWidget):
         self.task = task  # This is now a Task object that contains all the info
         self.grid_id = grid_id
 
-        # Calculate size first
-        self.card_width, self.card_height = self.calculate_optimal_card_size()
+        # Start at the target size; the owning grid calls setCardWidth once it knows its width
+        self.card_width = CARD_TARGET_WIDTH
+        self.card_height = min(int(self.card_width / CARD_HEIGHT_ASPECT_RATIO), CARD_MIN_HEIGHT_FOR_CONTENT)
+        self.title_label = None
+        self.desc_view = None
+        self.compact_widget = None
+        self.detail_widget = None
 
         # Expansion properties
         self.expanded = False
@@ -121,6 +164,44 @@ class TaskCardLite(QWidget):
         self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
 
         self.initUI()
+
+    def setCardWidth(self, width: int) -> None:
+        """Resize the card to the width the grid assigned it"""
+        if width == self.card_width:
+            return
+        self.card_width = width
+        self.setFixedWidth(width)
+        self._fitToWidth()
+        self.updateGeometry()
+
+    # Text area inside the card: card width minus the container and label padding
+    def _textWidth(self):
+        return max(80, self.card_width - 2 * CARD_PADDING - 24)
+
+    def _fitToWidth(self):
+        """Re-wrap the title and size the card (compact and hover) to its content"""
+        if self.title_label is None:
+            return
+        title = elide_lines(self.task.title, self.title_label.font(), self._textWidth(), 2)
+        self.title_label.setText(title)
+        # Exact height for the lines shown; a wrapped label's own estimate runs tall
+        line_count = len(title.splitlines()) or 1
+        self.title_label.setFixedHeight(QFontMetrics(self.title_label.font()).lineSpacing() * line_count + 2)
+
+        if self.desc_view is not None:
+            document = self.desc_view.document()
+            document.setTextWidth(self._textWidth())
+            # Short descriptions show in full; long ones scroll (mouse wheel)
+            self.desc_view.setFixedHeight(int(min(document.size().height() + 20, DESCRIPTION_PREVIEW_MAX_HEIGHT)))
+
+        # The compact part never changes size; while the card shrinks back after a
+        # hover, only the detail area below it gives up room
+        self.compact_widget.setFixedHeight(QWidget.sizeHint(self.compact_widget).height())
+        self.compact_height = self.compact_widget.height()
+        self.expanded_height = self.compact_height + self.detail_widget.sizeHint().height()
+        if not self.expanded:
+            self.setMinimumHeight(self.compact_height)
+            self.setMaximumHeight(self.compact_height)
 
     def sizeHint(self) -> QSize:
         """Provide size hint based on current expansion state"""
@@ -214,7 +295,7 @@ class TaskCardLite(QWidget):
         # Mouse is definitely not over the card, collapse it
         self.collapse_check_timer.stop()
         self.collapseCard()
-    
+
     def expandCard(self) -> None:
         """Expand card to show detailed information with smooth animation"""
         if self.expanded or self.animation and self.animation.state() == QPropertyAnimation.Running:
@@ -279,7 +360,6 @@ class TaskCardLite(QWidget):
                 layout.update()
 
             # For QScrollArea widgets, ensure viewport is updated
-            from PyQt5.QtWidgets import QScrollArea
             if isinstance(parent, QScrollArea):
                 if parent.widget():
                     parent.widget().adjustSize()
@@ -336,7 +416,34 @@ class TaskCardLite(QWidget):
             self.logger.debug(f"card clicked with grid_id in mousePressEvent: {self.grid_id}")
             self.cardClicked.emit(self.task, self.grid_id)
         super().mousePressEvent(event)
-        
+
+    def eventFilter(self, watched, event):
+        if (self.desc_view is not None and watched is self.desc_view.viewport()
+                and event.type() == QEvent.MouseButtonPress and event.button() == Qt.LeftButton
+                and not self.desc_view.anchorAt(event.pos())):
+            self.cardClicked.emit(self.task, self.grid_id)
+            return True
+        return super().eventFilter(watched, event)
+
+    def contextMenuEvent(self, event):
+        """Right-click: open, or archive/unarchive without completing"""
+        from PyQt5.QtWidgets import QMenu
+        from models.task import TaskStatus
+        menu = QMenu(self)
+        menu.setStyleSheet(f"""
+            QMenu {{ background-color: {AppColors.surface_raised}; color: {AppColors.text_primary};
+                     border: 1px solid {AppColors.surface_hover_alt}; padding: 4px; }}
+            QMenu::item {{ padding: 6px 22px 6px 10px; border-radius: 3px; }}
+            QMenu::item:selected {{ background-color: {AppColors.accent}; }}
+            QMenu::item:disabled {{ color: {AppColors.text_faint}; }}""")
+        menu.addAction("Open", lambda: self.cardClicked.emit(self.task, self.grid_id))
+        if self.task.status == TaskStatus.COMPLETED:
+            menu.addAction("Archived (completed)").setEnabled(False)
+        else:
+            menu.addAction("Unarchive" if self.task.archived_by_hand else "Archive",
+                           lambda: self.archiveToggled.emit(self.task))
+        menu.exec_(event.globalPos())
+
     def setRowPosition(self, row):
         self.row_position = row
 
@@ -349,6 +456,7 @@ class TaskCardLite(QWidget):
 
         # Create detail container (initially hidden)
         self.detail_container = QWidget()
+        self.detail_container.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Ignored)
         detail_layout = QVBoxLayout(self.detail_container)
         detail_layout.setContentsMargins(LAYOUT_NO_SPACING, LAYOUT_NO_SPACING, LAYOUT_NO_SPACING, LAYOUT_NO_SPACING)
         detail_layout.setSpacing(LAYOUT_NO_SPACING)
@@ -360,6 +468,8 @@ class TaskCardLite(QWidget):
         self.detail_container.setMaximumHeight(0)
         self.main_layout.addWidget(self.detail_container)
 
+        self._fitToWidth()
+
     def initCentralWidget(self):
         self.central_widget = QWidget()
         self.central_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
@@ -370,235 +480,82 @@ class TaskCardLite(QWidget):
 
 
     def generateCompactUI(self):
-        """Generate compact card view - always visible"""
-        card_layout_widget = QWidget()
-        card_layout_widget.setObjectName("card_container")
-        card_layout = QGridLayout(card_layout_widget)
-        card_layout.setContentsMargins(CARD_PADDING, CARD_PADDING, CARD_PADDING, CARD_PADDING)
-        card_layout.setSpacing(CARD_DETAIL_SPACING)
+        """Compact view, always visible: title, then status, priority, category, and due date"""
+        self.compact_widget = QWidget()
+        self.compact_widget.setObjectName("card_container")
+        layout = QVBoxLayout(self.compact_widget)
+        layout.setContentsMargins(CARD_PADDING + 4, CARD_PADDING + 2, CARD_PADDING + 4, CARD_PADDING + 2)
+        layout.setSpacing(8)
 
-        # Set column stretch factors to make columns equal width
-        card_layout.setColumnStretch(0, 1)
-        card_layout.setColumnStretch(1, 1)
-
-        # Title from Task
-        title_label = QLabel()
-        title_label.setStyleSheet(AppStyles.card_label_single())
-
-        max_title_width = self.card_width
-        self.set_smart_title_height(title_label, self.task.title, max_title_width, max_lines=3)
-
-        card_layout.addWidget(title_label, 0, 0, 1, 2)
-
-        # Status (using TaskStatus enum)
-        status_label = QLabel()
-        status_icon = self.style().standardIcon(QStyle.SP_DialogApplyButton)
-        status_label.setPixmap(status_icon.pixmap(16, 16))
-        status_label.setText(f"  {self.task.status.value}")
-        status_label.setStyleSheet(f"""
-            QLabel {{
-                color: white;
-                font-size: 14px;
-                background-color: {AppColors.get_status_color(self.task.status)};
-                padding: 5px;
-            }}
+        # Title: a readable fixed size, at most two lines, full title on hover
+        self.title_label = QLabel()
+        self.title_label.setWordWrap(True)
+        self.title_label.setToolTip(self.task.title)
+        self.title_label.setStyleSheet(f"""
+            QLabel {{ color: {AppColors.text_primary}; font-size: 14px; font-weight: bold;
+                     background: transparent; padding: 0px; }}
         """)
-        card_layout.addWidget(status_label, 1, 0)
+        title_font = self.title_label.font()
+        title_font.setPixelSize(14)
+        title_font.setBold(True)
+        self.title_label.setFont(title_font)
+        layout.addWidget(self.title_label)
 
-        # Priority (using TaskPriority enum)
-        priority_label = QLabel()
-        priority_icon = self.style().standardIcon(QStyle.SP_TitleBarContextHelpButton)
-        priority_label.setPixmap(priority_icon.pixmap(16, 16))
-        priority_label.setText(f"  {self.task.priority.name}")
-        priority_label.setStyleSheet(f"""
-            QLabel {{
-                color: white;
-                font-size: 14px;
-                background-color: {AppColors.get_priority_color(self.task.priority)};
-                padding: 5px;
-            }}
-        """)
-        card_layout.addWidget(priority_label, 1, 1)
+        # Status and priority as badges; category and due date as quieter text
+        meta = QHBoxLayout()
+        meta.setSpacing(6)
+        meta.addWidget(badge(self.task.status.value, AppColors.get_status_color(self.task.status)))
+        meta.addWidget(badge(self.task.priority.name.title(), AppColors.get_priority_color(self.task.priority)))
+        meta.addStretch(1)
+        if self.task.due_date is not None:
+            due = QLabel(f"Due {self.task.due_date.strftime('%b %d').replace(' 0', ' ')}")
+            due.setStyleSheet(f"color: {AppColors.get_due_date_color(self.task.due_date)}; font-size: 11px; "
+                              f"font-weight: bold; background: transparent;")
+            meta.addWidget(due)
+        layout.addLayout(meta)
 
-        # Category (using TaskCategory enum)
-        category_label = QLabel()
-        category_icon = self.style().standardIcon(QStyle.SP_DirIcon)
-        category_label.setPixmap(category_icon.pixmap(16, 16))
-        category_label.setText(f"  {self.task.category.value}")
-        category_label.setStyleSheet(f"""
-            QLabel {{
-                color: white;
-                font-size: 14px;
-                background-color: {AppColors.get_category_color(self.task.category)};
-                padding: 5px;
-            }}
-        """)
-        card_layout.addWidget(category_label, 2, 0)
+        category = QLabel(self.task.category_name)
+        category.setStyleSheet(f"color: {AppColors.text_muted}; font-size: 11px; background: transparent;")
+        layout.addWidget(category)
 
-        # Completion percentage
-        complete_label = QLabel()
-        complete_icon = self.style().standardIcon(QStyle.SP_BrowserReload)
-        complete_label.setPixmap(complete_icon.pixmap(16, 16))
-        complete_label.setText(f"  {self.task.percentage_complete}%")
-        complete_label.setStyleSheet(f"""
-            QLabel {{
-                color: white;
-                font-size: 14px;
-                background-color: {AppColors.get_progress_color(self.task.percentage_complete)};
-                padding: 5px;
-            }}
-        """)
-        card_layout.addWidget(complete_label, 2, 1)
-
-        self.main_layout.addWidget(card_layout_widget)
+        self.main_layout.addWidget(self.compact_widget)
 
     def generateDetailContent(self, detail_layout):
-        """Generate detailed information shown when card expands"""
-        detail_widget = QWidget()
-        detail_widget.setObjectName("card_container")
-        detail_grid = QGridLayout(detail_widget)
-        detail_grid.setContentsMargins(CARD_PADDING, CARD_DETAIL_SPACING, CARD_PADDING, CARD_PADDING)
-        detail_grid.setSpacing(CARD_DETAIL_SPACING)
+        """Shown while hovering: the formatted description (scrollable), hours, and people"""
+        self.detail_widget = QWidget()
+        self.detail_widget.setObjectName("card_container")
+        layout = QVBoxLayout(self.detail_widget)
+        layout.setContentsMargins(CARD_PADDING + 4, 0, CARD_PADDING + 4, CARD_PADDING + 2)
+        layout.setSpacing(6)
 
-        detail_grid.setColumnStretch(0, 1)
-        detail_grid.setColumnStretch(1, 1)
-
-        row = 0
-
-        # Description (if exists)
         if self.task.description:
-            desc_label = QLabel(self.task.description)
-            desc_label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
-            desc_label.setWordWrap(True)
-            desc_label.setStyleSheet("""
-                QLabel {
-                    color: white;
-                    font-size: 12px;
-                    background-color: #34495E;
-                    padding: 6px;
-                    border-radius: 4px;
-                }
-            """)
-            desc_label.setMaximumWidth(self.card_width - 16)
-            detail_grid.addWidget(desc_label, row, 0, 1, 2)
-            row += 1
+            self.desc_view = DescriptionView(self.task)
+            self.desc_view.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+            self.desc_view.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+            # Clicking the description opens the task like the rest of the card;
+            # the wheel still scrolls it
+            self.desc_view.setTextInteractionFlags(Qt.LinksAccessibleByMouse)
+            self.desc_view.viewport().installEventFilter(self)
+            layout.addWidget(self.desc_view)
 
-        # Progress info
-        progress_info = [f"{self.task.percentage_complete}%"]
-        if hasattr(self.task, 'estimated_hours') and self.task.estimated_hours:
-            progress_info.append(f"Est: {self.task.estimated_hours}h")
-        if hasattr(self.task, 'actual_hours') and self.task.actual_hours:
-            progress_info.append(f"Actual: {self.task.actual_hours}h")
-
-        progress_label = QLabel(" | ".join(progress_info))
-        progress_label.setStyleSheet(f"""
-            QLabel {{
-                color: white;
-                font-size: 11px;
-                background-color: {AppColors.get_progress_color(self.task.percentage_complete)};
-                padding: 4px;
-                border-radius: 4px;
-            }}
-        """)
-        detail_grid.addWidget(progress_label, row, 0, 1, 2)
-        row += 1
-
-        # Dates
+        facts = []
+        if self.task.estimated_hours:
+            facts.append(f"Est. {self.task.estimated_hours:g}h")
+        if self.task.actual_hours:
+            facts.append(f"Logged {self.task.actual_hours:g}h")
+        if self.task.assignee:
+            facts.append(f"Assignee: {self.task.assignee}")
         if self.task.start_date is not None:
-            started_label = QLabel(f"Started: {self.task.start_date.strftime('%m/%d/%y')}")
-            started_label.setStyleSheet("""
-                QLabel {
-                    color: white;
-                    font-size: 11px;
-                    background-color: #2980B9;
-                    padding: 4px;
-                    border-radius: 4px;
-                }
-            """)
-            detail_grid.addWidget(started_label, row, 0)
+            facts.append(f"Started {self.task.start_date.strftime('%b %d').replace(' 0', ' ')}")
+        if facts:
+            info = QLabel("   ·   ".join(facts))
+            info.setWordWrap(True)
+            info.setStyleSheet(f"color: {AppColors.text_secondary}; font-size: 11px; background: transparent;")
+            layout.addWidget(info)
 
-        if self.task.due_date is not None:
-            due_label = QLabel(f"Due: {self.task.due_date.strftime('%m/%d/%y')}")
-            due_label.setStyleSheet(f"""
-                QLabel {{
-                    color: white;
-                    font-size: 11px;
-                    background-color: {AppColors.get_due_date_color(self.task.due_date)};
-                    padding: 4px;
-                    border-radius: 4px;
-                }}
-            """)
-            detail_grid.addWidget(due_label, row, 1)
+        hint = QLabel("Click to open")
+        hint.setStyleSheet(f"color: {AppColors.text_faint}; font-size: 10px; font-style: italic; background: transparent;")
+        layout.addWidget(hint)
 
-        if self.task.start_date or self.task.due_date:
-            row += 1
+        detail_layout.addWidget(self.detail_widget)
 
-        # Team info
-        team_info = []
-        if hasattr(self.task, 'assignee') and self.task.assignee:
-            team_info.append(f"Assignee: {self.task.assignee}")
-        if hasattr(self.task, 'watchers') and self.task.watchers:
-            team_info.append(f"Watchers: {len(self.task.watchers)}")
-
-        if team_info:
-            team_label = QLabel(" | ".join(team_info))
-            team_label.setStyleSheet("""
-                QLabel {
-                    color: white;
-                    font-size: 11px;
-                    background-color: #8E44AD;
-                    padding: 4px;
-                    border-radius: 4px;
-                }
-            """)
-            detail_grid.addWidget(team_label, row, 0, 1, 2)
-
-        detail_layout.addWidget(detail_widget)
-
-
-    @staticmethod
-    def set_smart_title_height(label: QLabel, text: str, max_width: int, max_lines: int = 3):
-        """
-        Adjust QLabel font size and wrapping so that text fits within `max_width`
-        and no more than `max_lines`.
-        """
-        max_font_size = 16    # highest size you'd like
-        min_font_size = 8     # smallest acceptable
-        font_size = max_font_size
-
-        # Prepare font & wrap mode
-        font = label.font()
-        label.setWordWrap(True)
-
-        while font_size >= min_font_size:
-            font.setPointSize(font_size)
-            fm = QFontMetrics(font)
-
-            # Measure the bounding rectangle with wrapping
-            bounding = fm.boundingRect(0, 0, max_width, 1000, Qt.TextWordWrap, text)
-
-            line_height = fm.lineSpacing()
-            lines_used = bounding.height() / line_height
-
-            if lines_used <= max_lines:
-                # It fits
-                break
-
-            font_size -= 1
-
-        # Set final font & text
-        font.setPointSize(font_size)
-        label.setFont(font)
-        label.setText(text)
-
-        # Optional: change styles
-        if lines_used > 1:
-            label.setStyleSheet(AppStyles.card_label_double())
-        else:
-            label.setStyleSheet(AppStyles.card_label_single())
-            
-
-        # Calculate actual line height including font ascent/descent and some extra padding
-        # line_height = font_metrics.lineSpacing()
-        # padding = 18  # minimal vertical padding to prevent clipping
-        # label.setFixedHeight(line_height * line_count + padding)

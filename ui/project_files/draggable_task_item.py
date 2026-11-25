@@ -30,6 +30,7 @@ from PyQt5.QtWidgets import QFrame, QHBoxLayout, QLabel, QSizePolicy
 from PyQt5.QtGui import QDrag
 
 from models.task import Task, TaskStatus
+from resources.styles import AppColors
 
 
 class DraggableTaskItem(QFrame):
@@ -47,17 +48,17 @@ class DraggableTaskItem(QFrame):
 
     def initUI(self):
         """Initialize the widget UI"""
-        self.setStyleSheet("""
-            QFrame {
-                background-color: #34495e;
-                border: 2px solid #3498db;
+        self.setStyleSheet(f"""
+            QFrame {{
+                background-color: {AppColors.surface_raised};
+                border: 2px solid {AppColors.accent};
                 border-radius: 5px;
                 padding: 8px;
-            }
-            QFrame:hover {
-                border: 2px solid #5dade2;
-                background-color: #3498db;
-            }
+            }}
+            QFrame:hover {{
+                border: 2px solid {AppColors.accent_light};
+                background-color: {AppColors.accent};
+            }}
         """)
         self.setCursor(Qt.OpenHandCursor)
         self.setMinimumHeight(50)
@@ -72,7 +73,7 @@ class DraggableTaskItem(QFrame):
 
         # Drag handle
         drag_label = QLabel("⋮⋮")
-        drag_label.setStyleSheet("color: #bdc3c7; font-size: 14px;")
+        drag_label.setStyleSheet(f"color: {AppColors.text_secondary}; font-size: 14px;")
         drag_label.setAlignment(Qt.AlignTop)
         layout.addWidget(drag_label)
 
@@ -85,7 +86,7 @@ class DraggableTaskItem(QFrame):
 
         # Task title
         title_label = QLabel(self.task.title)
-        title_label.setStyleSheet("font-size: 13px; color: #ecf0f1; line-height: 1.4;")
+        title_label.setStyleSheet(f"font-size: 13px; color: {AppColors.text_primary}; line-height: 1.4;")
         title_label.setWordWrap(True)
         title_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         layout.addWidget(title_label, stretch=1)
@@ -122,12 +123,12 @@ class DraggableTaskItem(QFrame):
     def getPriorityColor(self, priority_name):
         """Get color for priority badge"""
         priority_colors = {
-            "HIGH": "#e74c3c",
-            "MEDIUM": "#f39c12",
-            "LOW": "#3498db",
-            "CRITICAL": "#c0392b"
+            "HIGH": AppColors.danger,
+            "MEDIUM": AppColors.warning,
+            "LOW": AppColors.accent,
+            "CRITICAL": AppColors.danger_dark
         }
-        return priority_colors.get(priority_name, "#7f8c8d")
+        return priority_colors.get(priority_name, AppColors.text_faint)
 
     def mousePressEvent(self, event):
         """Handle mouse press - start drag or emit clicked"""

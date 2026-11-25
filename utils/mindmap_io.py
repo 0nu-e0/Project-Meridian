@@ -25,7 +25,6 @@
 # Author: Jereme Shaver
 # -----------------------------------------------------------------------------
 
-import json
 import logging
 from pathlib import Path
 from typing import Dict, Optional, List, Any
@@ -33,6 +32,7 @@ from datetime import datetime
 
 from models.mindmap import Mindmap
 from utils.app_config import AppConfig
+from utils.safe_io import parse_records, read_json, with_unparsed_records, write_json
 
 
 def get_mindmaps_file() -> Path:
@@ -57,30 +57,15 @@ def load_mindmaps_from_json(logger: logging.Logger) -> Dict[str, Mindmap]:
         Dictionary mapping mindmap IDs to Mindmap objects
     """
     mindmaps_file = get_mindmaps_file()
-    mindmaps = {}
 
     if not mindmaps_file.exists():
-        logger.info("No mindmaps file found. Starting with empty mindmaps.")
-        return mindmaps
+        logger.debug("No mindmaps file found. Starting with empty mindmaps.")
+        return {}
 
-    try:
-        with open(mindmaps_file, 'r', encoding='utf-8') as f:
-            data = json.load(f)
+    data = read_json(str(mindmaps_file), logger)
+    mindmaps = parse_records(str(mindmaps_file), data, lambda key, raw: Mindmap.from_dict(raw), logger)
 
-        for mindmap_id, mindmap_data in data.items():
-            try:
-                mindmap = Mindmap.from_dict(mindmap_data)
-                mindmaps[mindmap_id] = mindmap
-            except Exception as e:
-                logger.error(f"Error loading mindmap {mindmap_id}: {e}")
-
-        logger.info(f"Loaded {len(mindmaps)} mindmaps from {mindmaps_file}")
-
-    except json.JSONDecodeError as e:
-        logger.error(f"Error decoding mindmaps JSON: {e}")
-    except Exception as e:
-        logger.error(f"Error loading mindmaps: {e}")
-
+    logger.info(f"Loaded {len(mindmaps)} mindmaps from {mindmaps_file}")
     return mindmaps
 
 
@@ -95,27 +80,14 @@ def save_mindmaps_to_json(mindmaps: Dict[str, Mindmap], logger: logging.Logger) 
     Returns:
         True if successful, False otherwise
     """
-    mindmaps_file = get_mindmaps_file()
+    mindmaps_file = str(get_mindmaps_file())
 
-    try:
-        # Ensure directory exists
-        mindmaps_file.parent.mkdir(parents=True, exist_ok=True)
-
-        # Convert mindmaps to dictionary format
-        data = {}
-        for mindmap_id, mindmap in mindmaps.items():
-            data[mindmap_id] = mindmap.to_dict()
-
-        # Write to file
-        with open(mindmaps_file, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-
-        logger.info(f"Saved {len(mindmaps)} mindmaps to {mindmaps_file}")
-        return True
-
-    except Exception as e:
-        logger.error(f"Error saving mindmaps: {e}")
+    data = {mindmap_id: mindmap.to_dict() for mindmap_id, mindmap in mindmaps.items()}
+    if not write_json(mindmaps_file, with_unparsed_records(mindmaps_file, data), logger, ensure_ascii=False):
         return False
+
+    logger.info(f"Saved {len(mindmaps)} mindmaps to {mindmaps_file}")
+    return True
 
 
 def create_mindmap(
@@ -243,10 +215,9 @@ def delete_mindmap(mindmap_id: str, logger: logging.Logger) -> bool:
         logger.error(f"Mindmap {mindmap_id} not found")
         return False
 
-    # Remove mindmap
-    mindmap = mindmaps.pop(mindmap_id)
+    mindmap = mindmaps[mindmap_id]
 
-    # If linked to a project, unlink it
+    # If linked to a project, unlink it first
     if mindmap.project_id:
         try:
             from utils.projects_io import load_projects_from_json, save_projects_to_json
@@ -260,11 +231,14 @@ def delete_mindmap(mindmap_id: str, logger: logging.Logger) -> bool:
         except Exception as e:
             logger.error(f"Error unlinking project: {e}")
 
-    # Save
+    # Remove and save only after any pre-save work is done
+    mindmaps.pop(mindmap_id)
     success = save_mindmaps_to_json(mindmaps, logger)
 
     if success:
         logger.info(f"Deleted mindmap: {mindmap.title} (ID: {mindmap_id})")
+    else:
+        logger.error(f"Failed to save after deleting mindmap {mindmap_id}")
 
     return success
 

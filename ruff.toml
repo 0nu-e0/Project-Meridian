@@ -1,0 +1,9 @@
+# Lint settings. Run with: ruff check .
+# F = pyflakes (undefined names, unused imports, redefinitions)
+# E9 = syntax errors, B = likely bugs (bugbear), PLE = pylint errors
+[lint]
+select = ["F", "E9", "B", "PLE"]
+
+[lint.per-file-ignores]
+# Package files re-export names on purpose
+"__init__.py" = ["F401", "F403"]

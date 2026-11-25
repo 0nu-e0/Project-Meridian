@@ -1,53 +1,50 @@
 # -*- mode: python ; coding: utf-8 -*-
+# Build the Windows app with:  pyinstaller Project_Manager.spec
+# The result is dist/ProjectMeridian/ProjectMeridian.exe (a folder build: ship the whole folder).
 
-block_cipher = None
-
-# Add your resource files here
+# Images and icons loaded through resource_path()
 added_files = [
     ('resources/images/*.png', 'resources/images'),
     ('resources/images/*.jpeg', 'resources/images'),
-    # Add any other resource files here
+    ('resources/images/*.ico', 'resources/images'),
 ]
 
 a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=added_files,  # Include your resource files
+    datas=added_files,
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
-    win_no_prefer_redirects=False,
-    win_private_assemblies=False,
-    cipher=block_cipher,
+    # Development tools and unused GUI toolkits don't belong in the app
+    # Only PyQt5 is used; other Qt bindings installed alongside it must stay out
+    excludes=['tkinter', 'pytest', 'ruff', 'PyQt6', 'PySide2', 'PySide6'],
     noarchive=False,
 )
 
-pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
+pyz = PYZ(a.pure)
 
 exe = EXE(
     pyz,
     a.scripts,
     [],
     exclude_binaries=True,
-    name='YourAppName',
+    name='ProjectMeridian',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
-    console=False,  # This is the same as --windowed
-    icon='path\\to\\icon.ico',  # Optional: add your icon path
+    upx=False,  # UPX-compressed Qt libraries can trip antivirus and occasionally fail to load
+    console=False,  # A windowed app: no console window
+    icon='resources/images/app_icon.ico',
 )
 
 coll = COLLECT(
     exe,
     a.binaries,
-    a.zipfiles,
     a.datas,
     strip=False,
-    upx=True,
-    upx_exclude=[],
-    name='YourAppName',
+    upx=False,
+    name='ProjectMeridian',
 )

@@ -30,9 +30,9 @@ from datetime import datetime
 from functools import partial
 
 # Third-party imports
-from PyQt5.QtCore import QEvent, QObject, QSize, Qt, QTimer, pyqtSignal
+from PyQt5.QtCore import QEvent, QObject, Qt, QTimer, pyqtSignal
 from PyQt5.QtGui import QCursor, QResizeEvent
-from PyQt5.QtWidgets import (QApplication, QComboBox, QGraphicsOpacityEffect, QGridLayout,
+from PyQt5.QtWidgets import (QApplication, QGraphicsOpacityEffect, QGridLayout,
                              QHBoxLayout, QSizePolicy, QSpacerItem, QVBoxLayout, QWidget)
 
 # Local application imports
@@ -44,6 +44,7 @@ from utils.tasks_io import load_tasks_from_json
 
 class GridLayout(QWidget):
     sendTaskInCardClicked = pyqtSignal(object, str)
+    archiveToggled = pyqtSignal(object)  # task
     taskDeleted = pyqtSignal(str)
 
     def __init__(self, logger, id, grid_title="", filter=None, tasks=None):
@@ -57,14 +58,16 @@ class GridLayout(QWidget):
         self.visibleCards = []
         self.num_columns = 1
         self.setAcceptDrops(True)
+        # Ignore the cards' combined width so the grid always takes the width it's given
+        # and reflows its cards, instead of forcing the scroll area wider and clipping them
+        self.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Minimum)
         self.currentlyDraggedCard = None
         self.currently_expanded_card = None  # Track currently expanded card
 
         # Timer to periodically check and collapse stuck cards
         self.cleanup_timer = QTimer(self)
         self.cleanup_timer.timeout.connect(self._cleanupExpandedCards)
-        self.cleanup_timer.setInterval(100)  # Check every 100ms
-        self.cleanup_timer.start()
+        self.cleanup_timer.setInterval(100)  # Check every 100ms while shown (see showEvent)
 
         # Load tasks if not provided
         if tasks is not None:
@@ -74,7 +77,7 @@ class GridLayout(QWidget):
         self.initComplete = False
         self.installEventFilter(self)
         self.initUI()
-        
+
         # Set initial card visibility based on filters
         # If no filter provided, show all cards by default
         if self.filter is not None:
@@ -82,6 +85,7 @@ class GridLayout(QWidget):
         else:
             # Make all cards visible by default if no filter
             self.visibleCards = self.taskCards.copy()
+            self.rearrangeGridLayout()
 
     def load_known_tasks(self, tasks=None):
         """Load tasks either from the provided dictionary or from JSON."""
@@ -125,26 +129,26 @@ class GridLayout(QWidget):
     def passFilter(self, opacity):
         if opacity == "hide":
             # opacity_effect1 = QGraphicsOpacityEffect()
-            # opacity_effect1.setOpacity(0) 
+            # opacity_effect1.setOpacity(0)
             # self.toggle_button.setGraphicsEffect(opacity_effect1)
             opacity_effect2 = QGraphicsOpacityEffect()
-            opacity_effect2.setOpacity(0) 
+            opacity_effect2.setOpacity(0)
             self.filter_button.setGraphicsEffect(opacity_effect2)
         if opacity == "show":
             # opacity_effect1 = QGraphicsOpacityEffect()
-            # opacity_effect1.setOpacity(100) 
+            # opacity_effect1.setOpacity(100)
             # self.toggle_button.setGraphicsEffect(opacity_effect1)
             opacity_effect2 = QGraphicsOpacityEffect()
-            opacity_effect2.setOpacity(100) 
+            opacity_effect2.setOpacity(100)
             self.filter_button.setGraphicsEffect(opacity_effect2)
 
-    def initManageTasksNav(self):    
+    def initManageTasksNav(self):
         self.manage_tasks_widget = QWidget()
-        self.manage_tasks_layout = QHBoxLayout(self.manage_tasks_widget)  
+        self.manage_tasks_layout = QHBoxLayout(self.manage_tasks_widget)
         self.manage_tasks_layout.setContentsMargins(0, 5, 15, 5)
 
         opacity_effect1 = QGraphicsOpacityEffect()
-        opacity_effect1.setOpacity(0) 
+        opacity_effect1.setOpacity(0)
 
         # self.toggle_button = QPushButton("▼")
         # self.toggle_button.setMaximumWidth(20)
@@ -153,7 +157,7 @@ class GridLayout(QWidget):
         # self.toggle_button.clicked.connect(self.minimizeGridLayout)
 
         opacity_effect2 = QGraphicsOpacityEffect()
-        opacity_effect2.setOpacity(0) 
+        opacity_effect2.setOpacity(0)
 
         self.filter_button = FilterButton()
         self.filter_button.setGraphicsEffect(opacity_effect2)
@@ -168,14 +172,8 @@ class GridLayout(QWidget):
             # Update the button's appearance
             self.filter_button.updateButtonState()
 
-        filter_combo = QComboBox()
-        filter_combo.setProperty("source", "Filter Combo")
-        filter_combo.setStyleSheet(AppStyles.combo_box_norm())
-        filter_combo.addItems([status.value for status in TaskStatus])
-        filter_combo.addItems([category.value for category in TaskCategory])
-        filter_combo.addItems([due.value for due in DueStatus])
-
         self.filter_button.filtersChanged.connect(self.onFilterChanged)
+        self.filter_button.filtersChanged.connect(self.saveFilters)
 
         self.manage_tasks_layout.addSpacerItem(QSpacerItem(20, 20, QSizePolicy.Expanding, QSizePolicy.Minimum))
         # self.manage_tasks_layout.addWidget(self.toggle_button)
@@ -185,25 +183,23 @@ class GridLayout(QWidget):
         self.central_layout.addWidget(self.manage_tasks_widget)
 
     def initCardGridLayout(self):
-        
+
         self.current_row = 0
         self.current_column = 0
         self.min_spacing = 20
 
-        # Get card dimensions from TaskCardLite
-        self.card_width, _ = TaskCardLite.calculate_optimal_card_size()
-
         # Determine available width
         self.grid_width = self.width()
-        self.num_columns = max(1, (self.grid_width + self.min_spacing) // (self.card_width + self.min_spacing))
+        self.num_columns, self.card_width, _ = TaskCardLite.calculate_grid_layout(self.grid_width, self.min_spacing)
         self.grid_layout = QGridLayout()
         self.grid_layout.setContentsMargins(0, 0, 0, 0)
-        self.grid_layout.setAlignment(Qt.AlignTop)  # Set top alignment for entire grid
+        # Cards start at the left; a part-filled row doesn't drift to the middle
+        self.grid_layout.setAlignment(Qt.AlignTop | Qt.AlignLeft)
 
         # Set default alignment for all cells
         self.grid_layout.setVerticalSpacing(self.min_spacing)
         self.grid_layout.setHorizontalSpacing(self.min_spacing)
-        
+
         self.grid_container_widget = QWidget()
         self.grid_container_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.grid_container_widget.setLayout(self.grid_layout)
@@ -217,73 +213,69 @@ class GridLayout(QWidget):
         try:
             # Clear the current layout
             while self.grid_layout.count():
-                item = self.grid_layout.takeAt(0)
+                self.grid_layout.takeAt(0)
                 # Don't need to save widgets as we already have them in taskCards
-                
+
             # Calculate layout parameters
             self.min_spacing = 20
-            self.grid_width = self.width() 
-            self.card_width, self.card_height = TaskCardLite.calculate_optimal_card_size()
+            self.grid_width = self.width()
 
-            # Calculate optimal number of columns
-            self.num_columns = max(1, int((self.grid_width) // (self.card_width + self.min_spacing)))
-            
+            # Size cards from this grid's width so each row fills it edge to edge
+            self.num_columns, self.card_width, self.card_height = TaskCardLite.calculate_grid_layout(
+                self.grid_width, self.min_spacing)
+
             # Reset position counters
             self.current_row = 0
             self.current_column = 0
-            
+
             # Add only visible cards to the layout
             for card in self.visibleCards:
+                card.setCardWidth(self.card_width)
                 self.grid_layout.addWidget(
                     card,
                     self.current_row,
                     self.current_column,
                     alignment=Qt.AlignTop
                 )
-                
+
                 # Set row position in card
                 card.setRowPosition(self.current_row)
-                
+
                 # Move to next position
                 self.current_column += 1
                 if self.current_column >= self.num_columns:
                     self.current_column = 0
                     self.current_row += 1
-            
+
             # Mark as initialized
             self.initComplete = True
-            
+
         except Exception as e:
             self.logger.error(f"Error in rearrangeGridLayout: {e}")
             import traceback
             self.logger.error(traceback.format_exc())
 
+    def _createTaskCard(self, task):
+        card = TaskCardLite(logger=self.logger, grid_id=self.grid_id, task=task)
+        card.setCardWidth(self.card_width)
+        card.setStyleSheet(AppStyles.task_card())
+        card.cardHovered.connect(self.handleCardHover)
+        card.cardClicked.connect(partial(self.sendTaskInCardClicked.emit, task, self.grid_id))
+        card.archiveToggled.connect(self.archiveToggled.emit)
+        card.filterPass.connect(self.passFilter)
+        return card
+
     def addTaskCard(self):
         self.setProperty("source", "add card")
-        for task_name, task in self.tasks.items():
-            # print(f"addTaskCard called for task: {task}")
-            # print(f"addTaskCard called for grid_id: {self.grid_id}")
-            # Create card with Task object
-            card = TaskCardLite(logger=self.logger, grid_id = self.grid_id, task=task)
-            card.setStyleSheet(AppStyles.task_card())
-            card.cardHovered.connect(self.handleCardHover)
-            # print("calling")
-            card.cardClicked.connect(partial(self.sendTaskInCardClicked.emit, task, self.grid_id))
-            card.filterPass.connect(self.passFilter)
-            
-            # Check for duplicates
-            skip_this_card = False
-            for existingTaskCard in self.taskCards:
-                if existingTaskCard.task.title == task.title:
-                    skip_this_card = True
-                    break
-                    
-            if skip_this_card:
+        for task in self.tasks.values():
+            # Check for duplicates (by ID, so tasks that share a title both show)
+            if any(existing_card.task.id == task.id for existing_card in self.taskCards):
                 continue
 
+            card = self._createTaskCard(task)
             self.taskCards.append(card)
             # Add with explicit top alignment
-            self.grid_layout.addWidget(card, self.current_row, self.current_column, 
+            self.grid_layout.addWidget(card, self.current_row, self.current_column,
                                     alignment=Qt.AlignTop)
             self.current_column += 1
             if self.current_column >= self.num_columns:
@@ -308,8 +300,22 @@ class GridLayout(QWidget):
                 self.currently_expanded_card = None
 
         # Force layout update to accommodate expanded card height
-        QTimer.singleShot(50, lambda: self.updateGeometry())
-        QTimer.singleShot(50, lambda: self.parent().updateGeometry() if self.parent() else None)
+        # Use try/except to handle case where widget is deleted before timer fires
+        def safe_update_geometry():
+            try:
+                self.updateGeometry()
+            except RuntimeError:
+                pass  # Widget was deleted, ignore
+
+        def safe_update_parent_geometry():
+            try:
+                if self.parent():
+                    self.parent().updateGeometry()
+            except RuntimeError:
+                pass  # Widget was deleted, ignore
+
+        QTimer.singleShot(50, safe_update_geometry)
+        QTimer.singleShot(50, safe_update_parent_geometry)
 
     def collapseAllCards(self):
         """Collapse all expanded cards"""
@@ -349,51 +355,23 @@ class GridLayout(QWidget):
     #     print("handling card clicked in grid_layout.py")
     #     self.sendTaskInCardClicked.emit(task)
 
-    def removeTaskCard(self, task_title):
-        """Remove a task card from this grid layout"""
+    def removeTaskCard(self, task_id):
+        """Remove the card for task_id from this grid layout, if it has one"""
         self.setProperty("source", "remove task card")
-        self.logger.debug(f"Attempting to remove task card: '{task_title}' (type: {type(task_title)})")
-        self.logger.debug(f"Current taskCards count: {len(self.taskCards)}")
 
-        card_found = False
-        for i, card in enumerate(self.taskCards):
-            try:
-                if hasattr(card, 'task') and hasattr(card.task, 'title'):
-                    card_title = card.task.title
-                    self.logger.debug(f"Card {i}: title='{card_title}' (type: {type(card_title)}, len: {len(card_title)})")
-                    self.logger.debug(f"  Comparing: '{card_title}' == '{task_title}' ? {card_title == task_title}")
-                    self.logger.debug(f"  Repr comparison: {repr(card_title)} == {repr(task_title)}")
+        for card in self.taskCards:
+            if card.task.id == task_id:
+                self.grid_layout.removeWidget(card)
+                self.taskCards.remove(card)
+                if card in self.visibleCards:
+                    self.visibleCards.remove(card)
+                card.deleteLater()
+                self.rearrangeGridLayout()
+                return True
 
-                    if card.task.title == task_title:
-                        self.logger.debug(f"Found matching card at index {i}, removing...")
-                        card_found = True
+        self.logger.debug(f"Task card {task_id} not found in grid {self.grid_id}")
+        return False
 
-                        # Remove from the layout
-                        self.grid_layout.removeWidget(card)
-
-                        # Remove from our lists
-                        self.taskCards.pop(i)
-
-                        # Also remove from visibleCards if present
-                        if card in self.visibleCards:
-                            self.visibleCards.remove(card)
-
-                        # Delete the widget
-                        card.deleteLater()
-
-                        # Rearrange remaining cards
-                        self.rearrangeGridLayout()
-
-                        self.logger.debug(f"Card removed successfully. Remaining cards: {len(self.taskCards)}")
-                        break  # Break after finding the card
-                else:
-                    self.logger.debug(f"Card {i}: No task or title attribute")
-            except Exception as e:
-                self.logger.error(f"Error removing task card: {e}")
-
-        if not card_found:
-            self.logger.warning(f"Task card '{task_title}' not found in this grid layout")
-    
     @staticmethod
     def clearGridLayout(self, layout):
         try:
@@ -405,13 +383,28 @@ class GridLayout(QWidget):
                     widget.deleteLater()
         except Exception as e:
             self.logger.error(f"Error in clearGridLayout: {e}")
-  
+
+    def saveFilters(self, active_filters):
+        """Remember filters chosen from the filter button so they survive a refresh"""
+        from utils.dashboard_config import DashboardConfigManager
+        for filter_type in ('status', 'category', 'due'):
+            DashboardConfigManager.update_grid_filter(self.grid_id, filter_type, list(active_filters.get(filter_type, [])))
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.cleanup_timer.start()
+
+    def hideEvent(self, event):
+        # No need to watch for stuck cards while the group isn't on screen
+        self.cleanup_timer.stop()
+        super().hideEvent(event)
+
     def onFilterChanged(self, active_filters, sender=None):
 
         """Handle filter changes and update the visible cards list"""
         # Clear the visible cards list
         self.visibleCards = []
-        
+
         # Preserve the existing cards so filtering only affects visibility
         existing_cards = list(self.taskCards)
 
@@ -419,17 +412,27 @@ class GridLayout(QWidget):
             # Default visibility
             show_card = True
             task = card.task
-            
+
+            # Archived (completed) tasks keep their category but only show in the
+            # Archived group, or in a group that asks for completed tasks
+            archived = task.archived or task.category_name == TaskCategory.ARCHIVED.value
+            wants_archived = (TaskCategory.ARCHIVED.value in active_filters['category']
+                              or TaskStatus.COMPLETED.value in active_filters['status'])
+            if archived and not wants_archived:
+                show_card = False
+
             # Check status filters
-            if active_filters['status']:
+            if show_card and active_filters['status']:
                 if task.status.value not in active_filters['status']:
                     show_card = False
-                    
+
             # Check category filters
             if show_card and active_filters['category']:
-                if task.category.value not in active_filters['category']:
+                matches_category = task.category_name in active_filters['category']
+                matches_archive = archived and TaskCategory.ARCHIVED.value in active_filters['category']
+                if not (matches_category or matches_archive):
                     show_card = False
-                    
+
             # Check due date filters
             if show_card and active_filters['due']:
                 # Calculate due status (your existing code)
@@ -447,10 +450,10 @@ class GridLayout(QWidget):
                         due_status = DueStatus.UPCOMING.value
                     else:
                         due_status = DueStatus.FAR_FUTURE.value
-                        
+
                 if due_status not in active_filters['due']:
                     show_card = False
-                    
+
             # Set card visibility and update visibleCards list
             card.setVisible(show_card)
             if show_card:
@@ -463,13 +466,22 @@ class GridLayout(QWidget):
         self.grid_width = event.size().width()
         if self.initComplete:
             self.rearrangeGridLayout()
-        
-    def updateSingleTask(self, updated_task):
-        for i in range(self.layout().count()):
-            item = self.layout().itemAt(i)
-            widget = item.widget()
 
-            # Assuming each widget is a TaskCardLite and stores a `.task`
-            if isinstance(widget, TaskCardLite) and widget.task.title == updated_task.title:
-                widget.updateFromTask(updated_task)
-                break
+    def updateSingleTask(self, updated_task):
+        """Rebuild the card for updated_task in place"""
+        for index, card in enumerate(self.taskCards):
+            if card.task.id != updated_task.id:
+                continue
+
+            new_card = self._createTaskCard(updated_task)
+            new_card.setParent(self.grid_container_widget)
+            new_card.setVisible(card.isVisible())
+            self.taskCards[index] = new_card
+            if card in self.visibleCards:
+                self.visibleCards[self.visibleCards.index(card)] = new_card
+
+            self.grid_layout.removeWidget(card)
+            card.deleteLater()
+            self.rearrangeGridLayout()
+            return True
+        return False

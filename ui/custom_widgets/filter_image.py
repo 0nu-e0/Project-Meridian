@@ -21,7 +21,7 @@
 # SOFTWARE.
 # -----------------------------------------------------------------------------
 # File: filter_image.py
-# Description: Custom filter button to display the available filters for the 
+# Description: Custom filter button to display the available filters for the
 #              grid layouts.
 # Author: Jereme Shaver
 # -----------------------------------------------------------------------------
@@ -29,10 +29,11 @@
 from datetime import datetime
 from functools import partial
 from ui.task_files.task_card_lite import TaskCardLite
-from models.task import TaskCategory, TaskStatus, DueStatus
+from models.task import TaskStatus, DueStatus
 from PyQt5.QtWidgets import QPushButton, QMenu
 from PyQt5.QtGui import QIcon
-from PyQt5.QtCore import Qt, pyqtSignal, QPoint
+from PyQt5.QtCore import pyqtSignal, QPoint
+from resources.styles import AppColors
 
 class FilterButton(QPushButton):
     filtersChanged = pyqtSignal(dict)
@@ -41,23 +42,23 @@ class FilterButton(QPushButton):
         super().__init__(parent)
         self.setText("Filter")
         self.setIcon(QIcon.fromTheme("view-filter"))  # Use system icon if available
-        
+
         # Store active filters
         self.active_filters = {
             'status': [],
             'category': [],
             'due': []
         }
-        
+
     def mousePressEvent(self, event):
         # Show filter menu when clicked
         self.showFilterMenu()
         super().mousePressEvent(event)
-        
+
     def showFilterMenu(self):
         # Create popup menu
         menu = QMenu(self)
-        
+
         # Create filter sections
         self.addStatusFilters(menu)
         menu.addSeparator()
@@ -65,14 +66,14 @@ class FilterButton(QPushButton):
         menu.addSeparator()
         self.addDueFilters(menu)
         menu.addSeparator()
-        
+
         # Add Clear All action
         clear_action = menu.addAction("Clear All Filters")
         clear_action.triggered.connect(self.clearAllFilters)
-        
+
         # Show the menu at button position
         menu.exec_(self.mapToGlobal(QPoint(0, self.height())))
-        
+
     def addStatusFilters(self, menu):
         status_menu = menu.addMenu("Status")
         for status in TaskStatus:
@@ -81,13 +82,24 @@ class FilterButton(QPushButton):
             action.setChecked(status.value in self.active_filters['status'])
             action.triggered.connect(partial(self.toggleFilter, 'status', status.value))
 
+    @staticmethod
+    def availableCategories(selected=()):
+        """Configured categories, then any others in use by tasks or already selected"""
+        from utils.categories_config import CategoriesConfigManager
+        from utils.data_manager import DataManager
+
+        categories = list(CategoriesConfigManager.load_categories())
+        in_use = {task.category_name for task in DataManager().get_tasks().values()}
+        extras = sorted((in_use | set(selected)) - set(categories), key=str.lower)
+        return categories + extras
+
     def addCategoryFilters(self, menu):
         category_menu = menu.addMenu("Category")
-        for category in TaskCategory:
-            action = category_menu.addAction(category.value)
+        for category in self.availableCategories(self.active_filters['category']):
+            action = category_menu.addAction(category)
             action.setCheckable(True)
-            action.setChecked(category.value in self.active_filters['category'])
-            action.triggered.connect(partial(self.toggleFilter, 'category', category.value))
+            action.setChecked(category in self.active_filters['category'])
+            action.triggered.connect(partial(self.toggleFilter, 'category', category))
 
     def addDueFilters(self, menu):
         due_menu = menu.addMenu("Due Date")
@@ -96,36 +108,36 @@ class FilterButton(QPushButton):
             action.setCheckable(True)
             action.setChecked(due.value in self.active_filters['due'])
             action.triggered.connect(partial(self.toggleFilter, 'due', due.value))
-            
+
     def toggleFilter(self, filter_type, value, checked):
         if checked and value not in self.active_filters[filter_type]:
             self.active_filters[filter_type].append(value)
         elif not checked and value in self.active_filters[filter_type]:
             self.active_filters[filter_type].remove(value)
-            
+
         # Emit signal with updated filters
         self.filtersChanged.emit(self.active_filters)
-        
+
         # Update button appearance
         self.updateButtonState()
-        
+
     def clearAllFilters(self):
         for key in self.active_filters:
             self.active_filters[key] = []
-            
+
         # Emit signal with cleared filters
         self.filtersChanged.emit(self.active_filters)
-        
+
         # Update button appearance
         self.updateButtonState()
-        
+
     def updateButtonState(self):
         # Change button appearance based on whether filters are active
         has_filters = any(len(filters) > 0 for filters in self.active_filters.values())
-        
+
         if has_filters:
-            self.setStyleSheet("QPushButton { font-weight: bold; background-color: #3498db; color: white; }")
-            
+            self.setStyleSheet(f"QPushButton {{ font-weight: bold; background-color: {AppColors.accent}; color: white; }}")
+
             # Update text to show how many filters are applied
             count = sum(len(filters) for filters in self.active_filters.values())
             self.setText(f"Filter ({count})")
@@ -139,23 +151,23 @@ class FilterButton(QPushButton):
             # Default visibility
             show_card = True
             task = card.task  # Get the Task object from the card
-            
+
             # Check status filters
             if active_filters['status']:
                 if task.status.value not in active_filters['status']:
                     show_card = False
-                    
+
             # Check category filters
             if show_card and active_filters['category']:
-                if task.category.value not in active_filters['category']:
+                if task.category_name not in active_filters['category']:
                     show_card = False
-                    
+
             # Check due date filters
             if show_card and active_filters['due']:
                 due_status = self.calculateDueStatus(task)
                 if due_status not in active_filters['due']:
                     show_card = False
-            
+
             # Set card visibility
             card.setVisible(show_card)
 
@@ -163,9 +175,9 @@ class FilterButton(QPushButton):
         """Calculate the due status of a task"""
         if not task.due_date:
             return DueStatus.NO_DUE_DATE.value
-            
+
         days_until_due = (task.due_date - datetime.now()).days
-        
+
         if days_until_due < 0:
             return DueStatus.OVERDUE.value
         elif days_until_due <= 2:

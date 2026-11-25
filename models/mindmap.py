@@ -185,13 +185,12 @@ class Mindmap(QObject):
         if not self.project_id:
             return None
 
+        import logging
+        logger = logging.getLogger(__name__)
         try:
             from utils.projects_io import load_projects_from_json
-            import logging
-            logger = logging.getLogger(__name__)
-
             projects = load_projects_from_json(logger)
             return projects.get(self.project_id)
         except Exception as e:
-            print(f"Error loading project: {e}")
+            logger.error(f"Error loading project {self.project_id} for mindmap {self.id}: {e}")
             return None

@@ -25,12 +25,12 @@
 
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QProgressBar, QFrame
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QProgressBar
 )
-from PyQt5.QtGui import QFont, QColor
 
 from models.project import Project, ProjectStatus
 from utils.projects_io import load_phases_from_json
+from resources.styles import AppColors
 
 
 class ProjectCard(QWidget):
@@ -55,13 +55,13 @@ class ProjectCard(QWidget):
         # Main container with border - dark theme
         self.setStyleSheet(f"""
             ProjectCard {{
-                background-color: #2c3e50;
+                background-color: {AppColors.surface};
                 border: 2px solid {self.project.color};
                 border-radius: 10px;
             }}
             ProjectCard:hover {{
                 border: 3px solid {self.project.color};
-                background-color: #34495e;
+                background-color: {AppColors.surface_raised};
             }}
         """)
 
@@ -76,12 +76,12 @@ class ProjectCard(QWidget):
 
         # Title with folder icon
         title_label = QLabel(f"📁 {self.project.title}")
-        title_label.setStyleSheet("""
-            QLabel {
+        title_label.setStyleSheet(f"""
+            QLabel {{
                 font-size: 16px;
                 font-weight: bold;
-                color: #ecf0f1;
-            }
+                color: {AppColors.text_primary};
+            }}
         """)
         title_label.setWordWrap(True)
         title_label.setMaximumWidth(220)
@@ -109,11 +109,11 @@ class ProjectCard(QWidget):
         # Current phase info
         phase_info = self.getPhaseInfo()
         phase_label = QLabel(phase_info)
-        phase_label.setStyleSheet("""
-            QLabel {
+        phase_label.setStyleSheet(f"""
+            QLabel {{
                 font-size: 12px;
-                color: #bdc3c7;
-            }
+                color: {AppColors.text_secondary};
+            }}
         """)
         layout.addWidget(phase_label)
 
@@ -126,13 +126,13 @@ class ProjectCard(QWidget):
         progress_bar.setFixedHeight(20)
         progress_bar.setStyleSheet(f"""
             QProgressBar {{
-                border: 2px solid #3498db;
+                border: 2px solid {AppColors.accent};
                 border-radius: 5px;
                 text-align: center;
                 font-size: 11px;
                 font-weight: bold;
-                background-color: #34495e;
-                color: #ecf0f1;
+                background-color: {AppColors.surface_raised};
+                color: {AppColors.text_primary};
             }}
             QProgressBar::chunk {{
                 background-color: {self.project.color};
@@ -145,11 +145,11 @@ class ProjectCard(QWidget):
         total_tasks = self.project.get_total_tasks()
         completed_tasks = self.project.get_completed_tasks()
         task_label = QLabel(f"📋 {completed_tasks}/{total_tasks} tasks")
-        task_label.setStyleSheet("""
-            QLabel {
+        task_label.setStyleSheet(f"""
+            QLabel {{
                 font-size: 12px;
-                color: #ecf0f1;
-            }
+                color: {AppColors.text_primary};
+            }}
         """)
         layout.addWidget(task_label)
 
@@ -160,22 +160,22 @@ class ProjectCard(QWidget):
         # Start date
         if self.project.start_date:
             start_label = QLabel(f"Started: {self.project.start_date.strftime('%m/%d/%Y')}")
-            start_label.setStyleSheet("""
-                QLabel {
+            start_label.setStyleSheet(f"""
+                QLabel {{
                     font-size: 10px;
-                    color: #bdc3c7;
-                }
+                    color: {AppColors.text_secondary};
+                }}
             """)
             dates_layout.addWidget(start_label)
 
         # Due date
         if self.project.target_completion:
             due_label = QLabel(f"Due: {self.project.target_completion.strftime('%m/%d/%Y')}")
-            due_label.setStyleSheet("""
-                QLabel {
+            due_label.setStyleSheet(f"""
+                QLabel {{
                     font-size: 10px;
-                    color: #bdc3c7;
-                }
+                    color: {AppColors.text_secondary};
+                }}
             """)
             dates_layout.addWidget(due_label)
 
@@ -189,14 +189,14 @@ class ProjectCard(QWidget):
         # Mindmap indicator
         if self.project.mindmap_id:
             mindmap_label = QLabel("🧠 Mindmap")
-            mindmap_label.setStyleSheet("""
-                QLabel {
+            mindmap_label.setStyleSheet(f"""
+                QLabel {{
                     font-size: 10px;
-                    color: #ecf0f1;
-                    background-color: #3498db;
+                    color: {AppColors.text_primary};
+                    background-color: {AppColors.accent};
                     padding: 3px 6px;
                     border-radius: 3px;
-                }
+                }}
             """)
             indicators_layout.addWidget(mindmap_label)
 
@@ -227,26 +227,26 @@ class ProjectCard(QWidget):
     def getStatusColor(self):
         """Get color for status badge"""
         status_colors = {
-            ProjectStatus.PLANNING: "#9b59b6",      # Purple
-            ProjectStatus.ACTIVE: "#27ae60",        # Green
-            ProjectStatus.ON_HOLD: "#f39c12",       # Orange
-            ProjectStatus.COMPLETED: "#2ecc71",     # Light green
-            ProjectStatus.CANCELLED: "#e74c3c"      # Red
+            ProjectStatus.PLANNING: AppColors.highlight,      # Purple
+            ProjectStatus.ACTIVE: AppColors.success,        # Green
+            ProjectStatus.ON_HOLD: AppColors.warning,       # Orange
+            ProjectStatus.COMPLETED: AppColors.success_light,     # Light green
+            ProjectStatus.CANCELLED: AppColors.danger      # Red
         }
-        return status_colors.get(self.project.status, "#95a5a6")
+        return status_colors.get(self.project.status, AppColors.text_muted)
 
     def getPriorityColor(self):
         """Get color for priority text"""
         from models.task import TaskPriority
 
         priority_colors = {
-            TaskPriority.CRITICAL: "#c0392b",   # Dark red
-            TaskPriority.HIGH: "#e67e22",       # Orange
-            TaskPriority.MEDIUM: "#f39c12",     # Yellow-orange
-            TaskPriority.LOW: "#3498db",        # Blue
-            TaskPriority.TRIVIAL: "#95a5a6"     # Gray
+            TaskPriority.CRITICAL: AppColors.danger_dark,   # Dark red
+            TaskPriority.HIGH: AppColors.warning_dark,       # Orange
+            TaskPriority.MEDIUM: AppColors.warning,     # Yellow-orange
+            TaskPriority.LOW: AppColors.accent,        # Blue
+            TaskPriority.TRIVIAL: AppColors.text_muted     # Gray
         }
-        return priority_colors.get(self.project.priority, "#7f8c8d")
+        return priority_colors.get(self.project.priority, AppColors.text_faint)
 
     def getPhaseInfo(self):
         """Get formatted phase information string"""

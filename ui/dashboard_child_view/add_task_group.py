@@ -26,15 +26,15 @@
 # -----------------------------------------------------------------------------
 
 import time
-from datetime import datetime
+from ui.custom_widgets import dialogs
 from utils.dashboard_config import DashboardConfigManager
 from utils.categories_config import CategoriesConfigManager
-from models.task import TaskCategory, TaskPriority, TaskStatus, DueStatus
-from PyQt5.QtWidgets import (QApplication, QWidget, QSizePolicy, QHBoxLayout, QVBoxLayout,
-                             QPushButton, QDialog, QLabel, QLineEdit, QSpinBox, QTabWidget, QCheckBox,
-                             QMessageBox, QInputDialog, QScrollArea
+from models.task import TaskStatus, DueStatus
+from PyQt5.QtWidgets import (QWidget, QHBoxLayout, QVBoxLayout,
+                             QPushButton, QDialog, QLabel, QLineEdit, QTabWidget, QCheckBox,
+                             QMessageBox, QScrollArea
                             )
-from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtGui import QGuiApplication
 
 class AddGridDialog(QDialog):
@@ -93,6 +93,7 @@ class AddGridDialog(QDialog):
 
         # Add "Create New Category" button at the top
         new_category_btn = QPushButton("+ Create New Category")
+        new_category_btn.setToolTip("Make a new category for this group")
         new_category_btn.clicked.connect(self.onCreateNewCategory)
         category_main_layout.addWidget(new_category_btn)
 
@@ -159,7 +160,7 @@ class AddGridDialog(QDialog):
     def onCreateNewCategory(self):
         """Handle creating a new category"""
         # Show input dialog
-        category_name, ok = QInputDialog.getText(
+        category_name, ok = dialogs.getText(
             self,
             "Create New Category",
             "Enter category name:",
@@ -172,7 +173,7 @@ class AddGridDialog(QDialog):
 
             # Validate category name
             if not category_name:
-                QMessageBox.warning(
+                dialogs.warning(
                     self,
                     "Invalid Name",
                     "Category name cannot be empty.",
@@ -182,7 +183,7 @@ class AddGridDialog(QDialog):
 
             # Check if category already exists
             if CategoriesConfigManager.category_exists(category_name):
-                QMessageBox.warning(
+                dialogs.warning(
                     self,
                     "Category Exists",
                     f"Category '{category_name}' already exists.",
@@ -192,7 +193,7 @@ class AddGridDialog(QDialog):
 
             # Add the new category
             if CategoriesConfigManager.add_category(category_name):
-                QMessageBox.information(
+                dialogs.information(
                     self,
                     "Success",
                     f"Category '{category_name}' has been created successfully!",
@@ -202,7 +203,7 @@ class AddGridDialog(QDialog):
                 # Reload the category checkboxes
                 self.refreshCategoryList()
             else:
-                QMessageBox.critical(
+                dialogs.critical(
                     self,
                     "Error",
                     "Failed to create category. Please try again.",
@@ -231,7 +232,7 @@ class AddGridDialog(QDialog):
         name = self.name_input.text().strip()
 
         if not name:
-            QMessageBox.warning(
+            dialogs.warning(
                 self, "Missing Information",
                 "Please enter a name for the grid layout.",
                 QMessageBox.Ok
@@ -244,7 +245,7 @@ class AddGridDialog(QDialog):
         due_filters = [due for due, cb in self.due_checkboxes.items() if cb.isChecked()]
 
         if not status_filters and not category_filters and not due_filters:
-            QMessageBox.warning(
+            dialogs.warning(
                 self, "Missing Information",
                 "Please select at least one filter in any category.",
                 QMessageBox.Ok

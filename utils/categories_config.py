@@ -25,9 +25,11 @@
 # Author: Jereme Shaver
 # -----------------------------------------------------------------------------
 
-import json
+import logging
 from pathlib import Path
-from typing import List, Dict
+from typing import List
+
+from utils.safe_io import read_json, write_json
 
 
 class CategoriesConfigManager:
@@ -35,23 +37,9 @@ class CategoriesConfigManager:
 
     @staticmethod
     def get_categories_file_path() -> Path:
-        """Get the path to the categories configuration file"""
-        # Always use direct path calculation to avoid AppConfig recursion
-        import os
-        import platform
-
-        system = platform.system()
-        app_name = "MeridianTasks"
-
-        if system == "Windows":
-            app_data_dir = os.environ.get('LOCALAPPDATA', os.path.expanduser(r'~\AppData\Local'))
-            return Path(app_data_dir) / app_name / "categories_config.json"
-        elif system == "Darwin":
-            app_data_dir = os.path.join(os.path.expanduser("~"), "Library", "Application Support", app_name)
-            return Path(app_data_dir) / "categories_config.json"
-        else:
-            app_data_dir = os.path.join(os.path.expanduser("~"), ".local", "share", app_name)
-            return Path(app_data_dir) / "categories_config.json"
+        """Get the path to the categories configuration file (in the app data folder)"""
+        from utils.app_config import AppConfig
+        return Path(AppConfig().app_data_dir) / "categories_config.json"
 
     @staticmethod
     def get_default_categories() -> List[str]:
@@ -87,8 +75,7 @@ class CategoriesConfigManager:
                 "version": "1.0"
             }
 
-            with open(config_file, 'w') as f:
-                json.dump(config_data, f, indent=4)
+            write_json(str(config_file), config_data, indent=4)
 
     @staticmethod
     def load_categories() -> List[str]:
@@ -98,13 +85,11 @@ class CategoriesConfigManager:
 
         config_file = CategoriesConfigManager.get_categories_file_path()
 
-        try:
-            with open(config_file, 'r') as f:
-                config_data = json.load(f)
-                return config_data.get("categories", CategoriesConfigManager.get_default_categories())
-        except Exception as e:
-            print(f"Error loading categories: {e}")
+        config_data = read_json(str(config_file))
+        categories = config_data.get("categories")
+        if not isinstance(categories, list):
             return CategoriesConfigManager.get_default_categories()
+        return categories
 
     @staticmethod
     def save_categories(categories: List[str]):
@@ -116,13 +101,7 @@ class CategoriesConfigManager:
             "version": "1.0"
         }
 
-        try:
-            with open(config_file, 'w') as f:
-                json.dump(config_data, f, indent=4)
-            return True
-        except Exception as e:
-            print(f"Error saving categories: {e}")
-            return False
+        return write_json(str(config_file), config_data, indent=4)
 
     @staticmethod
     def add_category(category_name: str) -> bool:
@@ -176,3 +155,42 @@ class CategoriesConfigManager:
         """Check if a category exists"""
         categories = CategoriesConfigManager.load_categories()
         return category_name in categories
+
+
+def category_usage():
+    """{category name: number of tasks using it}"""
+    from utils.tasks_io import load_tasks_from_json
+    counts = {}
+    for task in load_tasks_from_json(logging.getLogger(__name__)).values():
+        counts[task.category_name] = counts.get(task.category_name, 0) + 1
+    return counts
+
+
+def rename_category_everywhere(old_name: str, new_name: str, logger) -> bool:
+    """Rename a category in the list, on every task using it, and in Dashboard groups"""
+    from models.task import category_from_name
+    from utils.dashboard_config import DashboardConfigManager
+    from utils.tasks_io import load_tasks_from_json, save_tasks_to_json
+
+    if not CategoriesConfigManager.rename_category(old_name, new_name):
+        return False
+
+    tasks = [task for task in load_tasks_from_json(logger).values() if task.category_name == old_name]
+    for task in tasks:
+        task.category = category_from_name(new_name)
+    if tasks and not save_tasks_to_json(tasks, logger):
+        return False
+
+    grids = DashboardConfigManager.get_all_grid_layouts()
+    changed = False
+    for grid in grids:
+        categories = list(getattr(grid.filter, 'category', []) or [])
+        if old_name in categories:
+            grid.filter.category = [new_name if c == old_name else c for c in categories]
+            changed = True
+        if grid.name == old_name:
+            grid.name = new_name
+            changed = True
+    if changed:
+        DashboardConfigManager.save_grid_layouts(grids)
+    return True

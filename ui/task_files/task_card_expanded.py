@@ -21,41 +21,43 @@
 # SOFTWARE.
 # -----------------------------------------------------------------------------
 # File: task_card_expanded.py
-# Description: Used to view and modify tasks. 
+# Description: Used to view and modify tasks.
 # Author: Jereme Shaver
 # -----------------------------------------------------------------------------
 
 # Standard library imports
-import json
 import os
 from datetime import datetime
 from functools import partial
 
 # Third-party imports
-from PyQt5.QtCore import QDateTime, QEvent, QSize, Qt, QTimer, QUrl, pyqtSignal
-from PyQt5.QtGui import QDesktopServices, QGuiApplication, QIcon, QPixmap, QResizeEvent
-from PyQt5.QtWidgets import (QApplication, QCalendarWidget, QComboBox, QFileDialog,
-                             QGridLayout, QHBoxLayout, QInputDialog, QLabel, QLineEdit,
-                             QListView, QListWidget, QListWidgetItem, QMessageBox,
-                             QPushButton, QScrollArea, QSizePolicy, QSpinBox, QTabWidget,
-                             QTextEdit, QToolButton, QVBoxLayout, QWidget)
+from PyQt5.QtCore import QDateTime, QSize, Qt, QTimer, QUrl, pyqtSignal
+from PyQt5.QtGui import QColor, QDesktopServices, QGuiApplication, QIcon, QKeySequence, QPixmap, QResizeEvent
+from PyQt5.QtWidgets import (QApplication, QCalendarWidget, QComboBox, QDialog, QDialogButtonBox,
+                             QDoubleSpinBox, QFileDialog,
+                             QGridLayout, QHBoxLayout, QLabel, QLineEdit,
+                             QListView, QListWidget, QListWidgetItem, QMenu, QMessageBox,
+                             QPushButton, QScrollArea, QShortcut, QSizePolicy, QSpinBox, QSplitter, QStackedWidget,
+                             QTabWidget, QTextEdit, QToolButton, QVBoxLayout, QWidget)
 
 # Local application imports
-from utils.app_config import AppConfig
+from ui.custom_widgets import dialogs
 from models.task import Attachment, Task, TaskCategory, TaskEntry, TaskPriority, TaskStatus, TimeLog
 from resources.styles import AppStyles
 from ui.custom_widgets.collapsable_section import CollapsibleSection
-from ui.task_files.task_settings_menu import TaskSettingsMenu
 from utils.categories_config import CategoriesConfigManager
 from utils.directory_finder import resource_path
 from utils.data_manager import DataManager
+from utils.tasks_io import update_task_fields
+from ui.custom_widgets.rich_text import FormattingToolbar, load_description, save_description, text_area_style
+from resources.styles import AppColors
 
 class TaskCardExpanded(QWidget):
     taskDeleted = pyqtSignal(str)
     saveCompleted = pyqtSignal(object, str)  # (task, grid_id)
     cancelTask = pyqtSignal()
     newTaskUpdate = pyqtSignal(object, str)  # (task, grid_id)
-    
+
     @classmethod
     def calculate_optimal_card_size(cls, parent_window=None):
         # If parent window is provided, use its dimensions instead of screen
@@ -91,12 +93,16 @@ class TaskCardExpanded(QWidget):
         self.parent_view = parent_view
         self.initial_state = None
         self.isNewTask = False
+        # Everything saved while the card is open becomes one undoable step when it closes
+        from utils.data_history import snapshot
+        self._history_before = snapshot()
+        self._history_recorded = False
+        self._opened_as_new = task is None
         if self.task is not None:
             self.store_initial_task_state()
-        else: 
-            self.task = Task(
-                title=""
-            )
+        else:
+            from utils.settings import Settings
+            self.task = Task(title="", category=Settings.instance().get("new_task_category"))
             self.isNewTask = True
 
         self._dirty = False
@@ -105,9 +111,20 @@ class TaskCardExpanded(QWidget):
 
         # Initialize widget references to None for proper cleanup
         self._calendar_widget = None
-        self.dialog_container = None
-        self.overlay = None
-        self.task_settings_menu = None
+
+        # Section widget refs — populated during initUI; used by apply_section_visibility()
+        self.description_section_widget = None
+        self.activity_section_widget = None
+        self.status_priority_widget = None
+        self.details_section = None
+        self.dependencies_section = None
+        self.category_section_widget = None
+        self.project_phase_section_widget = None
+
+        # Debounce timer for auto-saving checklist changes
+        self._save_debounce_timer = QTimer(self)  # Parented, so it dies with the card
+        self._save_debounce_timer.setSingleShot(True)
+        self._save_debounce_timer.timeout.connect(self._debounced_save)
 
         self.setWindowFlags(Qt.FramelessWindowHint)
         self.setWindowModality(Qt.ApplicationModal)
@@ -125,21 +142,29 @@ class TaskCardExpanded(QWidget):
         super().resizeEvent(event)
         self.checkForDPIChange()
 
+    def showEvent(self, event):
+        super().showEvent(event)
+        # Saved sizes set while the card was still small get bent by the columns' minimum
+        # widths, so apply them again once the card has its real size
+        if not getattr(self, '_splitters_restored', False):
+            self._splitters_restored = True
+            self._restoreSplitterSizes()
+
     def checkForDPIChange(self):
         """Check if we've moved to a screen with different DPI and update text accordingly"""
         screen = QGuiApplication.screenAt(self.geometry().center())
-        
+
         if not screen:
             return
-        
+
         new_dpi = screen.logicalDotsPerInch()
-        
+
         # Check if screen or DPI has changed
         if not hasattr(self, '_current_dpi'):
             self._current_dpi = new_dpi
             self._current_screen = screen
             return
-        
+
         if screen != self._current_screen or abs(new_dpi - self._current_dpi) > 1:
             self.logger.debug(f"DPI changed from {self._current_dpi} to {new_dpi}")
             self._current_dpi = new_dpi
@@ -151,79 +176,164 @@ class TaskCardExpanded(QWidget):
         # Force reapply all stylesheets to recalculate font sizes
         self.style().unpolish(self)
         self.style().polish(self)
-        
+
         # Update all child widgets
         for widget in self.findChildren(QWidget):
             widget.style().unpolish(widget)
             widget.style().polish(widget)
-        
+
         # Force a complete update
         self.updateGeometry()
         self.update()
 
     def store_initial_task_state(self):
-        """Store the initial state of the task so we can restore it on cancel"""
-        task = self.task
-        self.logger.debug(task)
-        self.initial_state = {
-            'description': task.description,
-            'status': task.status,
-            'priority': task.priority,
-            'percentage_complete': task.percentage_complete,
-            'start_date': task.start_date,
-            'due_date': task.due_date,
-            'estimated_hours': task.estimated_hours,
-            'assignee': task.assignee,
-            'dependencies': set(task.dependencies) if task.dependencies else set(),
-            'collaborators': set(task.collaborators) if task.collaborators else set(),
-            'entries': list(task.entries), 
-            'time_logs': list(task.time_logs),  
-            'attachments': list(task.attachments),
-            'checklist': list(self.task.checklist)
-        }
-        
+        """Snapshot the whole task so Cancel can put back every field.
+
+        The card edits the shared task object as you type, so anything left out of
+        this snapshot would stay changed after Cancel.
+        """
+        self.initial_state = self.task.to_dict()
+
     def initUI(self):
         self.initCentralWidget()
         self.initLeftPanelWidget()
         self.initRightPanelWidget()
+        self.apply_section_visibility()
 
     def initCentralWidget(self):
         self.setObjectName("card_container")
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.main_layout = QHBoxLayout(self)
+
+        outer_layout = QVBoxLayout(self)
+        outer_layout.setContentsMargins(0, 0, 0, 0)
+        outer_layout.setSpacing(0)
+
+        self.stacked_widget = QStackedWidget()
+        self.stacked_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        outer_layout.addWidget(self.stacked_widget)
+
+        # Page 0: main task edit view
+        self._main_view_widget = QWidget()
+        self._main_view_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.main_layout = QHBoxLayout(self._main_view_widget)
         self.main_layout.setContentsMargins(0, 0, 0, 0)
         self.main_layout.setSpacing(0)
+        self.stacked_widget.addWidget(self._main_view_widget)  # index 0
+
+        # Left and right columns, resizable with the handle between them
+        self.columns_splitter = self._makeSplitter(Qt.Horizontal)
+        self.main_layout.addWidget(self.columns_splitter)
+
+    def _makeSplitter(self, orientation):
+        splitter = QSplitter(orientation)
+        splitter.setChildrenCollapsible(False)
+        splitter.setHandleWidth(4)
+        splitter.setStyleSheet(f"""
+            QSplitter::handle {{ background: {AppColors.surface_raised}; margin: 1px; border-radius: 1px; }}
+            QSplitter::handle:hover {{ background: {AppColors.accent}; }}
+        """)
+        splitter.splitterMoved.connect(self._saveSplitterSizes)
+        return splitter
+
+    def _screenKey(self):
+        """Layouts are remembered per screen size, e.g. "3840x1600" """
+        screen = self.screen() if self.window().windowHandle() else None
+        screen = screen or QApplication.primaryScreen()
+        size = screen.availableGeometry().size() if screen else None
+        return f"{size.width()}x{size.height()}" if size else "default"
+
+    def _savedLayouts(self):
+        from utils.settings import Settings
+        saved = Settings.instance().get("task_card_layout") or {}
+        if "columns" in saved:  # one layout for every screen, from before sizes were per screen
+            saved = {"last": saved}
+        saved.setdefault("screens", {})
+        return saved
+
+    def _restoreSplitterSizes(self):
+        """Reuse the layout from the last time a task was open on a screen this size
+        (sizes as shares of the space), or the most recent layout on a new screen size"""
+        saved = self._savedLayouts()
+        layout = saved["screens"].get(self._screenKey()) or saved.get("last") or {}
+        defaults = {"columns": [3, 2], "left": [3, 2]}
+        for key, splitter in (("columns", self.columns_splitter), ("left", self.left_splitter)):
+            shares = layout.get(key) or defaults[key]
+            if len(shares) == splitter.count():
+                # Shares become real pixel sizes: Qt doesn't scale sizes that don't add up
+                # to the space it has, it hands out the difference its own way
+                total = sum(splitter.sizes()) or 1000
+                splitter.setSizes([int(share / sum(shares) * total) for share in shares])
+
+    def _saveSplitterSizes(self, *_args):
+        from utils.settings import Settings
+        layout = {}
+        for key, splitter in (("columns", self.columns_splitter), ("left", self.left_splitter)):
+            sizes = splitter.sizes()
+            total = sum(sizes) or 1
+            layout[key] = [round(size / total, 3) for size in sizes]
+        saved = self._savedLayouts()
+        saved = {"screens": dict(saved["screens"], **{self._screenKey(): layout}), "last": layout}
+        Settings.instance().set("task_card_layout", saved)
 
     def initLeftPanelWidget(self):
         main_widget = QWidget()
         main_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         left_layout = QVBoxLayout(main_widget)
-        left_layout.setContentsMargins(15, 15, 0 , 0)
+        left_layout.setContentsMargins(15, 15, 10, 0)
         left_layout.addLayout(self.createTitleSection(), 0)
 
         # Add project/phase section if task has project_id or phase_id
         if hasattr(self.task, 'project_id') and (self.task.project_id or self.task.phase_id):
             left_layout.addLayout(self.createProjectPhaseSection())
 
-        left_layout.addLayout(self.createDescriptionSection(), 1)
-        left_layout.addWidget(self.createActivitySection(), 3)
+        # Description — wrap in a widget so setVisible() works for toggling
+        self.description_section_widget = QWidget()
+        self.description_section_widget.setStyleSheet("background-color: transparent;")
+        self.description_section_widget.setLayout(self.createDescriptionSection())
 
-        self.main_layout.addWidget(main_widget,stretch=3)
+        # Activity — already returns a QWidget
+        self.activity_section_widget = self.createActivitySection()
+
+        # Drag the handle between them to give either more room
+        self.left_splitter = self._makeSplitter(Qt.Vertical)
+        self.left_splitter.addWidget(self.description_section_widget)
+        self.left_splitter.addWidget(self.activity_section_widget)
+        left_layout.addWidget(self.left_splitter, 1)
+
+        self.columns_splitter.addWidget(main_widget)
 
     def initRightPanelWidget(self):
         main_widget = QWidget()
         main_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         right_layout = QVBoxLayout(main_widget)
-        right_layout.setContentsMargins(0, 15, 15, 0)
+        right_layout.setContentsMargins(14, 15, 15, 0)
 
-        right_layout.addLayout(self.createStatusPrioritySection())
+        # Status/Priority — wrap for visibility toggling
+        self.status_priority_widget = QWidget()
+        self.status_priority_widget.setStyleSheet("background-color: transparent;")
+        self.status_priority_widget.setLayout(self.createStatusPrioritySection())
+        right_layout.addWidget(self.status_priority_widget)
+
+        # Collapsible sections (details, dependencies, attachments, checklist)
+        # Individual section widget refs are stored inside create*Section methods
         right_layout.addLayout(self.initCollapsableSections())
-        right_layout.addLayout(self.createCategorySection())
-        right_layout.addLayout(self.createProjectPhaseSelectionSection())
-        #right_layout.addStretch(1)
+
+        # Category — wrap for visibility toggling
+        self.category_section_widget = QWidget()
+        self.category_section_widget.setStyleSheet("background-color: transparent;")
+        self.category_section_widget.setLayout(self.createCategorySection())
+        right_layout.addWidget(self.category_section_widget)
+
+        # Project/Phase selection — wrap for visibility toggling
+        self.project_phase_section_widget = QWidget()
+        self.project_phase_section_widget.setStyleSheet("background-color: transparent;")
+        self.project_phase_section_widget.setLayout(self.createProjectPhaseSelectionSection())
+        right_layout.addWidget(self.project_phase_section_widget)
+
         right_layout.addLayout(self.createButtonSection())
-        
-        self.main_layout.addWidget(main_widget, stretch=2)
+
+        self.columns_splitter.addWidget(main_widget)
+        self._restoreSplitterSizes()
 
     def createTitleSection(self):
         title_layout = QVBoxLayout()
@@ -233,24 +343,25 @@ class TaskCardExpanded(QWidget):
         # Title input with modern styling
         self.title_edit = QLineEdit(self.task.title if self.task is not None else "")
         self.title_edit.setPlaceholderText("Enter task name...")
-        self.title_edit.setStyleSheet("""
-            QLineEdit {
-                background-color: #2c3e50;
-                border: 2px solid #34495e;
+        self.title_edit.setStyleSheet(f"""
+            QLineEdit {{
+                background-color: {AppColors.surface};
+                border: 2px solid {AppColors.surface_raised};
                 border-radius: 6px;
                 padding: 10px 14px;
-                color: #ecf0f1;
+                color: {AppColors.text_primary};
                 font-size: 14px;
                 font-weight: bold;
-            }
-            QLineEdit:focus {
-                border: 2px solid #3498db;
-                background-color: #34495e;
-            }
-            QLineEdit::placeholder {
-                color: #7f8c8d;
-            }
+            }}
+            QLineEdit:focus {{
+                border: 2px solid {AppColors.accent};
+                background-color: {AppColors.surface_raised};
+            }}
+            QLineEdit::placeholder {{
+                color: {AppColors.text_faint};
+            }}
         """)
+        self.title_edit.setCursorPosition(0)  # Show the start of a long title, not the end
         self.title_edit.editingFinished.connect(self._on_title_edit_finished)
         title_layout.addWidget(self.title_edit)
 
@@ -259,7 +370,7 @@ class TaskCardExpanded(QWidget):
     def _on_title_edit_finished(self):
         """Wrapper for title edit signal"""
         self.updateTaskTitle(self.title_edit.text())
-    
+
     def updateTaskTitle(self, new_title):
         """Update the task title in memory"""
         if self.task is not None:
@@ -290,32 +401,32 @@ class TaskCardExpanded(QWidget):
         # Project label with modern styling
         if project_name:
             project_label = QLabel(f"Project: 📁 {project_name}")
-            project_label.setStyleSheet("""
-                QLabel {
+            project_label.setStyleSheet(f"""
+                QLabel {{
                     font-size: 11px;
-                    color: #ecf0f1;
+                    color: {AppColors.text_primary};
                     padding: 6px 12px;
                     background-color: rgba(52, 152, 219, 0.15);
-                    border: 1px solid #3498db;
+                    border: 1px solid {AppColors.accent};
                     border-radius: 5px;
                     font-weight: bold;
-                }
+                }}
             """)
             section_layout.addWidget(project_label)
 
         # Phase label with modern styling
         if phase_name:
             phase_label = QLabel(f"▸ {phase_name}")
-            phase_label.setStyleSheet("""
-                QLabel {
+            phase_label.setStyleSheet(f"""
+                QLabel {{
                     font-size: 11px;
-                    color: #ecf0f1;
+                    color: {AppColors.text_primary};
                     padding: 6px 12px;
                     background-color: rgba(39, 174, 96, 0.15);
-                    border: 1px solid #27ae60;
+                    border: 1px solid {AppColors.success};
                     border-radius: 5px;
                     font-weight: bold;
-                }
+                }}
             """)
             section_layout.addWidget(phase_label)
 
@@ -339,46 +450,46 @@ class TaskCardExpanded(QWidget):
         status_section.setSpacing(6)
 
         status_label = QLabel("Status")
-        status_label.setStyleSheet("""
-            QLabel {
-                color: #bdc3c7;
+        status_label.setStyleSheet(f"""
+            QLabel {{
+                color: {AppColors.text_secondary};
                 font-size: 11px;
                 font-weight: bold;
-            }
+            }}
         """)
         status_section.addWidget(status_label)
 
         status_combo = QComboBox()
-        status_combo.setStyleSheet("""
-            QComboBox {
-                background-color: #2c3e50;
-                border: 2px solid #34495e;
+        status_combo.setStyleSheet(f"""
+            QComboBox {{
+                background-color: {AppColors.surface};
+                border: 2px solid {AppColors.surface_raised};
                 border-radius: 5px;
                 padding: 8px 12px;
-                color: #ecf0f1;
+                color: {AppColors.text_primary};
                 font-size: 11px;
-            }
-            QComboBox:hover {
-                border: 2px solid #3498db;
-            }
-            QComboBox::drop-down {
+            }}
+            QComboBox:hover {{
+                border: 2px solid {AppColors.accent};
+            }}
+            QComboBox::drop-down {{
                 width: 20px;
                 border: none;
-            }
-            QComboBox::down-arrow {
+            }}
+            QComboBox::down-arrow {{
                 image: none;
                 border-left: 5px solid transparent;
                 border-right: 5px solid transparent;
-                border-top: 5px solid #ecf0f1;
+                border-top: 5px solid {AppColors.text_primary};
                 margin-right: 5px;
-            }
-            QComboBox QAbstractItemView {
-                background-color: #2c3e50;
-                border: 2px solid #3498db;
-                selection-background-color: #3498db;
-                color: #ecf0f1;
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: {AppColors.surface};
+                border: 2px solid {AppColors.accent};
+                selection-background-color: {AppColors.accent};
+                color: {AppColors.text_primary};
                 padding: 4px;
-            }
+            }}
         """)
         status_combo.addItems([status.value for status in TaskStatus])
         status_combo.setCurrentText(self.task.status.value if self.task is not None else status_combo.itemText(0))
@@ -393,46 +504,46 @@ class TaskCardExpanded(QWidget):
         priority_section.setSpacing(6)
 
         priority_label = QLabel("Priority")
-        priority_label.setStyleSheet("""
-            QLabel {
-                color: #bdc3c7;
+        priority_label.setStyleSheet(f"""
+            QLabel {{
+                color: {AppColors.text_secondary};
                 font-size: 11px;
                 font-weight: bold;
-            }
+            }}
         """)
         priority_section.addWidget(priority_label)
 
         priority_combo = QComboBox()
-        priority_combo.setStyleSheet("""
-            QComboBox {
-                background-color: #2c3e50;
-                border: 2px solid #34495e;
+        priority_combo.setStyleSheet(f"""
+            QComboBox {{
+                background-color: {AppColors.surface};
+                border: 2px solid {AppColors.surface_raised};
                 border-radius: 5px;
                 padding: 8px 12px;
-                color: #ecf0f1;
+                color: {AppColors.text_primary};
                 font-size: 11px;
-            }
-            QComboBox:hover {
-                border: 2px solid #3498db;
-            }
-            QComboBox::drop-down {
+            }}
+            QComboBox:hover {{
+                border: 2px solid {AppColors.accent};
+            }}
+            QComboBox::drop-down {{
                 width: 20px;
                 border: none;
-            }
-            QComboBox::down-arrow {
+            }}
+            QComboBox::down-arrow {{
                 image: none;
                 border-left: 5px solid transparent;
                 border-right: 5px solid transparent;
-                border-top: 5px solid #ecf0f1;
+                border-top: 5px solid {AppColors.text_primary};
                 margin-right: 5px;
-            }
-            QComboBox QAbstractItemView {
-                background-color: #2c3e50;
-                border: 2px solid #3498db;
-                selection-background-color: #3498db;
-                color: #ecf0f1;
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: {AppColors.surface};
+                border: 2px solid {AppColors.accent};
+                selection-background-color: {AppColors.accent};
+                color: {AppColors.text_primary};
                 padding: 4px;
-            }
+            }}
         """)
         priority_combo.addItems([priority.name for priority in TaskPriority])
         priority_combo.setCurrentText(self.task.priority.name if self.task is not None else priority_combo.itemText(0))
@@ -453,6 +564,8 @@ class TaskCardExpanded(QWidget):
                 if st.value == new_status:
                     self.task.status = st
                     break
+            if hasattr(self, 'archive_btn'):
+                self._updateArchiveButton()
 
     def updateTaskPriority(self, new_priority: str):
         if self.task is not None:
@@ -466,45 +579,43 @@ class TaskCardExpanded(QWidget):
         desc_layout.setContentsMargins(0, 0, 5, 8)
         desc_layout.setSpacing(6)
 
-        # Modern label
+        header = QHBoxLayout()
         desc_label = QLabel("Description")
-        desc_label.setStyleSheet("""
-            QLabel {
-                color: #bdc3c7;
+        desc_label.setStyleSheet(f"""
+            QLabel {{
+                color: {AppColors.text_secondary};
                 font-size: 11px;
                 font-weight: bold;
                 padding: 0px;
-            }
+            }}
         """)
-        desc_layout.addWidget(desc_label)
+        header.addWidget(desc_label)
+        header.addStretch(1)
 
-        # Modern text edit with card styling
-        self.desc_edit = QTextEdit(self.task.description if self.task is not None else "")
-        self.desc_edit.setPlaceholderText("Add a description...")
-        self.desc_edit.setStyleSheet("""
-            QTextEdit {
-                background-color: #2c3e50;
-                border: 2px solid #34495e;
-                border-radius: 6px;
-                padding: 8px;
-                color: #ecf0f1;
-                font-size: 11px;
-                selection-background-color: #3498db;
-            }
-            QTextEdit:focus {
-                border: 2px solid #3498db;
-                background-color: #34495e;
-            }
-        """)
-        self.desc_edit.setMaximumHeight(200)
+        # Formatting is kept: pasted lists and paragraphs survive, stored as Markdown
+        self.desc_edit = QTextEdit()
+        self.desc_edit.setPlaceholderText("Add a description... (pasted lists and formatting are kept)")
+        self.desc_edit.setStyleSheet(text_area_style())
+        if self.task is not None:
+            load_description(self.desc_edit, self.task)
+        # Connected after loading, so just opening a task isn't counted as an edit
         self.desc_edit.textChanged.connect(self._on_description_changed)
-        desc_layout.addWidget(self.desc_edit)
+        QShortcut(QKeySequence("Ctrl+B"), self.desc_edit, context=Qt.WidgetShortcut).activated.connect(
+            lambda: self.desc_toolbar.toggleBold())
+        QShortcut(QKeySequence("Ctrl+I"), self.desc_edit, context=Qt.WidgetShortcut).activated.connect(
+            lambda: self.desc_toolbar.toggleItalic())
+
+        self.desc_toolbar = FormattingToolbar(self.desc_edit)
+        header.addWidget(self.desc_toolbar)
+        desc_layout.addLayout(header)
+        desc_layout.addWidget(self.desc_edit, 1)
 
         return desc_layout
 
     def _on_description_changed(self):
-        """Wrapper for description text changed signal"""
-        self.updateTaskDescription(self.desc_edit.toPlainText())
+        """Keep the task's description in step with the editor"""
+        if self.task is not None:
+            save_description(self.desc_edit, self.task)
 
     def updateTaskDescription(self, new_description):
         """Update the task description in memory"""
@@ -513,26 +624,24 @@ class TaskCardExpanded(QWidget):
 
     def createDatesSection(self):
         dates_layout = QGridLayout()
-        
+
         # Creation Date (Read-only)
         creation_date_label = QLabel(f"Created: {self.task.creation_date.strftime('%m / %d / %Y') if self.task is not None else datetime.now().strftime('%m / %d / %Y')}")
         dates_layout.addWidget(creation_date_label, 0, 0)
-        
+
         # Due Date with Calendar Icon
         due_date_container = QWidget()
         due_date_layout = QHBoxLayout(due_date_container)
         due_date_layout.setContentsMargins(0, 0, 0, 0)
-    
+
         # Label to display selected date
         self.due_date_label = QLabel("Select due date")
-        if self.task is not None:
-            if self.task.due_date:
-                self.due_date_label.setText(self.task.due_date.strftime('%m / %d / %Y'))
-        else:
-            self.due_date_label.setText(datetime.now().strftime('%m / %d / %Y'))
+        if self.task is not None and self.task.due_date:
+            self.due_date_label.setText(self.task.due_date.strftime('%m / %d / %Y'))
 
         # Calendar Button with icon
         calendar_button = QPushButton()
+        calendar_button.setToolTip("Pick the due date")
         image_path = resource_path('resources/images/Calendar.png')
         pixmap = QPixmap(image_path)
         calendar_icon = QIcon(pixmap)
@@ -541,14 +650,26 @@ class TaskCardExpanded(QWidget):
         calendar_button.setIconSize(QSize(30, 30))
         calendar_button.setStyleSheet(AppStyles.button_transparent())
         calendar_button.clicked.connect(self.showCalendar)
-        
+
+        # Removes the due date; only shown while there is one
+        self.clear_due_date_button = QPushButton("✕ Clear")
+        self.clear_due_date_button.setToolTip("Remove the due date")
+        self.clear_due_date_button.setCursor(Qt.PointingHandCursor)
+        self.clear_due_date_button.setStyleSheet(f"""
+            QPushButton {{ border: none; background: transparent; color: {AppColors.text_muted}; font-size: 11px; }}
+            QPushButton:hover {{ color: {AppColors.danger}; }}
+        """)
+        self.clear_due_date_button.clicked.connect(self.clearDueDate)
+        self.clear_due_date_button.setVisible(self.task is not None and self.task.due_date is not None)
+
         due_date_layout.addWidget(QLabel("Due Date:"))
         due_date_layout.addWidget(self.due_date_label)
         due_date_layout.addWidget(calendar_button)
+        due_date_layout.addWidget(self.clear_due_date_button)
         due_date_layout.addStretch()
-        
+
         dates_layout.addWidget(due_date_container, 1, 0, 1, 2)
-        
+
         return dates_layout
 
     def showCalendar(self):
@@ -570,8 +691,8 @@ class TaskCardExpanded(QWidget):
         # style tweaks ...
         format_saturday = calendar.weekdayTextFormat(Qt.Saturday)
         format_sunday = calendar.weekdayTextFormat(Qt.Sunday)
-        format_saturday.setForeground(QColor('#5F9EA0'))
-        format_sunday.setForeground(QColor('#5F9EA0'))
+        format_saturday.setForeground(QColor(AppColors.calendar_weekend))
+        format_sunday.setForeground(QColor(AppColors.calendar_weekend))
         calendar.setWeekdayTextFormat(Qt.Saturday, format_saturday)
         calendar.setWeekdayTextFormat(Qt.Sunday, format_sunday)
 
@@ -608,11 +729,18 @@ class TaskCardExpanded(QWidget):
         calendar.show()
 
     def updateDueDate(self, date):
-        self.task.due_date = date.toPyDate()
+        # Store a datetime like the rest of the app (a bare date breaks comparisons)
+        self.task.due_date = datetime.combine(date.toPyDate(), datetime.min.time())
         self.due_date_label.setText(date.toString('MM / dd / yyyy'))
+        self.clear_due_date_button.setVisible(True)
         if hasattr(self, '_calendar_widget') and self._calendar_widget:
             self._calendar_widget.close()
             self._calendar_widget = None
+
+    def clearDueDate(self):
+        self.task.due_date = None
+        self.due_date_label.setText("Select due date")
+        self.clear_due_date_button.setVisible(False)
 
     def createCategorySection(self):
         category_layout = QVBoxLayout()
@@ -620,56 +748,59 @@ class TaskCardExpanded(QWidget):
         category_layout.setSpacing(6)
 
         category_label = QLabel("Category")
-        category_label.setStyleSheet("""
-            QLabel {
-                color: #bdc3c7;
+        category_label.setStyleSheet(f"""
+            QLabel {{
+                color: {AppColors.text_secondary};
                 font-size: 11px;
                 font-weight: bold;
-            }
+            }}
         """)
         category_layout.addWidget(category_label)
 
         category_combo = QComboBox()
-        category_combo.setStyleSheet("""
-            QComboBox {
-                background-color: #2c3e50;
-                border: 2px solid #34495e;
+        category_combo.setStyleSheet(f"""
+            QComboBox {{
+                background-color: {AppColors.surface};
+                border: 2px solid {AppColors.surface_raised};
                 border-radius: 5px;
                 padding: 8px 12px;
-                color: #ecf0f1;
+                color: {AppColors.text_primary};
                 font-size: 11px;
-            }
-            QComboBox:hover {
-                border: 2px solid #3498db;
-            }
-            QComboBox::drop-down {
+            }}
+            QComboBox:hover {{
+                border: 2px solid {AppColors.accent};
+            }}
+            QComboBox::drop-down {{
                 width: 20px;
                 border: none;
-            }
-            QComboBox::down-arrow {
+            }}
+            QComboBox::down-arrow {{
                 image: none;
                 border-left: 5px solid transparent;
                 border-right: 5px solid transparent;
-                border-top: 5px solid #ecf0f1;
+                border-top: 5px solid {AppColors.text_primary};
                 margin-right: 5px;
-            }
-            QComboBox QAbstractItemView {
-                background-color: #2c3e50;
-                border: 2px solid #3498db;
-                selection-background-color: #3498db;
-                color: #ecf0f1;
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: {AppColors.surface};
+                border: 2px solid {AppColors.accent};
+                selection-background-color: {AppColors.accent};
+                color: {AppColors.text_primary};
                 padding: 4px;
-            }
+            }}
         """)
-        # Load dynamic categories
-        dynamic_categories = CategoriesConfigManager.load_categories()
-        category_combo.addItems(dynamic_categories)
+        # Load dynamic categories. Archived is a state (set by completing the task),
+        # not a category, so it's only listed for older tasks already in it.
+        current_category = self.task.category_name if self.task else None
+        categories = [c for c in CategoriesConfigManager.load_categories()
+                      if c != TaskCategory.ARCHIVED.value or c == current_category]
+        # Keep the task's own category even if it was removed from the list
+        if current_category and current_category not in categories:
+            categories.append(current_category)
+        category_combo.addItems(categories)
 
-        # Set current category
-        if self.task and hasattr(self.task.category, 'value'):
-            category_combo.setCurrentText(self.task.category.value)
-        elif self.task and isinstance(self.task.category, str):
-            category_combo.setCurrentText(self.task.category)
+        if current_category:
+            category_combo.setCurrentText(current_category)
         else:
             category_combo.setCurrentIndex(0)
 
@@ -704,46 +835,46 @@ class TaskCardExpanded(QWidget):
         project_container.setSpacing(6)
 
         project_label = QLabel("Project")
-        project_label.setStyleSheet("""
-            QLabel {
-                color: #bdc3c7;
+        project_label.setStyleSheet(f"""
+            QLabel {{
+                color: {AppColors.text_secondary};
                 font-size: 11px;
                 font-weight: bold;
-            }
+            }}
         """)
         project_container.addWidget(project_label)
 
         self.project_combo = QComboBox()
-        self.project_combo.setStyleSheet("""
-            QComboBox {
-                background-color: #2c3e50;
-                border: 2px solid #34495e;
+        self.project_combo.setStyleSheet(f"""
+            QComboBox {{
+                background-color: {AppColors.surface};
+                border: 2px solid {AppColors.surface_raised};
                 border-radius: 5px;
                 padding: 8px 12px;
-                color: #ecf0f1;
+                color: {AppColors.text_primary};
                 font-size: 11px;
-            }
-            QComboBox:hover {
-                border: 2px solid #3498db;
-            }
-            QComboBox::drop-down {
+            }}
+            QComboBox:hover {{
+                border: 2px solid {AppColors.accent};
+            }}
+            QComboBox::drop-down {{
                 width: 20px;
                 border: none;
-            }
-            QComboBox::down-arrow {
+            }}
+            QComboBox::down-arrow {{
                 image: none;
                 border-left: 5px solid transparent;
                 border-right: 5px solid transparent;
-                border-top: 5px solid #ecf0f1;
+                border-top: 5px solid {AppColors.text_primary};
                 margin-right: 5px;
-            }
-            QComboBox QAbstractItemView {
-                background-color: #2c3e50;
-                border: 2px solid #3498db;
-                selection-background-color: #3498db;
-                color: #ecf0f1;
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: {AppColors.surface};
+                border: 2px solid {AppColors.accent};
+                selection-background-color: {AppColors.accent};
+                color: {AppColors.text_primary};
                 padding: 4px;
-            }
+            }}
         """)
         self.project_combo.setView(QListView())
         self.project_combo.currentIndexChanged.connect(self.onProjectChanged)
@@ -754,46 +885,46 @@ class TaskCardExpanded(QWidget):
         phase_container.setSpacing(6)
 
         phase_label = QLabel("Phase")
-        phase_label.setStyleSheet("""
-            QLabel {
-                color: #bdc3c7;
+        phase_label.setStyleSheet(f"""
+            QLabel {{
+                color: {AppColors.text_secondary};
                 font-size: 11px;
                 font-weight: bold;
-            }
+            }}
         """)
         phase_container.addWidget(phase_label)
 
         self.phase_combo = QComboBox()
-        self.phase_combo.setStyleSheet("""
-            QComboBox {
-                background-color: #2c3e50;
-                border: 2px solid #34495e;
+        self.phase_combo.setStyleSheet(f"""
+            QComboBox {{
+                background-color: {AppColors.surface};
+                border: 2px solid {AppColors.surface_raised};
                 border-radius: 5px;
                 padding: 8px 12px;
-                color: #ecf0f1;
+                color: {AppColors.text_primary};
                 font-size: 11px;
-            }
-            QComboBox:hover {
-                border: 2px solid #3498db;
-            }
-            QComboBox::drop-down {
+            }}
+            QComboBox:hover {{
+                border: 2px solid {AppColors.accent};
+            }}
+            QComboBox::drop-down {{
                 width: 20px;
                 border: none;
-            }
-            QComboBox::down-arrow {
+            }}
+            QComboBox::down-arrow {{
                 image: none;
                 border-left: 5px solid transparent;
                 border-right: 5px solid transparent;
-                border-top: 5px solid #ecf0f1;
+                border-top: 5px solid {AppColors.text_primary};
                 margin-right: 5px;
-            }
-            QComboBox QAbstractItemView {
-                background-color: #2c3e50;
-                border: 2px solid #3498db;
-                selection-background-color: #3498db;
-                color: #ecf0f1;
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: {AppColors.surface};
+                border: 2px solid {AppColors.accent};
+                selection-background-color: {AppColors.accent};
+                color: {AppColors.text_primary};
                 padding: 4px;
-            }
+            }}
         """)
         self.phase_combo.setView(QListView())
         self.phase_combo.currentIndexChanged.connect(self.onPhaseChanged)
@@ -914,18 +1045,108 @@ class TaskCardExpanded(QWidget):
         if not self.phase_combo.signalsBlocked():
             self.task.phase_id = phase_id
 
+    def _updateArchiveButton(self):
+        if self.task is None:
+            self.archive_btn.setVisible(False)
+            return
+        completed = self.task.status == TaskStatus.COMPLETED
+        self.archive_btn.setText("↩ Unarchive" if self.task.archived_by_hand else "🗄 Archive")
+        self.archive_btn.setEnabled(not completed)
+        self.archive_btn.setToolTip(
+            "Completed tasks are archived automatically. Reopen it to bring it back." if completed else
+            "Put it back in its group" if self.task.archived_by_hand else
+            "Move it to the Archived group without completing it")
+
+    def toggleArchived(self):
+        """Archive (or unarchive) the task without changing its status, and save"""
+        self.task.set_archived_by_hand(not self.task.archived_by_hand)
+        self._updateArchiveButton()
+        self._handleSaveClick()
+
     def _handleSaveClick(self):
         """Handle the save button click - save task and emit appropriate signal"""
-        is_new_task = self.task is None
+        # Pick up a title typed without leaving the field
+        self.updateTaskTitle(self.title_edit.text().strip())
+        if not self.task.title:
+            dialogs.warning(self, "Missing Title", "Please give the task a name before saving.")
+            self.title_edit.setFocus()
+            return
 
-        # Save the task using DataManager
-        self.data_manager.save_task(self.task)
+        # Stop any pending debounced save
+        self._save_debounce_timer.stop()
 
-        # Emit the appropriate signal with the task object
-        if is_new_task:
-            self.saveCompleted.emit(self.task, self.grid_id)
-        else:
-            self.newTaskUpdate.emit(self.task, self.grid_id)
+        # Show loading overlay
+        self._show_save_overlay()
+
+        # Defer the save so the overlay can paint first. A bound method (not a
+        # lambda), so Qt drops the call if the card is closed in the meantime.
+        self._pending_save_is_new = self.isNewTask
+        QTimer.singleShot(10, self._performPendingSave)
+
+    def _performPendingSave(self):
+        self._perform_save(self._pending_save_is_new)
+
+    def _perform_save(self, is_new_task):
+        """Actually perform the save operation"""
+        try:
+            # Keep the card open if the save fails, so nothing typed is lost
+            if not self.data_manager.save_task(self.task):
+                dialogs.critical(self, "Save Failed",
+                                     "The task could not be saved. See app.log for details.")
+                return
+            self.isNewTask = False
+
+            # Emit the appropriate signal with the task object
+            if is_new_task:
+                self.saveCompleted.emit(self.task, self.grid_id)
+            else:
+                self.newTaskUpdate.emit(self.task, self.grid_id)
+        finally:
+            # Hide loading overlay
+            self._hide_save_overlay()
+
+    def _show_save_overlay(self):
+        """Show a semi-transparent overlay with loading spinner"""
+        # Create overlay widget if it doesn't exist
+        if not hasattr(self, '_save_overlay'):
+            from PyQt5.QtWidgets import QFrame
+            from PyQt5.QtCore import Qt
+
+            self._save_overlay = QFrame(self)
+            self._save_overlay.setStyleSheet("""
+                QFrame {
+                    background-color: rgba(0, 0, 0, 0.5);
+                }
+            """)
+
+            # Create loading label
+            self._save_label = QLabel("Saving...", self._save_overlay)
+            self._save_label.setStyleSheet("""
+                QLabel {
+                    color: white;
+                    font-size: 16px;
+                    font-weight: bold;
+                    background-color: transparent;
+                }
+            """)
+            self._save_label.setAlignment(Qt.AlignCenter)
+
+            # Position label in center
+            overlay_layout = QVBoxLayout(self._save_overlay)
+            overlay_layout.addWidget(self._save_label)
+
+        # Resize and show overlay
+        self._save_overlay.setGeometry(self.rect())
+        self._save_overlay.raise_()
+        self._save_overlay.show()
+
+        # Force immediate UI update
+        QApplication.processEvents()
+
+    def _hide_save_overlay(self):
+        """Hide the save overlay"""
+        if hasattr(self, '_save_overlay'):
+            self._save_overlay.hide()
 
     def createButtonSection(self):
         layout = QHBoxLayout()
@@ -934,100 +1155,124 @@ class TaskCardExpanded(QWidget):
 
         # Save button (primary action)
         save_btn = QPushButton("💾 Save")
-        save_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #27ae60;
-                border: 2px solid #27ae60;
+        save_btn.setToolTip("Save and close")
+        save_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {AppColors.success};
+                border: 2px solid {AppColors.success};
                 border-radius: 6px;
                 padding: 10px 20px;
                 color: white;
                 font-size: 12px;
                 font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #2ecc71;
-                border: 2px solid #2ecc71;
-            }
-            QPushButton:pressed {
-                background-color: #229954;
-            }
+            }}
+            QPushButton:hover {{
+                background-color: {AppColors.success_light};
+                border: 2px solid {AppColors.success_light};
+            }}
+            QPushButton:pressed {{
+                background-color: {AppColors.success_dark};
+            }}
         """)
         save_btn.clicked.connect(self._handleSaveClick)
         layout.addWidget(save_btn)
 
         # Cancel button
         cancel_btn = QPushButton("✖ Cancel")
-        cancel_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #95a5a6;
-                border: 2px solid #95a5a6;
+        cancel_btn.setToolTip("Close without saving changes")
+        cancel_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {AppColors.text_muted};
+                border: 2px solid {AppColors.text_muted};
                 border-radius: 6px;
                 padding: 10px 20px;
                 color: white;
                 font-size: 12px;
                 font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #7f8c8d;
-                border: 2px solid #7f8c8d;
-            }
-            QPushButton:pressed {
-                background-color: #5d6d7e;
-            }
+            }}
+            QPushButton:hover {{
+                background-color: {AppColors.text_faint};
+                border: 2px solid {AppColors.text_faint};
+            }}
+            QPushButton:pressed {{
+                background-color: {AppColors.border_muted};
+            }}
         """)
         cancel_btn.clicked.connect(self.cancelTaskChanges)
         layout.addWidget(cancel_btn)
 
         # Delete button (warning action)
         delete_btn = QPushButton("🗑 Delete")
-        delete_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #e74c3c;
-                border: 2px solid #e74c3c;
+        delete_btn.setToolTip("Delete this task (Ctrl+Z brings it back)")
+        delete_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {AppColors.danger};
+                border: 2px solid {AppColors.danger};
                 border-radius: 6px;
                 padding: 10px 20px;
                 color: white;
                 font-size: 12px;
                 font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #c0392b;
-                border: 2px solid #c0392b;
-            }
-            QPushButton:pressed {
-                background-color: #a93226;
-            }
+            }}
+            QPushButton:hover {{
+                background-color: {AppColors.danger_dark};
+                border: 2px solid {AppColors.danger_dark};
+            }}
+            QPushButton:pressed {{
+                background-color: {AppColors.danger_darker};
+            }}
         """)
         delete_btn.clicked.connect(self.deleteTask)
         layout.addWidget(delete_btn)
 
-        layout.addStretch()
-
-        # Settings button (secondary action)
-        settings_btn = QPushButton("⚙ Settings")
-        settings_btn.setStyleSheet("""
-            QPushButton {
+        # Archive without completing (completed tasks are archived anyway)
+        self.archive_btn = QPushButton()
+        self.archive_btn.setStyleSheet(f"""
+            QPushButton {{
                 background-color: transparent;
-                border: 2px solid #34495e;
+                border: 2px solid {AppColors.surface_raised};
                 border-radius: 6px;
-                padding: 10px 20px;
-                color: #ecf0f1;
+                padding: 10px 14px;
+                color: {AppColors.text_primary};
                 font-size: 12px;
                 font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #34495e;
-                border: 2px solid #3498db;
-            }
-            QPushButton:pressed {
-                background-color: #2c3e50;
-            }
+            }}
+            QPushButton:hover {{ border: 2px solid {AppColors.accent}; }}
+            QPushButton:disabled {{ color: {AppColors.text_faint}; }}
         """)
-        settings_btn.clicked.connect(self.settingsMenu)
+        self.archive_btn.clicked.connect(self.toggleArchived)
+        self._updateArchiveButton()
+        layout.addWidget(self.archive_btn)
+
+        layout.addStretch()
+
+        # Sections button: add or remove sections on this card (menu right here)
+        settings_btn = QPushButton("☰ Sections")
+        settings_btn.setToolTip("Add or remove sections on this task's card")
+        self.sections_btn = settings_btn
+        settings_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: transparent;
+                border: 2px solid {AppColors.surface_raised};
+                border-radius: 6px;
+                padding: 10px 20px;
+                color: {AppColors.text_primary};
+                font-size: 12px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: {AppColors.surface_raised};
+                border: 2px solid {AppColors.accent};
+            }}
+            QPushButton:pressed {{
+                background-color: {AppColors.surface};
+            }}
+        """)
+        settings_btn.clicked.connect(lambda: self.showSectionsMenu(settings_btn))
         layout.addWidget(settings_btn)
 
         return layout
-        
+
     def createActivitySection(self):
         # Create a container widget for the activity section
         activity_widget = QWidget()
@@ -1052,48 +1297,48 @@ class TaskCardExpanded(QWidget):
 
         # Activity section label
         activity_label = QLabel("Activity")
-        activity_label.setStyleSheet("""
-            QLabel {
-                color: #bdc3c7;
+        activity_label.setStyleSheet(f"""
+            QLabel {{
+                color: {AppColors.text_secondary};
                 font-size: 12px;
                 font-weight: bold;
                 padding-bottom: 4px;
-            }
+            }}
         """)
         scroll_layout.addWidget(activity_label)
 
         # Create tab widget with modern styling
         tab_widget = QTabWidget()
-        tab_widget.setStyleSheet("""
-            QTabWidget::pane {
-                border: 2px solid #34495e;
+        tab_widget.setStyleSheet(f"""
+            QTabWidget::pane {{
+                border: 2px solid {AppColors.surface_raised};
                 border-radius: 6px;
-                background-color: #2c3e50;
+                background-color: {AppColors.surface};
                 top: -1px;
-            }
-            QTabBar::tab {
-                background-color: #34495e;
-                color: #95a5a6;
+            }}
+            QTabBar::tab {{
+                background-color: {AppColors.surface_raised};
+                color: {AppColors.text_muted};
                 padding: 10px 24px;
                 min-width: 80px;
-                border: 2px solid #34495e;
+                border: 2px solid {AppColors.surface_raised};
                 border-bottom: none;
                 border-top-left-radius: 6px;
                 border-top-right-radius: 6px;
                 margin-right: 2px;
                 font-size: 11px;
                 font-weight: bold;
-            }
-            QTabBar::tab:selected {
-                background-color: #2c3e50;
-                color: #3498db;
-                border: 2px solid #3498db;
-                border-bottom: 2px solid #2c3e50;
-            }
-            QTabBar::tab:hover:!selected {
-                background-color: #2c3e50;
-                color: #bdc3c7;
-            }
+            }}
+            QTabBar::tab:selected {{
+                background-color: {AppColors.surface};
+                color: {AppColors.accent};
+                border: 2px solid {AppColors.accent};
+                border-bottom: 2px solid {AppColors.surface};
+            }}
+            QTabBar::tab:hover:!selected {{
+                background-color: {AppColors.surface};
+                color: {AppColors.text_secondary};
+            }}
         """)
 
         # Comments tab
@@ -1106,85 +1351,86 @@ class TaskCardExpanded(QWidget):
         comment_input = QTextEdit()
         comment_input.setPlaceholderText("Write a comment...")
         comment_input.setMaximumHeight(90)
-        comment_input.setStyleSheet("""
-            QTextEdit {
-                background-color: #34495e;
-                border: 2px solid #3498db;
+        comment_input.setStyleSheet(f"""
+            QTextEdit {{
+                background-color: {AppColors.surface_raised};
+                border: 2px solid {AppColors.accent};
                 border-radius: 5px;
                 padding: 8px;
-                color: #ecf0f1;
+                color: {AppColors.text_primary};
                 font-size: 11px;
-                selection-background-color: #3498db;
-            }
-            QTextEdit:focus {
-                border: 2px solid #5dade2;
-            }
+                selection-background-color: {AppColors.accent};
+            }}
+            QTextEdit:focus {{
+                border: 2px solid {AppColors.accent_light};
+            }}
         """)
-    
+
         # Create container for comment input and button
         comment_input_container = QWidget()
         comment_input_layout = QVBoxLayout(comment_input_container)
         comment_input_layout.addWidget(comment_input)
-        
+
         # Add post button in a horizontal layout to push it right
         button_container = QWidget()
         button_layout = QHBoxLayout(button_container)
         button_layout.setContentsMargins(0, 0, 0, 0)
         button_layout.addStretch()
         post_button = QPushButton("💬 Post")
-        post_button.setStyleSheet("""
-            QPushButton {
-                background-color: #3498db;
-                border: 2px solid #3498db;
+        post_button.setToolTip("Add the comment")
+        post_button.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {AppColors.accent};
+                border: 2px solid {AppColors.accent};
                 border-radius: 5px;
                 padding: 6px 16px;
                 color: white;
                 font-size: 11px;
                 font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #5dade2;
-                border: 2px solid #5dade2;
-            }
-            QPushButton:pressed {
-                background-color: #2980b9;
-            }
+            }}
+            QPushButton:hover {{
+                background-color: {AppColors.accent_light};
+                border: 2px solid {AppColors.accent_light};
+            }}
+            QPushButton:pressed {{
+                background-color: {AppColors.accent_dark};
+            }}
         """)
         button_layout.addWidget(post_button)
 
         comment_input_layout.addWidget(button_container)
         comments_layout.addWidget(comment_input_container)
-        
+
         # Add comments list view with modern styling
         self.comments_list = QListWidget()
         self.comments_list.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.comments_list.setWordWrap(True)
         self.comments_list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.comments_list.setStyleSheet("""
-            QListWidget {
+        self.comments_list.setStyleSheet(f"""
+            QListWidget {{
                 background-color: transparent;
                 border: none;
                 outline: none;
-            }
-            QListWidget::item {
-                background-color: #34495e;
-                border: 1px solid #3498db;
+            }}
+            QListWidget::item {{
+                background-color: {AppColors.surface_raised};
+                border: 1px solid {AppColors.accent};
                 border-radius: 5px;
                 padding: 8px;
                 margin: 4px 0px;
-            }
-            QListWidget::item:hover {
-                background-color: #3e5467;
-            }
+            }}
+            QListWidget::item:hover {{
+                background-color: {AppColors.surface_hover};
+            }}
         """)
 
-        
+
 
         comments_layout.addWidget(self.comments_list, 1)
 
         # Connect signals - pass the input widget
         post_button.clicked.connect(partial(self.add_comment, comment_input))
-        
+
         # Work Logs tab
         work_logs_tab = QWidget()
         work_logs_layout = QVBoxLayout(work_logs_tab)
@@ -1200,112 +1446,113 @@ class TaskCardExpanded(QWidget):
         hours_input.setMinimum(0)
         hours_input.setMaximum(24)
         hours_input.setSuffix(" hrs")
-        hours_input.setStyleSheet("""
-            QSpinBox {
-                background-color: #34495e;
-                border: 2px solid #3498db;
+        hours_input.setStyleSheet(f"""
+            QSpinBox {{
+                background-color: {AppColors.surface_raised};
+                border: 2px solid {AppColors.accent};
                 border-radius: 5px;
                 padding: 6px;
-                color: #ecf0f1;
+                color: {AppColors.text_primary};
                 font-size: 11px;
-            }
-            QSpinBox:focus {
-                border: 2px solid #5dade2;
-            }
-            QSpinBox::up-button, QSpinBox::down-button {
-                background-color: #3498db;
+            }}
+            QSpinBox:focus {{
+                border: 2px solid {AppColors.accent_light};
+            }}
+            QSpinBox::up-button, QSpinBox::down-button {{
+                background-color: {AppColors.accent};
                 border-radius: 3px;
-            }
-            QSpinBox::up-arrow, QSpinBox::down-arrow {
+            }}
+            QSpinBox::up-arrow, QSpinBox::down-arrow {{
                 width: 8px;
                 height: 8px;
-            }
+            }}
         """)
 
         log_description = QLineEdit()
         log_description.setPlaceholderText("Describe your work...")
-        log_description.setStyleSheet("""
-            QLineEdit {
-                background-color: #34495e;
-                border: 2px solid #3498db;
+        log_description.setStyleSheet(f"""
+            QLineEdit {{
+                background-color: {AppColors.surface_raised};
+                border: 2px solid {AppColors.accent};
                 border-radius: 5px;
                 padding: 6px 10px;
-                color: #ecf0f1;
+                color: {AppColors.text_primary};
                 font-size: 11px;
-            }
-            QLineEdit:focus {
-                border: 2px solid #5dade2;
-            }
+            }}
+            QLineEdit:focus {{
+                border: 2px solid {AppColors.accent_light};
+            }}
         """)
 
         log_button = QPushButton("⏱ Log")
-        log_button.setStyleSheet("""
-            QPushButton {
-                background-color: #27ae60;
-                border: 2px solid #27ae60;
+        log_button.setToolTip("Add the hours to the work log")
+        log_button.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {AppColors.success};
+                border: 2px solid {AppColors.success};
                 border-radius: 5px;
                 padding: 6px 16px;
                 color: white;
                 font-size: 11px;
                 font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #2ecc71;
-                border: 2px solid #2ecc71;
-            }
-            QPushButton:pressed {
-                background-color: #229954;
-            }
+            }}
+            QPushButton:hover {{
+                background-color: {AppColors.success_light};
+                border: 2px solid {AppColors.success_light};
+            }}
+            QPushButton:pressed {{
+                background-color: {AppColors.success_dark};
+            }}
         """)
 
         log_layout.addWidget(hours_input)
         log_layout.addWidget(log_description, 1)
         log_layout.addWidget(log_button)
         work_logs_layout.addWidget(log_entry)
-        
+
         # Add work logs list with modern styling
         self.work_logs_list = QListWidget()
         self.work_logs_list.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.work_logs_list.setWordWrap(True)
         self.work_logs_list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.work_logs_list.setStyleSheet("""
-            QListWidget {
+        self.work_logs_list.setStyleSheet(f"""
+            QListWidget {{
                 background-color: transparent;
                 border: none;
                 outline: none;
-            }
-            QListWidget::item {
-                background-color: #34495e;
-                border: 1px solid #27ae60;
+            }}
+            QListWidget::item {{
+                background-color: {AppColors.surface_raised};
+                border: 1px solid {AppColors.success};
                 border-radius: 5px;
                 padding: 8px;
                 margin: 4px 0px;
-            }
-            QListWidget::item:hover {
-                background-color: #3e5467;
-            }
+            }}
+            QListWidget::item:hover {{
+                background-color: {AppColors.surface_hover};
+            }}
         """)
 
         work_logs_layout.addWidget(self.work_logs_list, 1)
 
         # Connect to work log method - pass both inputs
         log_button.clicked.connect(partial(self.add_work_log, hours_input, log_description))
-        
+
         # Add tabs to tab widget
         tab_widget.addTab(comments_tab, " Comments ")
         tab_widget.addTab(work_logs_tab, " Work Logs ")
         scroll_layout.addWidget(tab_widget)
-        
+
         # Display existing activities
         self.display_activities()
         QApplication.processEvents()
-        
+
         return activity_widget
 
     def edit_comment(self, item, comment_label):
         current_text = comment_label.text().split(" - ")[0]
-        new_text, ok = QInputDialog.getText(None, "Edit Comment", "Edit your comment:", QLineEdit.Normal, current_text)
-        
+        new_text, ok = dialogs.getText(None, "Edit Comment", "Edit your comment:", QLineEdit.Normal, current_text)
+
         if ok and new_text.strip():
             timestamp = QDateTime.currentDateTime().toString("MM / dd / yyyy hh:mm")
             comment_label.setText(f"{new_text} - {timestamp} (edited)")
@@ -1315,8 +1562,8 @@ class TaskCardExpanded(QWidget):
     def delete_comment(self, item):
         comment_label = item.listWidget().itemWidget(item).layout().itemAt(0).widget().text()
         text = comment_label.split(" - ")[0]
-        reply = QMessageBox.question(None, "Delete Comment", "Are you sure you want to delete this comment?", QMessageBox.Yes | QMessageBox.No)
-        
+        reply = dialogs.question(None, "Delete Comment", "Are you sure you want to delete this comment?", QMessageBox.Yes | QMessageBox.No)
+
         if reply == QMessageBox.Yes:
             row = item.listWidget().row(item)
             item.listWidget().takeItem(row)
@@ -1327,13 +1574,13 @@ class TaskCardExpanded(QWidget):
         # Create a vertical layout to return
         main_layout = QVBoxLayout()
         main_layout.setContentsMargins(0, 0, 0, 0)
-        
+
         # Create scroll area
         scroll_area = QScrollArea()
         scroll_area.setStyleSheet(AppStyles.scroll_area())
         scroll_area.setWidgetResizable(True)
         scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        
+
         # Create content widget for the scroll area
         scroll_content = QWidget()
         scroll_content.setStyleSheet(AppStyles.widget_trans())
@@ -1352,18 +1599,23 @@ class TaskCardExpanded(QWidget):
         scroll_layout.addLayout(attachments_section)
         scroll_layout.addLayout(checklist_section)
         scroll_layout.addStretch(1)
-        
+
         # Set the content widget to the scroll area
         scroll_area.setWidget(scroll_content)
-        
+
         # Add scroll area to the main layout
         main_layout.addWidget(scroll_area)
-        
-        # CRITICAL FIX: Force layout adjustment after a brief delay 
+
+        # CRITICAL FIX: Force layout adjustment after a brief delay
         # This mimics what happens during collapse and fixes the layout
-        QTimer.singleShot(10, lambda: self.forceLayoutUpdate(scroll_content))
-        
+        # A bound method (not a lambda), so Qt drops the call if the card closes first
+        self._pending_scroll_content = scroll_content
+        QTimer.singleShot(10, self._forceScrollLayoutUpdate)
+
         return main_layout
+
+    def _forceScrollLayoutUpdate(self):
+        self.forceLayoutUpdate(self._pending_scroll_content)
 
     def forceLayoutUpdate(self, widget):
         """Force the widget to update its layout to fit the available space"""
@@ -1373,29 +1625,29 @@ class TaskCardExpanded(QWidget):
         # Force a resize of all child CollapsibleSection widgets
         for child in widget.findChildren(CollapsibleSection):
             child.updateGeometry()
-    
+
     def createDetailsSection(self):
         # Create a layout without a parent widget
         section_layout = QVBoxLayout()
         section_layout.setContentsMargins(0, 0, 15, 0)
         section_layout.setSpacing(5)
-        
+
         # Details section
         details_section = CollapsibleSection("Details", self)
         details_section.setStyleSheet(AppStyles.border_widget())
 
         details_section.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
-        
+
         # Add your regular details rows
         details_section.add_dates(self.createDatesSection())
-        
+
         # Add the team list
         details_section.add_team_list()
-        
+
         # Connect signals to your existing functions
         details_section.team_member_added.connect(self.add_team_member_to_task)
         details_section.team_member_removed.connect(self.remove_team_member_from_task)
-        
+
         # Load existing team members from the Task object
         if hasattr(self.task, 'collaborators') and self.task.collaborators:
             for member in self.task.collaborators:
@@ -1407,11 +1659,14 @@ class TaskCardExpanded(QWidget):
             details_section.toggle_collapsed()
         else:
             self.logger.debug("found teams")
-                
+
+        # Store ref for visibility toggling
+        self.details_section = details_section
+
         # Add section to layout
         section_layout.addWidget(details_section)
         section_layout.addStretch()
-        
+
         return section_layout
 
     def createDependenciesSection(self):
@@ -1427,40 +1682,47 @@ class TaskCardExpanded(QWidget):
 
         # Update available tasks
         all_tasks = self.load_dependencies()
-        dependencies_section.update_available_tasks(self.task.title if self.task is not None else "", all_tasks)
-        
+        dependencies_section.update_available_tasks(self.task.id if self.task is not None else None, all_tasks)
+
+        # Older versions stored dependencies by title; convert any that still match a task
+        ids_by_title = {title: task_id for task_id, title in all_tasks.items()}
+        self.task.dependencies = {
+            dep if dep in all_tasks else ids_by_title.get(dep, dep)
+            for dep in self.task.dependencies
+        }
+
         # Connect signals
         dependencies_section.dependency_added.connect(self.add_dependency_to_task)
         dependencies_section.dependency_removed.connect(self.remove_dependency_from_task)
-        
-        if hasattr(self.task, 'dependencies') and self.task.dependencies:
-        # Create a list copy of the dependencies set
-            deps_to_add = list(self.task.dependencies)
-            for dep in deps_to_add:
-                dependencies_section.task_combo.setCurrentText(dep)
-                dependencies_section.add_dependency()
+
+        for dep_id in list(self.task.dependencies):
+            dependencies_section.add_dependency(dep_id)
 
         if not self.task.dependencies:
             dependencies_section.toggle_collapsed()
 
+        # Store ref for visibility toggling
+        self.dependencies_section = dependencies_section
+
         section_layout.addWidget(dependencies_section)
         section_layout.addStretch()
-        
+
         return section_layout
-    
+
+
     def createChecklistSection(self):
         section_layout = QVBoxLayout()
         section_layout.setContentsMargins(0, 0, 15, 0)
         section_layout.setSpacing(5)
-        
+
         # Create section
         self.checklist_section = CollapsibleSection("Checklist", self)
         self.checklist_section.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         self.checklist_section.setStyleSheet(AppStyles.border_widget())
-        
+
         # Add checklist functionality
         self.checklist_section.add_checklist("Task Items")
-        
+
         # IMPORTANT: Load the existing data BEFORE connecting the signal
         # Load existing BEFORE signals
         for item in self.task.checklist:
@@ -1480,20 +1742,20 @@ class TaskCardExpanded(QWidget):
 
         if not self.task.checklist:
             self.checklist_section.toggle_collapsed()
-        
+
         section_layout.addWidget(self.checklist_section)
         section_layout.addStretch()
         return section_layout
-    
+
     def createAttachmentsSection(self):
         section_layout = QVBoxLayout()
         section_layout.setContentsMargins(0, 0, 15, 0)
         section_layout.setSpacing(5)
-        
+
         attachments_section = CollapsibleSection("Attachments", self)
         attachments_section.setStyleSheet(AppStyles.border_widget())
         attachments_section.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-        
+
         # Add attachments list
         if hasattr(self.task, 'attachments') and self.task.attachments:
             attachments_section.add_attachments(self.task.attachments)
@@ -1504,30 +1766,29 @@ class TaskCardExpanded(QWidget):
 
         if not self.task.attachments:
             attachments_section.toggle_collapsed()
-            
+
         # Connect signals
         attachments_section.attachment_clicked.connect(self.open_attachment)
         attachments_section.add_file_attachment_clicked.connect(self.add_file_attachment_to_task)
         attachments_section.attachment_removed.connect(self.remove_attachment_from_task)
-        
+
         # Store reference to the section widget
         self.attachments_section = attachments_section
-        
+
         section_layout.addWidget(attachments_section)
         section_layout.addStretch()
-        
+
         return section_layout
 
     def open_attachment(self, path_or_url):
-        self.saveCompleted.emit(self.grid_id)
         # Convert to an absolute path if needed
         if not os.path.isabs(path_or_url):
             path_or_url = os.path.abspath(path_or_url)
-        
+
         url = QUrl.fromLocalFile(path_or_url)
         # print(f"Opening url: {url}")
         QDesktopServices.openUrl(url)
-    
+
     def add_file_attachment_to_task(self):
         path_or_url, _ = QFileDialog.getOpenFileName(self, "Select Attachment", "", "All Files (*)")
         if path_or_url:
@@ -1542,13 +1803,13 @@ class TaskCardExpanded(QWidget):
         if isinstance(attachment, dict):
             # Remove by matching file path
             path_or_url = attachment.get('path_or_url')
-            self.task.attachments = [a for a in self.task.attachments 
+            self.task.attachments = [a for a in self.task.attachments
                                     if getattr(a, 'path_or_url', '') != path_or_url]
         else:
             # Remove the attachment object
             if attachment in self.task.attachments:
                 self.task.attachments.remove(attachment)
-        
+
         # Refresh the UI
         self.attachments_section.add_attachments(self.task.attachments)
 
@@ -1626,12 +1887,12 @@ class TaskCardExpanded(QWidget):
         content_label.setWordWrap(True)
         content_label.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
         content_label.setMaximumWidth(text_width)
-        content_label.setStyleSheet("""
-            QLabel {
-                color: #ecf0f1;
+        content_label.setStyleSheet(f"""
+            QLabel {{
+                color: {AppColors.text_primary};
                 font-size: 11px;
                 padding: 0px;
-            }
+            }}
         """)
 
         # Calculate the required height for wrapped text using QFontMetrics
@@ -1655,28 +1916,33 @@ class TaskCardExpanded(QWidget):
         delete_label = QLabel("🗑 Delete")
 
         for label in [edit_label, delete_label]:
-            label.setStyleSheet("""
-                QLabel {
-                    color: #3498db;
+            label.setStyleSheet(f"""
+                QLabel {{
+                    color: {AppColors.accent};
                     font-size: 10px;
                     padding: 2px 4px;
-                }
-                QLabel:hover {
-                    color: #5dade2;
+                }}
+                QLabel:hover {{
+                    color: {AppColors.accent_light};
                     text-decoration: underline;
-                }
+                }}
             """)
             label.setCursor(Qt.PointingHandCursor)
             label.setTextInteractionFlags(Qt.TextBrowserInteraction)
 
-        # Timestamp
-        timestamp_label = QLabel(entry.timestamp.strftime("%m/%d/%Y %H:%M"))
-        timestamp_label.setStyleSheet("""
-            QLabel {
-                color: #7f8c8d;
+        # Timestamp (and hours, for a work log)
+        stamp = entry.timestamp.strftime("%m/%d/%Y %H:%M")
+        if entry.entry_type == "work_log":
+            time_log = self._time_log_for_entry(entry)
+            if time_log is not None:
+                stamp = f"{time_log.hours:g} h  ·  {stamp}"
+        timestamp_label = QLabel(stamp)
+        timestamp_label.setStyleSheet(f"""
+            QLabel {{
+                color: {AppColors.text_faint};
                 font-size: 9px;
                 font-style: italic;
-            }
+            }}
         """)
 
         actions_layout.addWidget(edit_label)
@@ -1709,7 +1975,7 @@ class TaskCardExpanded(QWidget):
         # Connect action signals
         edit_label.mousePressEvent = lambda event, item=item: self.edit_activity(item)
         delete_label.mousePressEvent = lambda event, item=item: self.delete_activity(item)
-        
+
     def add_comment(self, comment_input):
         text = comment_input.toPlainText().strip()
         if text:
@@ -1731,19 +1997,41 @@ class TaskCardExpanded(QWidget):
             description_input.clear()
             self.display_activities()
 
+    def _time_log_for_entry(self, entry):
+        """The TimeLog recorded together with a work log entry (same text, closest time)"""
+        candidates = [log for log in self.task.time_logs if log.description == entry.content]
+        if not candidates:
+            return None
+        return min(candidates, key=lambda log: abs((log.timestamp - entry.timestamp).total_seconds()))
+
     def edit_activity(self, item):
-        """Edit a TaskEntry"""
+        """Edit a TaskEntry (a work log's hours too)"""
         entry = item.data(Qt.UserRole)
-        if entry:
-            text, ok = QInputDialog.getMultiLineText(
-                self, "Edit Comment", "Update your comment:", entry.content
-            )
+        if not entry:
+            return
+        if entry.entry_type != "work_log":
+            text, ok = dialogs.getMultiLineText(self, "Edit Comment", "Update your comment:", entry.content)
             if ok and text:
-                # Update the entry
                 entry.edit(text, "Current User")
-                
-                # Refresh the UI
                 self.display_activities()
+            return
+
+        time_log = self._time_log_for_entry(entry)
+        result = WorkLogDialog.edit(self, entry.content, time_log.hours if time_log else 0.0)
+        if result is None:
+            return
+        text, hours = result
+        if time_log is None:
+            # Older work logs may have no hours recorded with them
+            time_log = TimeLog(hours=0.0, user_id="Current User", description=entry.content)
+            time_log.timestamp = entry.timestamp
+            self.task.time_logs.append(time_log)
+        self.task.actual_hours = max(0.0, self.task.actual_hours - time_log.hours + hours)
+        time_log.hours = hours
+        time_log.description = text
+        if text != entry.content:
+            entry.edit(text, "Current User")
+        self.display_activities()
 
     def delete_activity(self, item):
         """Delete a TaskEntry"""
@@ -1751,73 +2039,29 @@ class TaskCardExpanded(QWidget):
         entry = item.data(Qt.UserRole)
         self.logger.debug(f"found entry: {entry}")
         if entry:
-            confirm = QMessageBox.question(
-                self, "Confirm Delete", 
-                "Are you sure you want to delete this comment?",
+            is_work_log = entry.entry_type == "work_log"
+            confirm = dialogs.question(
+                self, "Confirm Delete",
+                f"Are you sure you want to delete this {'work log' if is_work_log else 'comment'}?",
                 QMessageBox.Yes | QMessageBox.No
             )
-            
+
             if confirm == QMessageBox.Yes:
+                # A work log's hours go with it
+                if is_work_log:
+                    time_log = self._time_log_for_entry(entry)
+                    if time_log is not None:
+                        self.task.time_logs.remove(time_log)
+                        self.task.actual_hours = max(0.0, self.task.actual_hours - time_log.hours)
+
                 # Remove from task entries
                 if entry in self.task.entries:
                     self.task.entries.remove(entry)
-                
+
                 # Refresh the UI
                 self.display_activities()
         else:
             self.logger.debug("failed to delete")
-
-    def edit_work_log(self, item):
-        """Edit a TimeLog"""
-
-        """Need to impliment this"""
-        log = item.data(Qt.UserRole)
-        if log:
-            hours, ok1 = QInputDialog.getDouble(
-                self, "Edit Hours", "Hours worked:", 
-                log.hours, 0, 24, 1
-            )
-            
-            if ok1:
-                description, ok2 = QInputDialog.getText(
-                    self, "Edit Description", "Description:",
-                    QLineEdit.Normal, log.description
-                )
-                
-                if ok2:
-                    # Update hours total
-                    self.task.actual_hours -= log.hours
-                    self.task.actual_hours += hours
-                    
-                    # Update the log
-                    log.hours = hours
-                    log.description = description
-                    
-                    # Refresh the UI
-                    self.display_activities()
-
-    def delete_work_log(self, item):
-        """Delete a TimeLog"""
-
-        """Need to impliment this"""
-        log = item.data(Qt.UserRole)
-        if log:
-            confirm = QMessageBox.question(
-                self, "Confirm Delete", 
-                "Are you sure you want to delete this work log?",
-                QMessageBox.Yes | QMessageBox.No
-            )
-            
-            if confirm == QMessageBox.Yes:
-                # Update hours total
-                self.task.actual_hours -= log.hours
-                
-                # Remove from task time logs
-                if log in self.task.time_logs:
-                    self.task.time_logs.remove(log)
-                
-                # Refresh the UI
-                self.display_activities()
 
     def add_team_member_to_task(self, member_name):
         """Add team member to the current task"""
@@ -1831,58 +2075,43 @@ class TaskCardExpanded(QWidget):
             self.task.collaborators.remove(member_name)
 
     def load_dependencies(self):
-        """Load all available tasks for dependencies"""
-        # Get all task titles from DataManager
-        tasks = self.data_manager.get_tasks()
-        return list(tasks.keys())
+        """Return {task_id: title} for every task that can be a dependency"""
+        return {task_id: task.title for task_id, task in self.data_manager.get_tasks().items()}
 
-    def add_dependency_to_task(self, dependency_task_title):
+    def add_dependency_to_task(self, dependency_task_id):
         """Add dependency to current task"""
-        # Add to the Task object's dependencies set
-        self.task.dependencies.add(dependency_task_title)
+        self.task.dependencies.add(dependency_task_id)
 
-    def remove_dependency_from_task(self, dependency_task_title):
+    def remove_dependency_from_task(self, dependency_task_id):
         """Remove dependency from current task"""
-        # Remove from the Task object's dependencies set
-        if dependency_task_title in self.task.dependencies:
-            self.task.dependencies.remove(dependency_task_title)
-        
+        self.task.dependencies.discard(dependency_task_id)
+
+    def _flushPendingChecklistSave(self):
+        """Save a checklist change still waiting on the debounce timer"""
+        if self._save_debounce_timer.isActive():
+            self._save_debounce_timer.stop()
+            self._debounced_save()
+
     def cancelTaskChanges(self):
         """Close expanded card and restore original task state"""
+        # Checklist ticks save on their own, so keep one made just before Cancel
+        self._flushPendingChecklistSave()
+
         # Restore the task to its initial state
         if self.initial_state is not None:
             self.restore_task_state()
-        
+
         # Hide overlay and close
         self.cancelTask.emit()
 
     def restore_task_state(self):
         """Restore the task to its original state"""
-        task = self.task
-        
-        # Restore simple attributes
-        task.description = self.initial_state['description']
-        task.status = self.initial_state['status']
-        task.priority = self.initial_state['priority']
-        task.percentage_complete = self.initial_state['percentage_complete']
-        task.start_date = self.initial_state['start_date']
-        task.due_date = self.initial_state['due_date']
-        task.estimated_hours = self.initial_state['estimated_hours']
-        task.assignee = self.initial_state['assignee']
-        
-        # Restore collections
-        task.dependencies = self.initial_state['dependencies']
-        task.collaborators = self.initial_state['collaborators']
-        
-        # Restore lists
-        task.entries = self.initial_state['entries']
-        task.time_logs = self.initial_state['time_logs']
-        task.attachments = self.initial_state['attachments']
-
-        task.checklist = self.initial_state['checklist']
+        restored = Task.from_dict(self.initial_state)
+        for name, value in vars(restored).items():
+            setattr(self.task, name, value)
 
     def deleteTask(self):
-        confirm = QMessageBox.question(
+        confirm = dialogs.question(
             self, "Confirm Delete",
             f"Are you sure you want to delete the task '{self.task.title}'?",
             QMessageBox.Yes | QMessageBox.No
@@ -1890,40 +2119,30 @@ class TaskCardExpanded(QWidget):
         if confirm != QMessageBox.Yes:
             return
 
-        app_config = AppConfig()
-        json_file_path = app_config.tasks_file
-
         try:
             # Keep these for messages/signals
             task_id = self.task.id
             task_title = self.task.title
 
-            with open(json_file_path, 'r') as f:
-                tasks_data = json.load(f)
-
-            if task_id in tasks_data:
-                del tasks_data[task_id]
-                with open(json_file_path, 'w') as f:
-                    json.dump(tasks_data, f, indent=2)
-
-                self.taskDeleted.emit(task_title)
+            if self.data_manager.delete_task(task_id):
+                # One undoable step, with anything saved while the card was open
+                self._recordHistory(f"Deleted \u201c{task_title}\u201d")
+                self.taskDeleted.emit(task_id)
                 if hasattr(self, 'parent_view') and self.parent_view and hasattr(self.parent_view, 'overlay') and self.parent_view.overlay is not None:
                     self.parent_view.overlay.hide()
                 self.close()
-
-                QMessageBox.information(self, "Success", f"Task '{task_title}' was deleted.")
             else:
-                QMessageBox.warning(self, "Warning", f"Task '{task_title}' not found in saved tasks.")
+                dialogs.warning(self, "Warning", f"Task '{task_title}' could not be deleted. See app.log for details.")
         except Exception as e:
             self.logger.error(f"Error deleting task: {e}")
-            QMessageBox.critical(self, "Error", f"An error occurred while deleting the task: {str(e)}")
+            dialogs.critical(self, "Error", f"An error occurred while deleting the task: {str(e)}")
 
-                
+
     def add_checklist_item_to_task(self, text):
         """Add a checklist item to the task"""
         if not hasattr(self.task, 'checklist'):
             self.task.checklist = []
-            
+
         self.task.checklist.append({
             'text': text,
             'checked': False
@@ -1934,7 +2153,7 @@ class TaskCardExpanded(QWidget):
         if hasattr(self.task, 'checklist'):
             # Remove the item with matching text
             self.task.checklist = [item for item in self.task.checklist if item['text'] != text]
-            
+
     def update_checklist_item_in_task(self, text, checked):
         """Update the checked state of a checklist item"""
         if hasattr(self.task, 'checklist'):
@@ -1945,30 +2164,24 @@ class TaskCardExpanded(QWidget):
 
     def closeEvent(self, event):
         """Clean up resources when widget closes"""
+        self._flushPendingChecklistSave()
+        self._recordHistory()
         # Clean up calendar widget if exists
         if self._calendar_widget is not None:
             self._calendar_widget.close()
             self._calendar_widget = None
 
-        # Clean up dialog container if exists
-        if self.dialog_container is not None:
-            self.dialog_container.close()
-            self.dialog_container.deleteLater()
-            self.dialog_container = None
-
-        # Clean up overlay if exists
-        if self.overlay is not None:
-            self.overlay.close()
-            self.overlay.deleteLater()
-            self.overlay = None
-
-        # Clean up settings menu if exists
-        if self.task_settings_menu is not None:
-            self.task_settings_menu.close()
-            self.task_settings_menu.deleteLater()
-            self.task_settings_menu = None
-
         super().closeEvent(event)
+
+    def _recordHistory(self, label=None):
+        """Record what was saved while the card was open as one undoable step (once)"""
+        if self._history_recorded or self.task is None:
+            return
+        self._history_recorded = True
+        from utils.data_history import history
+        name = self.task.title or "task"
+        history().record(label or (f"Added \u201c{name}\u201d" if self._opened_as_new else f"Edited \u201c{name}\u201d"),
+                         self._history_before)
 
     def closeWindow(self):
         self.logger.debug("Closing expanded card")
@@ -1977,24 +2190,50 @@ class TaskCardExpanded(QWidget):
         self.close()
         self.deleteLater()
 
+    def _debounced_save(self):
+        """Save checklist changes on their own, 500 ms after the last one.
+
+        Only the checklist is written, so other edits in the card stay unsaved until
+        Save (and Cancel can still undo them). A new task isn't on disk yet, so its
+        checklist is simply saved with the task.
+        """
+        if self.isNewTask:
+            return
+        checklist = [dict(item) for item in self.task.checklist]
+        if update_task_fields(self.task.id, {'checklist': checklist}, self.logger):
+            # Cancel shouldn't undo a change that's already saved
+            if self.initial_state is not None:
+                self.initial_state['checklist'] = checklist
+
+    def _schedule_debounced_save(self):
+        """Schedule a debounced save - restarts timer if already running"""
+        self._save_debounce_timer.stop()
+        self._save_debounce_timer.start(500)  # 500ms delay
+
     def addChecklistItem(self, text):
         """Add checklist item to the current task"""
         # Check the flag to prevent recursion during loading
         if hasattr(self, '_loading_checklist_items') and self._loading_checklist_items:
             return
-            
+
         # Add to the Task object's checklist list
         self.task.checklist.append({
             'text': text,
             'checked': False
         })
 
+        # Schedule debounced save (waits 500ms after last change)
+        self._schedule_debounced_save()
+
     def removeChecklistItem(self, text):
         """Remove a checklist item from the task"""
         if hasattr(self.task, 'checklist'):
             # Remove the item with matching text
             self.task.checklist = [item for item in self.task.checklist if item['text'] != text]
-    
+
+            # Schedule debounced save (waits 500ms after last change)
+            self._schedule_debounced_save()
+
     def updateCheckboxState(self, text, checked):
         """Update the task's checklist item state"""
         # Find the item with matching text in the task's checklist
@@ -2002,51 +2241,138 @@ class TaskCardExpanded(QWidget):
             if item['text'] == text:
                 # Update the checked state
                 self.task.checklist[i]['checked'] = checked
+
+                # Schedule debounced save (waits 500ms after last change)
+                self._schedule_debounced_save()
                 break
-        
-    def settingsMenu(self):
+
+    # ------------------------------------------------------------------
+    # Sections: which parts of the card this task shows
+    # ------------------------------------------------------------------
+
+    def _sectionWidgets(self):
+        return {
+            'description': self.description_section_widget,
+            'activity': self.activity_section_widget,
+            'status_priority': self.status_priority_widget,
+            'details': self.details_section,
+            'dependencies': self.dependencies_section,
+            'attachments': getattr(self, 'attachments_section', None),
+            'checklist': getattr(self, 'checklist_section', None),
+            'category': self.category_section_widget,
+            'project_phase_selection': self.project_phase_section_widget,
+        }
+
+    def apply_section_visibility(self):
+        """Show the sections this task shows (its own choices, otherwise the defaults)"""
+        from utils import task_sections
+        for key, widget in self._sectionWidgets().items():
+            if widget is not None:
+                widget.setVisible(task_sections.is_shown(self.task, key))
+
+    def buildSectionsMenu(self):
+        """The ☰ Sections menu: tick a section to show it on this card, untick to remove it"""
+        from utils import task_sections
+        menu = QMenu(self)
+        menu.setStyleSheet(f"""
+            QMenu {{ background-color: {AppColors.surface_raised}; color: {AppColors.text_primary};
+                     border: 1px solid {AppColors.surface_hover_alt}; padding: 4px; }}
+            QMenu::item {{ padding: 6px 22px 6px 26px; border-radius: 3px; }}
+            QMenu::item:selected {{ background-color: {AppColors.accent}; }}
+            QMenu::item:disabled {{ color: {AppColors.text_faint}; }}
+            QMenu::separator {{ height: 1px; background: {AppColors.surface_hover_alt}; margin: 4px 6px; }}""")
+        title = menu.addAction("Sections on this card")
+        title.setEnabled(False)
+        for key, label, _where in task_sections.SECTIONS:
+            action = menu.addAction(label)
+            action.setCheckable(True)
+            action.setChecked(task_sections.is_shown(self.task, key))
+            action.toggled.connect(lambda shown, key=key: self.setSectionShown(key, shown))
+        menu.addSeparator()
+        reset = menu.addAction("Reset to the defaults", self.resetSections)
+        reset.setEnabled(task_sections.is_customized(self.task))
+        menu.addAction("Make these the defaults", self.makeSectionsDefault)
+        menu.addAction("Edit the defaults in Settings…", self.openSectionDefaults)
+        return menu
+
+    def showSectionsMenu(self, button):
+        self.buildSectionsMenu().exec_(button.mapToGlobal(button.rect().bottomLeft()))
+
+    def setSectionShown(self, key, shown):
+        from utils import task_sections
+        task_sections.set_shown(self.task, key, shown)
+        self.apply_section_visibility()
+        self._saveSections()
+
+    def resetSections(self):
+        from utils import task_sections
+        task_sections.reset(self.task)
+        self.apply_section_visibility()
+        self._saveSections()
+
+    def makeSectionsDefault(self):
+        from utils import task_sections
+        task_sections.make_defaults(self.task)
+        self.apply_section_visibility()
+        self._saveSections()
+
+    def openSectionDefaults(self):
+        """Go to Settings > Behaviour, where the defaults are"""
         window = self.window()
-        
-        # Create a container widget that covers the entire main window.
-        self.dialog_container = QWidget(window)
-        # Make the container completely transparent so it doesn't override child styling.
-        self.dialog_container.setAttribute(Qt.WA_StyledBackground, True)
-        self.dialog_container.setAttribute(Qt.WA_TranslucentBackground, True)
-        self.dialog_container.setStyleSheet("background-color: transparent;")
-        self.dialog_container.setWindowFlags(Qt.FramelessWindowHint)
-        self.dialog_container.setGeometry(window.rect())
-        
-        # Create the semi-transparent overlay.
-        self.overlay = QWidget(self.dialog_container)
-        self.overlay.setStyleSheet("background-color: rgba(0, 0, 0, 0.5);")
-        self.overlay.setGeometry(self.dialog_container.rect())
-        self.overlay.installEventFilter(self)
+        if hasattr(window, "showScreenNow"):
+            if self.parent_view is not None and hasattr(self.parent_view, "closeExpandedCard"):
+                self.parent_view.closeExpandedCard()
+            window.showScreenNow("settings_screen")
+            from ui.settings_screen import SECTIONS
+            window.settings_screen.showSection(next(i for i, name in enumerate(SECTIONS) if "Behaviour" in name))
 
-        # pass_grid_id  = self.grid_layout_map[grid_id]
-        
-        # Create the expanded card as a child of the container.
-        self.task_settings_menu = TaskSettingsMenu(
-            logger=self.logger,
-            task=self.task,
-            grid_id=self.grid_id,
-            parent_view=self,
-            parent=self.dialog_container
-        )
+    def _saveSections(self):
+        """Keep the choice even if the card is closed without Save (a new task saves with Save)"""
+        if self.isNewTask or self.task is None:
+            return
+        update_task_fields(self.task.id, {'visible_sections': dict(self.task.visible_sections)}, self.logger)
 
-        # Set the object name so the style sheet applies.
-        self.task_settings_menu.setObjectName("card_container")
-        # Enable styled backgrounds so that the style sheet paints the background.
-        self.task_settings_menu.setAttribute(Qt.WA_StyledBackground, True)
-        # Notice: We do NOT set WA_TranslucentBackground here, so that the style sheet's background color is visible.
-        self.task_settings_menu.setStyleSheet(AppStyles.expanded_task_card())
 
-        # Calculate optimal dimensions and center the expanded card.
-        card_width, card_height = self.task_settings_menu.calculate_optimal_card_size(window)
-        center_x = (self.dialog_container.width() - card_width) // 2
-        center_y = (self.dialog_container.height() - card_height) // 2
-        self.task_settings_menu.setGeometry(center_x, center_y, card_width, card_height)
-        self.task_settings_menu.setWindowFlags(Qt.FramelessWindowHint)
-        self.task_settings_menu.raise_()
-        
-        # Show the container (which holds both the overlay and the expanded card)
-        self.dialog_container.show()
+class WorkLogDialog(QDialog):
+    """Edit a work log's description and hours together"""
+
+    def __init__(self, parent, description, hours):
+        super().__init__(parent)
+        self.setWindowTitle("Edit Work Log")
+        self.setMinimumWidth(420)
+        layout = QVBoxLayout(self)
+
+        layout.addWidget(QLabel("Description:"))
+        self.description_edit = QTextEdit()
+        self.description_edit.setPlainText(description)
+        self.description_edit.setStyleSheet(text_area_style())
+        layout.addWidget(self.description_edit)
+
+        hours_row = QHBoxLayout()
+        hours_row.addWidget(QLabel("Hours:"))
+        self.hours_input = QDoubleSpinBox()
+        self.hours_input.setRange(0.0, 24.0)
+        self.hours_input.setSingleStep(0.25)
+        self.hours_input.setDecimals(2)
+        self.hours_input.setValue(hours)
+        hours_row.addWidget(self.hours_input)
+        hours_row.addStretch(1)
+        layout.addLayout(hours_row)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self._accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def _accept(self):
+        if self.description_edit.toPlainText().strip():
+            self.accept()
+
+    def values(self):
+        return self.description_edit.toPlainText().strip(), self.hours_input.value()
+
+    @classmethod
+    def edit(cls, parent, description, hours):
+        """(description, hours), or None if cancelled"""
+        dialog = cls(parent, description, hours)
+        return dialog.values() if dialog.exec_() == QDialog.Accepted else None

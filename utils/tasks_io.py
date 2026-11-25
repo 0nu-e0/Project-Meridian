@@ -25,12 +25,12 @@
 # Author: Jereme Shaver
 # -----------------------------------------------------------------------------
 
-import os, json
-from uuid import uuid4
+
+import os
 from datetime import datetime
 from utils.app_config import AppConfig
-from utils.directory_finder import resource_path
-from models.task import Task, TaskStatus, TaskPriority, TaskCategory, Attachment, TaskEntry, TimeLog
+from utils.safe_io import parse_records, read_json, write_json
+from models.task import Task, TaskCategory
 
 # Global cache for tasks to avoid redundant file I/O
 _tasks_cache = None
@@ -41,6 +41,12 @@ def invalidate_tasks_cache():
     global _tasks_cache, _tasks_cache_mtime
     _tasks_cache = None
     _tasks_cache_mtime = None
+
+def _parse_task(key, raw):
+    # Very old files had no 'id' field; the file key is the only stable identifier
+    if isinstance(raw, dict) and 'id' not in raw:
+        raw = {**raw, 'id': key}
+    return Task.from_dict(raw)
 
 def load_tasks_from_json(logger, force_reload=False):
     """
@@ -55,409 +61,139 @@ def load_tasks_from_json(logger, force_reload=False):
     """
     global _tasks_cache, _tasks_cache_mtime
 
-    # Get the file path from AppConfig
-    app_config = AppConfig()
-    json_file_path = app_config.tasks_file
+    json_file_path = AppConfig().tasks_file
 
-    # Check if file exists
     if not os.path.exists(json_file_path):
-        logger.warning(f"Task file not found at: {json_file_path}")
+        logger.debug(f"No task file yet at: {json_file_path}")
         return {}
 
-    # Get file modification time
     current_mtime = os.path.getmtime(json_file_path)
 
     # Return cached data if available and file hasn't changed
     if not force_reload and _tasks_cache is not None and _tasks_cache_mtime == current_mtime:
-        logger.debug(f"Using cached tasks (file unchanged)")
+        logger.debug("Using cached tasks (file unchanged)")
         return _tasks_cache
 
-    # Load from disk
-    task_objects = {}
-    # logger.info(f"Attempting to load tasks from: {json_file_path}")
+    logger.info(f"Attempting to load tasks from: {json_file_path}")
+    tasks_data = read_json(json_file_path, logger)
 
-    try:
-        # Read the JSON file
-        with open(json_file_path, 'r') as file:
-            tasks_data = json.load(file)
+    # One bad record is skipped and kept on disk, rather than hiding every task
+    parsed = parse_records(json_file_path, tasks_data, _parse_task, logger)
+    task_objects = {task.id: task for task in parsed.values()}
+    logger.info(f"Loaded {len(task_objects)} of {len(tasks_data)} tasks from {json_file_path}")
 
-        # logger.info(f"Successfully loaded {len(tasks_data)} tasks from {json_file_path}")
+    # Sort tasks by priority
+    sorted_tasks = dict(sorted(task_objects.items(), key=lambda item: item[1].priority.value, reverse=True))
 
-        # Convert each task data to Task object
-        for task_key, task_info in tasks_data.items():
-            # Get the title from the task info or use the key as fallback
-            task_name = task_info.get('title', task_key)
-
-            # Create base Task object
-            task = Task(
-                title=task_name,
-                description=task_info.get('description', ''),
-                project_id=task_info.get('project_id', None)
-            )
-
-            # Set ID if available, otherwise use the generated one
-            if 'id' in task_info:
-                task.id = task_info['id']
-
-            # Set phase_id if available
-            task.phase_id = task_info.get('phase_id', None)
-
-            # Set enum values
-            if 'status' in task_info:
-                status_value = task_info['status'].replace(" ", "_").upper()
-                task.status = TaskStatus[status_value]
-
-            if 'priority' in task_info:
-                priority_value = task_info['priority'].upper()
-                task.priority = TaskPriority[priority_value]
-
-            if 'category' in task_info:
-                category_value = task_info['category']
-                # Try to match with enum first for backward compatibility
-                try:
-                    category_enum_value = category_value.replace(" ", "_").upper()
-                    task.category = TaskCategory[category_enum_value]
-                except KeyError:
-                    # If not found in enum, use string directly (dynamic category)
-                    task.category = category_value
-            else:
-                task.category = TaskCategory.FEATURE
-
-            # Check if task is archived (handle both enum and string)
-            if isinstance(task.category, TaskCategory) and task.category == TaskCategory.ARCHIVED:
-                task.archived = True
-            elif isinstance(task.category, str) and task.category == "Archived":
-                task.archived = True
-
-            # Set numeric values
-            if 'percentage_complete' in task_info:
-                percentage = task_info['percentage_complete']
-                if isinstance(percentage, str):
-                    task.percentage_complete = int(percentage.rstrip('%'))
-                else:
-                    task.percentage_complete = percentage
-
-            if 'estimated_hours' in task_info:
-                task.estimated_hours = float(task_info['estimated_hours'])
-
-            if 'actual_hours' in task_info:
-                task.actual_hours = float(task_info['actual_hours'])
-
-            if 'cost_estimate' in task_info:
-                task.cost_estimate = float(task_info['cost_estimate'])
-
-            if 'actual_cost' in task_info:
-                task.actual_cost = float(task_info['actual_cost'])
-
-            # Set date values
-            date_fields = {
-                'creation_date': '%Y-%m-%d, %H:%M:%S',
-                'start_date': '%Y-%m-%d, %H:%M:%S',
-                'due_date': '%Y-%m-%d, %H:%M:%S',
-                'completion_date': '%Y-%m-%d, %H:%M:%S',
-                'reminder_date': '%Y-%m-%d, %H:%M:%S',
-                'modified_date': '%Y-%m-%d, %H:%M:%S'
-            }
-
-            for field, format_str in date_fields.items():
-                if field in task_info and task_info[field]:
-                    try:
-                        setattr(task, field, datetime.strptime(task_info[field], format_str))
-                    except ValueError:
-                        # Handle potential format issues
-                        logger.warning(f"Could not parse date for {field} in task {task_name}")
-
-            # Set string values
-            string_fields = ['assignee', 'creator', 'modified_by', 'sprint_id', 'milestone_id', 'parent_task_id']
-            for field in string_fields:
-                if field in task_info:
-                    setattr(task, field, task_info[field])
-
-            # Set collection values
-            if 'dependencies' in task_info:
-                task.dependencies = set(task_info['dependencies'])
-
-            if 'blocked_by' in task_info:
-                task.blocked_by = set(task_info['blocked_by'])
-
-            if 'watchers' in task_info:
-                task.watchers = set(task_info['watchers'])
-
-            if 'collaborators' in task_info:
-                task.collaborators = set(task_info['collaborators'])
-
-            if 'team_members' in task_info:
-                task.collaborators = set(task_info['team_members'])
-
-            if 'tags' in task_info:
-                task.tags = set(task_info['tags'])
-
-            # Set custom fields
-            if 'custom_fields' in task_info:
-                task.custom_fields = task_info['custom_fields']
-
-            # Add attachments
-            if 'attachments' in task_info:
-                for attachment_data in task_info['attachments']:
-                    # print(f"attachment data: {attachment_data}")
-                    attachment = Attachment(
-                        path_or_url=attachment_data['path_or_url'],
-                        user_id=attachment_data.get('added_by', 'System'),
-                        description=attachment_data.get('file_name', '')
-                    )
-
-                    if 'added_date' in attachment_data:
-                        try:
-                            attachment.upload_date = datetime.strptime(attachment_data['added_date'], '%m/%d/%Y %H:%M')
-                        except ValueError:
-                            attachment.upload_date = datetime.now()
-
-                    if 'file_size' in attachment_data:
-                        attachment.file_size = attachment_data['file_size']
-
-                    if 'file_type' in attachment_data:
-                        attachment.file_type = attachment_data['file_type']
-
-                    task.attachments.append(attachment)
-
-            # Load task entries (activities)
-            if 'activities' in task_info:
-                for entry_data in task_info['activities']:
-                    entry = TaskEntry(
-                        content=entry_data.get('text', ''),
-                        entry_type=entry_data.get('type', 'comment'),
-                        user_id=entry_data.get('user_id', 'System')
-                    )
-                    
-                    # Parse timestamp
-                    if 'timestamp' in entry_data:
-                        try:
-                            entry.timestamp = datetime.strptime(entry_data['timestamp'], '%m/%d/%Y %H:%M')
-                        except ValueError:
-                            entry.timestamp = datetime.now()
-                    
-                    # Parse edit information
-                    entry.edited = entry_data.get('edited', False)
-                    if entry.edited and 'edit_timestamp' in entry_data and entry_data['edit_timestamp']:
-                        try:
-                            entry.edit_timestamp = datetime.strptime(entry_data['edit_timestamp'], '%m/%d/%Y %H:%M')
-                        except ValueError:
-                            entry.edit_timestamp = None
-                    
-                    task.entries.append(entry)
-            
-            # Load time logs
-            if 'time_logs' in task_info:
-                for log_data in task_info['time_logs']:
-                    log = TimeLog(
-                        hours=log_data.get('hours', 0),
-                        user_id=log_data.get('user_id', 'System'),
-                        description=log_data.get('description', '')
-                    )
-                    
-                    if 'id' in log_data:
-                        log.id = log_data['id']
-                    
-                    if 'timestamp' in log_data:
-                        try:
-                            log.timestamp = datetime.strptime(log_data['timestamp'], '%Y-%m-%d %H:%M:%S')
-                        except ValueError:
-                            log.timestamp = datetime.now()
-                    
-                    task.time_logs.append(log)
-            
-            # Fix checklist loading
-            if 'checklist' in task_info:
-                # Make sure checklist is properly formatted with text and checked status
-                task.checklist = []
-                for item in task_info['checklist']:
-                    if isinstance(item, dict) and 'text' in item:
-                        # Standard format - use 'checked' as the key name
-                        task.checklist.append({
-                            'text': item['text'],
-                            'checked': item.get('checked', False)
-                        })
-                    elif isinstance(item, str):
-                        # Item is just a string, create a dict with checked = False
-                        task.checklist.append({'text': item, 'checked': False})
-                    else:
-                        # Skip invalid items
-                        logger.warning(f"Skipping invalid checklist item in task {task_name}: {item}")
-            else:
-                task.checklist = []
-
-            #print(task.checklist)
-
-            # Add the task to our dictionary using task ID as key
-            task_objects[task.id] = task
-
-        # Sort tasks by priority
-        sorted_tasks = dict(sorted(task_objects.items(), key=lambda item: item[1].priority.value, reverse=True))
-
-        # Cache the result
+    # The file may have been moved aside as unreadable, so re-check before caching
+    if os.path.exists(json_file_path):
         _tasks_cache = sorted_tasks
-        _tasks_cache_mtime = current_mtime
+        _tasks_cache_mtime = os.path.getmtime(json_file_path)
 
-        return sorted_tasks
-
-    except Exception as e:
-        logger.error(f"Error loading tasks from JSON: {e}")
-        return {}
+    return sorted_tasks
 
 def save_task_to_json(task, logger):
     """
     Save a Task object to the JSON file in the user's app data directory
-    
+
     Args:
         task: The Task object to save (can be new or existing)
     """
-    
-    # Initialize new task if None
     if task is None:
-        task = Task(
-            title="New Task",
-            description="",
-            category=TaskCategory.FEATURE
-        )
+        task = Task(title="New Task", description="", category=TaskCategory.FEATURE)
 
-    logger.debug(f"Task status type: {type(task.status)}")
-    logger.debug(f"Task category type: {type(task.category)}")
-    # Get the path from AppConfig
-    app_config = AppConfig()
-    json_file_path = app_config.tasks_file
-    
-    # Add debug logging
+    json_file_path = AppConfig().tasks_file
     logger.info(f"Attempting to save task to: {json_file_path}")
 
-    try:
-        # Ensure the directory exists
-        data_dir = os.path.dirname(json_file_path)
-        if not os.path.exists(data_dir):
-            logger.info(f"Creating directory: {data_dir}")
-            os.makedirs(data_dir, exist_ok=True)
-        
-        # Read existing data first
-        tasks_data = {}
-        if os.path.exists(json_file_path):
-            with open(json_file_path, 'r') as file:
-                tasks_data = json.load(file)
+    # Completed tasks are archived; their category is left alone
+    task.update_archived()
 
-        task_status = task.status.name
-        logger.debug(f"task: {task.title} and status: {task_status}, type: {type(task_status)}")
-        if task_status == "COMPLETED":
-            task.category = TaskCategory.ARCHIVED
+    task.modified_date = datetime.now()
 
-        logger.debug("Completed")
-        # Convert Task object to dictionary, handling potential None values
-        task_data = {
-            'id': getattr(task, 'id', str(uuid4())),  # Generate new ID if none exists
-            'title': getattr(task, 'title', "New Task"),
-            'description': getattr(task, 'description', ""),
-            'project_id': getattr(task, 'project_id', None),
-            'phase_id': getattr(task, 'phase_id', None),
-            'category': task.category.value if isinstance(task.category, TaskCategory) else (task.category if isinstance(task.category, str) else TaskCategory.FEATURE.value),
-            'creation_date': getattr(task, 'creation_date', datetime.now()).strftime('%Y-%m-%d, %H:%M:%S'),
-            'start_date': task.start_date.strftime('%Y-%m-%d, %H:%M:%S') if getattr(task, 'start_date', None) else None,
-            'due_date': task.due_date.strftime('%Y-%m-%d, %H:%M:%S') if getattr(task, 'due_date', None) else None,
-            'completion_date': task.completion_date.strftime('%Y-%m-%d, %H:%M:%S') if getattr(task, 'completion_date', None) else None,
-            'reminder_date': task.reminder_date.strftime('%Y-%m-%d, %H:%M:%S') if getattr(task, 'reminder_date', None) else None,
-            'status': task.status.name if hasattr(task, 'status') and task.status else TaskStatus.NOT_STARTED.name,
-            'priority': task.priority.name if hasattr(task, 'priority') and task.priority else TaskPriority.MEDIUM.name,
-            'percentage_complete': getattr(task, 'percentage_complete', 0),
-            'estimated_hours': getattr(task, 'estimated_hours', 0.0),
-            'actual_hours': getattr(task, 'actual_hours', 0.0),
-            'cost_estimate': getattr(task, 'cost_estimate', 0.0),
-            'actual_cost': getattr(task, 'actual_cost', 0.0),
-            'assignee': getattr(task, 'assignee', None),
-            'creator': getattr(task, 'creator', None),
-            'parent_task_id': getattr(task, 'parent_task_id', None),
-            'sprint_id': getattr(task, 'sprint_id', None),
-            'milestone_id': getattr(task, 'milestone_id', None),
-            'story_points': getattr(task, 'story_points', None),
-            'modified_date': datetime.now().strftime('%Y-%m-%d, %H:%M:%S'),
-            'modified_by': getattr(task, 'modified_by', None),
-            'dependencies': list(task.dependencies) if hasattr(task, 'dependencies') and task.dependencies else [],
-            'blocked_by': list(task.blocked_by) if hasattr(task, 'blocked_by') and task.blocked_by else [],
-            'watchers': list(task.watchers) if hasattr(task, 'watchers') and task.watchers else [],
-            'collaborators': list(task.collaborators) if hasattr(task, 'collaborators') and task.collaborators else [],
-            'team_members': list(task.collaborators) if hasattr(task, 'collaborators') and task.collaborators else [],
-            'tags': list(task.tags) if hasattr(task, 'tags') and task.tags else [],
-            'custom_fields': getattr(task, 'custom_fields', {}),
-            'attachments': [
-                {
-                    'path_or_url': attachment.path_or_url,
-                    'file_name': os.path.basename(attachment.path_or_url),
-                    'added_date': attachment.upload_date.strftime('%m/%d/%Y %H:%M'),
-                    'added_by': attachment.user_id,
-                    'file_type': attachment.file_type
-                }
-                for attachment in getattr(task, 'attachments', [])
-            ],
-            'checklist': [
-                {
-                    'text': item['text'],
-                    'checked': item.get('completed', item.get('checked', False))
-                } if isinstance(item, dict) else
-                    {'text': item, 'checked': False}
-                for item in getattr(task, 'checklist', [])
-                ],
-            'time_logs': [
-                {
-                    'id': log.id,
-                    'hours': log.hours,
-                    'user_id': log.user_id,
-                    'description': log.description,
-                    'timestamp': log.timestamp.strftime('%Y-%m-%d %H:%M:%S')
-                }
-                for log in getattr(task, 'time_logs', [])
-            ],
-            'activities': [
-                {
-                    'text': entry.content,
-                    'timestamp': entry.timestamp.strftime('%m/%d/%Y %H:%M'),
-                    'type': entry.entry_type,
-                    'edited': entry.edited,
-                    'edit_timestamp': entry.edit_timestamp.strftime('%m/%d/%Y %H:%M') if entry.edit_timestamp else None,
-                    'user_id': entry.user_id
-                }
-                for entry in getattr(task, 'entries', [])
-            ],
-            "settings": {
-                "details": {},
-                "dependencies": {},
-                "attachments": {},
-                "checklist": {},
-                "comments": {},
-                "worklog": {}
-            }
-        }
+    # Clean up None values for cleaner JSON
+    task_data = {k: v for k, v in task.to_dict().items() if v is not None}
 
-        logger.debug(f"Saving update: {task_data['category']}")
+    # Read the raw file so records this version can't parse are written back untouched
+    tasks_data = read_json(json_file_path, logger)
+    tasks_data[task.id] = task_data
 
-        if task_data['category'] == 'ARCHIVED':
-                task_data['archived'] = True
-        
-
-        # Clean up None values for cleaner JSON
-        task_data = {k: v for k, v in task_data.items() if v is not None}
-        
-        # Use ID as the key instead of title to avoid duplicates
-        task_id = task_data['id']
-        
-        # Update the task in the dictionary
-        tasks_data[task_id] = task_data
-        
-        # Write back to file
-        with open(json_file_path, 'w') as file:
-            json.dump(tasks_data, file, indent=2)
-
-        # Invalidate cache since file was modified
-        invalidate_tasks_cache()
-
-        logger.info(f"Task saved to {json_file_path}")
-        return True
-            
-    except Exception as e:
-        logger.error(f"Error saving task to JSON: {e}")
+    if not write_json(json_file_path, tasks_data, logger):
         return False
-    
+
+    invalidate_tasks_cache()
+    logger.info(f"Task saved to {json_file_path}")
+    return True
+
+def save_tasks_to_json(tasks, logger):
+    """Save several tasks in one write (all or nothing). Returns True on success."""
+    json_file_path = AppConfig().tasks_file
+    tasks_data = read_json(json_file_path, logger)
+    for task in tasks:
+        task.update_archived()
+        tasks_data[task.id] = {k: v for k, v in task.to_dict().items() if v is not None}
+    if not write_json(json_file_path, tasks_data, logger):
+        return False
+    invalidate_tasks_cache()
+    return True
+
+def update_task_fields(task_id, fields, logger):
+    """
+    Save just some fields of an already-saved task, leaving everything else on disk
+    as it was. Used for changes that apply immediately (like ticking a checklist
+    item) while other edits to the task are still unsaved.
+
+    Returns:
+        True if saved, False if the task isn't on disk yet or the save failed
+    """
+    json_file_path = AppConfig().tasks_file
+    tasks_data = read_json(json_file_path, logger)
+    if not isinstance(tasks_data.get(task_id), dict):
+        return False
+
+    tasks_data[task_id].update(fields)
+    if not write_json(json_file_path, tasks_data, logger):
+        return False
+
+    invalidate_tasks_cache()
+    return True
+
+def delete_task_from_json(task_id, logger):
+    """
+    Delete a task by ID.
+
+    Returns:
+        True if the task was deleted, False if it wasn't found or the save failed
+    """
+    json_file_path = AppConfig().tasks_file
+    tasks_data = read_json(json_file_path, logger)
+
+    if task_id not in tasks_data:
+        logger.warning(f"Task {task_id} not found in {json_file_path}")
+        return False
+
+    del tasks_data[task_id]
+
+    # Drop references from other tasks in the same write
+    for raw in tasks_data.values():
+        if isinstance(raw, dict):
+            for field in ('dependencies', 'blocked_by'):
+                if isinstance(raw.get(field), list) and task_id in raw[field]:
+                    raw[field] = [ref for ref in raw[field] if ref != task_id]
+
+    if not write_json(json_file_path, tasks_data, logger):
+        return False
+
+    invalidate_tasks_cache()
+    _remove_task_references(task_id, logger)
+    logger.info(f"Deleted task {task_id}")
+    return True
+
+def _remove_task_references(task_id, logger):
+    """Remove a deleted task from the planning schedule"""
+    schedule_path = os.path.join(AppConfig().data_dir, "scheduled_tasks.json")
+    if os.path.exists(schedule_path):
+        schedule = read_json(schedule_path, logger)
+        remaining = {sid: entry for sid, entry in schedule.items()
+                     if not (isinstance(entry, dict) and entry.get('task_id') == task_id)}
+        if len(remaining) != len(schedule):
+            write_json(schedule_path, remaining, logger)

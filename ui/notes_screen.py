@@ -21,33 +21,22 @@
 # SOFTWARE.
 # -----------------------------------------------------------------------------
 # File: notes_screen.py
-# Description: Used to create and edit personal notes. 
+# Description: Used to create and edit personal notes.
 # Author: Jereme Shaver
 # -----------------------------------------------------------------------------
 
-import sys, os, json, copy
 from utils.notes_io import save_note_to_json, load_notes_from_json, delete_note_from_json
 from uuid import uuid4
 from datetime import datetime
-from pathlib import Path
-from utils.directory_finder import resource_path
+from utils.constants import MAIN_PANEL_STRETCH, SIDE_PANEL_STRETCH
 from models.note import Note
-from models.task import Task, TaskCategory, TaskPriority, TaskStatus, Attachment, TaskEntry, TimeLog
 from ui.custom_widgets.text_edit_toolbar import TextEditToolbar
-from ui.custom_widgets.collapsable_section import CollapsibleSection
-from resources.styles import AppColors
-from resources.styles import AppStyles, AnimatedButton
-from PyQt5.QtWidgets import (QApplication, QDesktopWidget, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QSpacerItem, 
-                             QSizePolicy, QGridLayout, QPushButton, QGraphicsDropShadowEffect, QStyle, QComboBox, QTextEdit,
-                             QDateTimeEdit, QLineEdit, QCalendarWidget, QToolButton, QSpinBox, QListWidget, QTabWidget,
-                             QMessageBox, QInputDialog, QListWidgetItem, QScrollArea, QTreeWidget, QTreeWidgetItem, QFileDialog,
-                             QStyleFactory, QListView, QLayout, QListWidget
+from resources.styles import AppStyles
+from ui.custom_widgets import dialogs
+from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QSizePolicy, QPushButton, QTextEdit,
+                             QLineEdit, QMessageBox, QListWidgetItem, QListWidget
                              )
-from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot, QEvent, QSize, QDateTime, QUrl, QTimer
-from PyQt5.QtGui import (QColor, QPainter, QBrush, QPen, QMovie, QTextCharFormat, QColor, QIcon, QPixmap, QDesktopServices,
-                        
-                        )
-from PyQt5.QtSvg import QSvgWidget
+from PyQt5.QtCore import Qt
 
 
 
@@ -60,14 +49,16 @@ class NotesScreen(QWidget):
 
         self.title_editor = None
         self.editor = None
+        # The note in the editors; None means a new note not saved yet
         self.current_note_id = None
+        # True once the editors differ from what was last loaded or saved
+        self._dirty = False
 
         self.initUI()
         self.updateNotesList()
 
     def initUI(self):
         self.initCentralWidget()
-        self.initBannerSpacer()
         self.addSeparator()
         self.initPanelHorizontalContainer()
 
@@ -78,14 +69,6 @@ class NotesScreen(QWidget):
         self.main_layout.setContentsMargins(0, 0, 0, 0)
         self.main_layout.setSpacing(0)
         self.setLayout(self.main_layout)
-
-    def initBannerSpacer(self):
-        self.banner_widget = QWidget()
-        self.banner_layout = QVBoxLayout(self.banner_widget)
-        banner_height = int(self.height()*0.15) 
-        self.banner_spacer = QSpacerItem(1, banner_height, QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.banner_layout.addSpacerItem(self.banner_spacer)
-        self.main_layout.addWidget(self.banner_widget)
 
     def addSeparator(self):
         separator = QFrame()
@@ -98,8 +81,8 @@ class NotesScreen(QWidget):
         panel_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         panel_layout = QHBoxLayout(panel_widget)
         panel_layout.setContentsMargins(0, 0, 0, 0)
-        panel_layout.addLayout(self.initLeftNotePanel(), 1)
-        panel_layout.addLayout(self.initRightNotePanel(), 5)
+        panel_layout.addLayout(self.initLeftNotePanel(), SIDE_PANEL_STRETCH)
+        panel_layout.addLayout(self.initRightNotePanel(), MAIN_PANEL_STRETCH)
 
         self.main_layout.addWidget(panel_widget)
 
@@ -121,6 +104,7 @@ class NotesScreen(QWidget):
         header_title_label.setAlignment(Qt.AlignCenter)
 
         add_note_button = QPushButton("+")
+        add_note_button.setToolTip("New note")
         add_note_button.setStyleSheet("""
             QPushButton {
                 font-size: 15px;
@@ -131,11 +115,6 @@ class NotesScreen(QWidget):
             }
         """)
         add_note_button.setFixedSize(20, 20)
-        # Disconnect any previous connections to avoid duplicate calls.
-        try:
-            add_note_button.clicked.disconnect()
-        except Exception:
-            pass
         add_note_button.clicked.connect(self.createNewNote)
 
         header_panel_layout.addWidget(header_title_label)
@@ -144,45 +123,73 @@ class NotesScreen(QWidget):
 
         return header_panel_layout
 
+    def _markDirty(self):
+        self._dirty = True
+
+    def _setEditors(self, title, html):
+        """Fill the editors without counting it as an edit"""
+        self.title_editor.blockSignals(True)
+        self.editor.blockSignals(True)
+        self.title_editor.setText(title)
+        if html:
+            self.editor.setHtml(html)
+        else:
+            self.editor.clear()
+        self.title_editor.blockSignals(False)
+        self.editor.blockSignals(False)
+        self._dirty = False
+
+    def _confirmDiscardChanges(self):
+        """Ask what to do with unsaved edits. Returns False if the user cancels."""
+        if not self._dirty:
+            return True
+        reply = dialogs.ask_to_save(self, "note", self.title_editor.text().strip() or None)
+        if reply == QMessageBox.Cancel:
+            return False
+        if reply == QMessageBox.Save:
+            return self.saveCurrentNote()
+        return True
+
+    def confirm_discard_changes(self):
+        """Offer to save unsaved edits (used when the app closes)"""
+        return self._confirmDiscardChanges()
+
+    def _selectCurrentNoteInList(self):
+        self.notes_list.blockSignals(True)
+        self.notes_list.clearSelection()
+        self.notes_list.setCurrentRow(-1)
+        for row in range(self.notes_list.count()):
+            if self.notes_list.item(row).data(Qt.UserRole) == self.current_note_id:
+                self.notes_list.setCurrentRow(row)
+                break
+        self.notes_list.blockSignals(False)
+
     def createNewNote(self):
-        """Creates a new blank note."""
-        new_note = {
-            "id": str(uuid4()),
-            "title": "Untitled",
-            "content": "",
-            "created_at": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            "modified_at": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        }
-        notes = self.loadNotes()
-        notes[new_note["id"]] = new_note
-        self.updateNotesList()
-        # Clear both editors for a fresh note.
-        self.title_editor.setText("")
-        self.editor.setText("")
+        """Start a new, blank note. It's saved (and listed) when Save is pressed."""
+        if not self._confirmDiscardChanges():
+            return
+        # Forget the previous note, so saving can't overwrite it
+        self.current_note_id = None
+        self._selectCurrentNoteInList()
+        self._setEditors("", "")
+        self.title_editor.setFocus()
 
     def saveCurrentNote(self):
-        """Save the currently selected note, preserving rich text formatting.
-        If no note is selected, create a new note."""
-        selected_item = self.notes_list.currentItem()
+        """Save the note in the editors, preserving rich text formatting.
+        A new note gets a new ID. Returns True if saved."""
         notes_data = self.loadNotes()
 
-        # Determine the note ID to use when saving
-        if selected_item:
-            note_id = selected_item.data(Qt.UserRole)
-        elif self.current_note_id:
-            note_id = self.current_note_id
-        else:
-            note_id = str(uuid4())
-        self.current_note_id = note_id
-        
+        # The editors always belong to current_note_id; None means a new note
+        note_id = self.current_note_id or str(uuid4())
+
         # Create or update a Note object using the current editor contents.
         # Use toHtml() to preserve formatting.
         note = Note(
-            title=self.title_editor.text(),
+            title=self.title_editor.text().strip() or "Untitled",
             content=self.editor.toHtml()
         )
         note.id = note_id
-        
+
         # If updating an existing note, preserve its creation_date if available.
         if note_id in notes_data:
             try:
@@ -191,22 +198,34 @@ class NotesScreen(QWidget):
                 )
             except Exception:
                 note.creation_date = datetime.now()
-        
-        # Save the note using your helper function
-        if save_note_to_json(note, self.logger):
-            self.logger.info("Note saved successfully using the helper function.")
-            self.updateNotesList()
-        else:
+
+        if not save_note_to_json(note, self.logger):
             self.logger.error("Failed to save note.")
+            dialogs.critical(self, "Save Failed", "The note could not be saved. See app.log for details.")
+            return False
+
+        self.current_note_id = note_id
+        self._dirty = False
+        self.updateNotesList()
+        return True
 
     def deleteCurrentNote(self):
-        selected_item = self.notes_list.currentItem()
-        if not selected_item:
-            self.logger.error("No note selected for deletion.")
+        if not self.current_note_id:
+            # A new note that was never saved: just clear it
+            self._setEditors("", "")
             return
 
-        note_id = selected_item.data(Qt.UserRole)
-        if delete_note_from_json(note_id, self.logger):
+        title = self.title_editor.text().strip() or "Untitled"
+        reply = dialogs.question(
+            self, "Delete Note", f"Delete the note '{title}'? This can't be undone.",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if reply != QMessageBox.Yes:
+            return
+
+        if delete_note_from_json(self.current_note_id, self.logger):
+            # Clear the editors, so Save can't bring the deleted note back
+            self.current_note_id = None
+            self._setEditors("", "")
             self.updateNotesList()
         else:
             self.logger.error("Failed to delete note.")
@@ -214,12 +233,17 @@ class NotesScreen(QWidget):
     def loadSelectedNote(self, item):
         """Loads the selected note into the editors, preserving formatting."""
         note_id = item.data(Qt.UserRole)
+        if note_id == self.current_note_id:
+            return
+        if not self._confirmDiscardChanges():
+            # Stay on the note being edited
+            self._selectCurrentNoteInList()
+            return
+
         notes = self.loadNotes()
         if note_id in notes:
             self.current_note_id = note_id
-            self.title_editor.setText(notes[note_id]["title"])
-            # Restore rich text formatting
-            self.editor.setHtml(notes[note_id]["content"])
+            self._setEditors(notes[note_id].get("title", ""), notes[note_id].get("content", ""))
 
     def initNotesPanelList(self):
         # Create the list widget that displays note titles.
@@ -231,7 +255,7 @@ class NotesScreen(QWidget):
         notes_list_layout.addWidget(self.notes_list)
 
         return notes_list_layout
-    
+
     def updateNotesList(self):
         """Refresh the notes list with the latest notes from storage."""
         notes = self.loadNotes()
@@ -265,20 +289,24 @@ class NotesScreen(QWidget):
         self.title_editor = QLineEdit()
         self.title_editor.setStyleSheet(AppStyles.line_edit_norm())
         self.title_editor.setPlaceholderText("Enter note title here")
-        
+        self.title_editor.textChanged.connect(self._markDirty)
+
         self.editor = QTextEdit()
         self.editor.setStyleSheet(AppStyles.text_edit_norm())
+        self.editor.textChanged.connect(self._markDirty)
 
         toolbar_widget = QWidget()
         toolbar_layout = QHBoxLayout(toolbar_widget)
-        
+
         toolbar = TextEditToolbar(self.editor)
 
         save_button = QPushButton("Save")
+        save_button.setToolTip("Save this note")
         save_button.setStyleSheet(AppStyles.save_button())
         save_button.clicked.connect(self.saveCurrentNote)
 
         delete_button = QPushButton("Delete")
+        delete_button.setToolTip("Delete this note")
         delete_button.setStyleSheet(AppStyles.save_button())
         delete_button.clicked.connect(self.deleteCurrentNote)
 

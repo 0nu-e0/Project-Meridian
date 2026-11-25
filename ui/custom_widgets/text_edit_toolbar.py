@@ -1,5 +1,6 @@
+from ui.custom_widgets import dialogs
 from resources.styles import AppStyles
-from PyQt5.QtWidgets import QWidget, QToolBar, QAction, QComboBox, QHBoxLayout, QInputDialog, QListView
+from PyQt5.QtWidgets import QWidget, QToolBar, QAction, QComboBox, QHBoxLayout, QListView
 from PyQt5.QtCore import QSize
 from PyQt5.QtGui import QTextListFormat, QFont, QTextTableFormat
 
@@ -136,12 +137,12 @@ class TextEditToolbar(QWidget):
 
     def insertTable(self):
         # Prompt for the number of rows
-        rows, ok = QInputDialog.getInt(self, "Insert Table", "Number of rows:", 2, 1, 100, 1)
+        rows, ok = dialogs.getInt(self, "Insert Table", "Number of rows:", 2, 1, 100, 1)
         if not ok:
             return
         
         # Prompt for the number of columns
-        columns, ok = QInputDialog.getInt(self, "Insert Table", "Number of columns:", 2, 1, 100, 1)
+        columns, ok = dialogs.getInt(self, "Insert Table", "Number of columns:", 2, 1, 100, 1)
         if not ok:
             return
         

@@ -25,20 +25,23 @@
 # Author: Jereme Shaver
 # -----------------------------------------------------------------------------
 
-from PyQt5.QtCore import Qt, pyqtSignal, QPropertyAnimation, QEasingCurve, QMimeData, QByteArray
+from PyQt5.QtCore import Qt, pyqtSignal, QMimeData
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QProgressBar, QFrame, QSizePolicy, QMessageBox
+    QFrame, QMessageBox
 )
-from PyQt5.QtGui import QDragEnterEvent, QDropEvent, QDrag, QCursor
+from PyQt5.QtGui import QDragEnterEvent, QDropEvent, QDrag
 
+from ui.custom_widgets import dialogs
 from models.phase import Phase
 from models.project import Project
 from models.task import TaskStatus
-from utils.projects_io import load_phases_from_json, save_phases_to_json, delete_phase, move_task_to_phase
+from utils.projects_io import (delete_phase, move_task_to_phase,
+                               save_phase_fields, set_current_phase)
 from utils.tasks_io import load_tasks_from_json, save_task_to_json
 from resources.styles import AppStyles
 from ui.project_files.draggable_task_item import DraggableTaskItem
+from resources.styles import AppColors
 
 
 class PhaseWidget(QWidget):
@@ -49,6 +52,7 @@ class PhaseWidget(QWidget):
     phaseUpdated = pyqtSignal(str)  # Emits phase_id when updated
     phaseDeleted = pyqtSignal(str)  # Emits phase_id when deleted
     phaseReordered = pyqtSignal(str, int)  # Emits (phase_id, new_position) when dragged to new position
+    taskUpdated = pyqtSignal()  # Emits when a task in this phase is updated/deleted
 
     def __init__(self, phase: Phase, project: Project, logger):
         super().__init__()
@@ -85,8 +89,8 @@ class PhaseWidget(QWidget):
 
         # Container frame
         self.container = QFrame()
-        border_color = self.project.color if self.phase.is_current else "#3498db"
-        background_color = "#2c3e50"
+        border_color = self.project.color if self.phase.is_current else AppColors.accent
+        background_color = AppColors.surface
 
         self.container.setStyleSheet(f"""
             QFrame {{
@@ -118,12 +122,13 @@ class PhaseWidget(QWidget):
         else:
             # Empty state
             empty_label = QLabel("No tasks in this phase yet")
-            empty_label.setStyleSheet("font-size: 12px; color: #bdc3c7; padding: 10px;")
+            empty_label.setStyleSheet(f"font-size: 12px; color: {AppColors.text_secondary}; padding: 10px;")
             empty_label.setAlignment(Qt.AlignCenter)
             self.content_layout.addWidget(empty_label)
 
         # "+ Add Task" button
         add_task_btn = QPushButton("+ Add Task")
+        add_task_btn.setToolTip("Add a task to this phase")
         add_task_btn.setStyleSheet(AppStyles.add_button())
         add_task_btn.setFixedHeight(35)
         add_task_btn.clicked.connect(self.onAddTask)
@@ -146,31 +151,32 @@ class PhaseWidget(QWidget):
 
         # Drag handle
         drag_handle = QLabel("⋮⋮")
-        drag_handle.setStyleSheet("""
-            QLabel {
-                color: #7f8c8d;
+        drag_handle.setStyleSheet(f"""
+            QLabel {{
+                color: {AppColors.text_faint};
                 font-size: 14px;
                 padding: 0px 5px;
-            }
+            }}
         """)
         drag_handle.setToolTip("Drag to reorder phases")
         header_layout.addWidget(drag_handle)
 
         # Expand/collapse button
         self.expand_btn = QPushButton("▼" if self.is_expanded else "▶")
-        self.expand_btn.setStyleSheet("""
-            QPushButton {
+        self.expand_btn.setToolTip("Show or hide this phase's tasks")
+        self.expand_btn.setStyleSheet(f"""
+            QPushButton {{
                 background-color: transparent;
                 border: none;
                 font-size: 16px;
-                color: #bdc3c7;
+                color: {AppColors.text_secondary};
                 padding: 0px;
                 min-width: 20px;
                 max-width: 20px;
-            }
-            QPushButton:hover {
-                color: #ecf0f1;
-            }
+            }}
+            QPushButton:hover {{
+                color: {AppColors.text_primary};
+            }}
         """)
         self.expand_btn.clicked.connect(self.toggleExpand)
         header_layout.addWidget(self.expand_btn)
@@ -178,12 +184,12 @@ class PhaseWidget(QWidget):
         # Phase number and name
         phase_label_text = f"Phase {self.phase.order + 1}: {self.phase.name}"
         phase_name_label = QLabel(phase_label_text)
-        phase_name_label.setStyleSheet("""
-            QLabel {
+        phase_name_label.setStyleSheet(f"""
+            QLabel {{
                 font-size: 16px;
                 font-weight: bold;
-                color: #ecf0f1;
-            }
+                color: {AppColors.text_primary};
+            }}
         """)
         header_layout.addWidget(phase_name_label)
 
@@ -211,41 +217,41 @@ class PhaseWidget(QWidget):
         completed_count = self.phase.get_completed_task_count()
 
         progress_label = QLabel(f"{completed_count}/{task_count} tasks ({progress:.0f}%)")
-        progress_label.setStyleSheet("font-size: 12px; color: #bdc3c7;")
+        progress_label.setStyleSheet(f"font-size: 12px; color: {AppColors.text_secondary};")
         header_layout.addWidget(progress_label)
 
         # Edit button (shows on hover - for now always visible)
         edit_btn = QPushButton("Edit")
-        edit_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #34495e;
-                border: 2px solid #3498db;
+        edit_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {AppColors.surface_raised};
+                border: 2px solid {AppColors.accent};
                 border-radius: 4px;
-                color: #ecf0f1;
+                color: {AppColors.text_primary};
                 font-size: 11px;
                 padding: 4px 8px;
-            }
-            QPushButton:hover {
-                background-color: #3498db;
-            }
+            }}
+            QPushButton:hover {{
+                background-color: {AppColors.accent};
+            }}
         """)
         edit_btn.clicked.connect(self.onEditPhase)
         header_layout.addWidget(edit_btn)
 
         # Delete button
         delete_btn = QPushButton("Delete")
-        delete_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #e74c3c;
+        delete_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {AppColors.danger};
                 border: none;
                 border-radius: 4px;
                 color: white;
                 font-size: 11px;
                 padding: 4px 8px;
-            }
-            QPushButton:hover {
-                background-color: #c0392b;
-            }
+            }}
+            QPushButton:hover {{
+                background-color: {AppColors.danger_dark};
+            }}
         """)
         delete_btn.clicked.connect(self.onDeletePhase)
         header_layout.addWidget(delete_btn)
@@ -253,6 +259,7 @@ class PhaseWidget(QWidget):
         # Mark as current button (if not already current)
         if not self.phase.is_current:
             current_btn = QPushButton("Mark Current")
+            current_btn.setToolTip("Make this the phase the project is in now")
             current_btn.setStyleSheet(f"""
                 QPushButton {{
                     background-color: {self.project.color};
@@ -283,9 +290,7 @@ class PhaseWidget(QWidget):
 
         # Update phase collapsed state in storage
         self.phase.collapsed = not self.is_expanded
-        phases = load_phases_from_json(self.logger)
-        phases[self.phase.id] = self.phase
-        save_phases_to_json(phases, self.logger)
+        save_phase_fields(self.phase, ['collapsed'], self.logger)
 
     def createTaskItem(self, task):
         """Create a draggable task list item widget"""
@@ -309,11 +314,11 @@ class PhaseWidget(QWidget):
     def getPriorityColor(self, priority_name):
         """Get color for priority badge"""
         priority_colors = {
-            "HIGH": "#e74c3c",
-            "MEDIUM": "#f39c12",
-            "LOW": "#3498db"
+            "HIGH": AppColors.danger,
+            "MEDIUM": AppColors.warning,
+            "LOW": AppColors.accent
         }
-        return priority_colors.get(priority_name, "#95a5a6")
+        return priority_colors.get(priority_name, AppColors.text_muted)
 
     def onTaskClicked(self, task):
         """Handle task item click - opens task detail view"""
@@ -326,6 +331,7 @@ class PhaseWidget(QWidget):
         self.overlay = QWidget(self.window())
         self.overlay.setStyleSheet("background-color: rgba(0, 0, 0, 128);")
         self.overlay.setGeometry(self.window().rect())
+        self.overlay.setProperty("coversWindow", True)
         self.overlay.show()
         self.overlay.raise_()
 
@@ -333,8 +339,9 @@ class PhaseWidget(QWidget):
         self.dialog_container = QWidget(self.window())
         self.dialog_container.setStyleSheet("background-color: transparent;")
         self.dialog_container.setGeometry(self.window().rect())
-        # Make clicking outside close the dialog
-        self.dialog_container.mousePressEvent = lambda event: self.closeTaskDetail() if event.button() == Qt.LeftButton else None
+        self.dialog_container.setProperty("coversWindow", True)
+        # Clicking outside cancels, like the Cancel button, so unsaved edits are undone (see B38)
+        self.dialog_container.mousePressEvent = lambda event: self._cancelTaskDetail() if event.button() == Qt.LeftButton else None
         self.dialog_container.show()
         self.dialog_container.raise_()
 
@@ -365,6 +372,7 @@ class PhaseWidget(QWidget):
         x = (window_rect.width() - card_width) // 2
         y = (window_rect.height() - card_height) // 2
         self.expanded_card.setGeometry(x, y, card_width, card_height)
+        self.expanded_card.setProperty("centeredInWindow", True)
         self.expanded_card.show()
         self.expanded_card.raise_()
 
@@ -375,6 +383,14 @@ class PhaseWidget(QWidget):
             self.project.invalidate_task_cache()
         self.closeTaskDetail()
         self.refreshTasks()
+        # Emit signal to notify that a task was updated
+        self.taskUpdated.emit()
+
+    def _cancelTaskDetail(self):
+        if getattr(self, 'expanded_card', None) is not None:
+            self.expanded_card.cancelTaskChanges()  # emits cancelTask, which closes it
+        else:
+            self.closeTaskDetail()
 
     def onTaskCanceled(self):
         """Handle task dialog cancel"""
@@ -387,6 +403,8 @@ class PhaseWidget(QWidget):
             self.project.invalidate_task_cache()
         self.closeTaskDetail()
         self.refreshTasks()
+        # Emit signal to notify that a task was deleted
+        self.taskUpdated.emit()
 
     def closeTaskDetail(self):
         """Close the task detail overlay"""
@@ -443,18 +461,8 @@ class PhaseWidget(QWidget):
         # Set creation date
         task.creation_date = datetime.now()
 
-        # Save the task
+        # Save the task (its phase_id is what puts it in this phase)
         save_task_to_json(task, self.logger)
-
-        # Add task to phase's task_ids list
-        if task.phase_id:
-            phases = load_phases_from_json(self.logger)
-            if self.phase.id in phases:
-                phase = phases[self.phase.id]
-                if task.id not in phase.task_ids:
-                    phase.task_ids.append(task.id)
-                    save_phases_to_json(phases, self.logger)
-                    self.logger.info(f"Added task {task.id} to phase {self.phase.id} task_ids list")
 
         # Invalidate project task cache since a new task was added
         if self.project:
@@ -468,21 +476,33 @@ class PhaseWidget(QWidget):
         # Reload tasks
         self.loadTasks()
 
-        # Clear existing task widgets
-        while self.content_layout.count() > 1:  # Keep the Add Task button
-            item = self.content_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
+        # Clear existing task widgets (remove all items except the Add Task button and stretch)
+        # Count backwards to avoid index issues
+        items_to_remove = []
+        for i in range(self.content_layout.count()):
+            item = self.content_layout.itemAt(i)
+            if item and item.widget():
+                widget = item.widget()
+                # Don't remove the Add Task button
+                if not isinstance(widget, QPushButton):
+                    items_to_remove.append(widget)
 
-        # Re-add task items
+        # Remove collected widgets
+        for widget in items_to_remove:
+            self.content_layout.removeWidget(widget)
+            widget.deleteLater()
+
+        # Re-add task items (insert before the Add Task button)
+        insert_position = 0
         if self.tasks:
             for task in self.tasks:
                 task_item = self.createTaskItem(task)
-                self.content_layout.insertWidget(self.content_layout.count() - 1, task_item)
+                self.content_layout.insertWidget(insert_position, task_item)
+                insert_position += 1
         else:
             # Empty state
             empty_label = QLabel("No tasks in this phase yet")
-            empty_label.setStyleSheet("font-size: 12px; color: #95a5a6; padding: 10px;")
+            empty_label.setStyleSheet(f"font-size: 12px; color: {AppColors.text_muted}; padding: 10px;")
             empty_label.setAlignment(Qt.AlignCenter)
             self.content_layout.insertWidget(0, empty_label)
 
@@ -506,10 +526,8 @@ class PhaseWidget(QWidget):
         self.phase.name = phase_data['name']
         self.phase.description = phase_data['description']
 
-        # Save to JSON
-        phases = load_phases_from_json(self.logger)
-        phases[self.phase.id] = self.phase
-        save_phases_to_json(phases, self.logger)
+        # Save just the edited fields, so changes made elsewhere aren't overwritten
+        save_phase_fields(self.phase, ['name', 'description'], self.logger)
 
         # Emit signal
         self.phaseUpdated.emit(self.phase.id)
@@ -517,7 +535,7 @@ class PhaseWidget(QWidget):
     def onDeletePhase(self):
         """Handle delete phase button click"""
         # Show confirmation dialog
-        reply = QMessageBox.question(
+        reply = dialogs.question(
             self,
             "Delete Phase",
             f"Are you sure you want to delete the phase '{self.phase.name}'?\n\nTasks in this phase will not be deleted, but will no longer be associated with it.",
@@ -532,102 +550,21 @@ class PhaseWidget(QWidget):
             if success:
                 self.phaseDeleted.emit(self.phase.id)
             else:
-                QMessageBox.warning(self, "Error", "Failed to delete phase")
+                dialogs.warning(self, "Error", "Failed to delete phase")
 
     def onMarkAsCurrent(self):
         """Handle mark as current button click"""
-        from utils.projects_io import load_projects_from_json, save_projects_to_json
-
-        # Load all phases and projects
-        phases = load_phases_from_json(self.logger)
-        projects = load_projects_from_json(self.logger)
-
-        # Unmark old current phase
-        if self.project.current_phase_id:
-            old_current = phases.get(self.project.current_phase_id)
-            if old_current:
-                old_current.is_current = False
-                phases[old_current.id] = old_current
-
-        # Mark this phase as current
+        set_current_phase(self.project.id, self.phase.id, self.logger)
         self.phase.is_current = True
-        phases[self.phase.id] = self.phase
-
-        # Update project's current_phase_id
         self.project.current_phase_id = self.phase.id
-        projects[self.project.id] = self.project
-
-        # Save changes
-        save_phases_to_json(phases, self.logger)
-        save_projects_to_json(projects, self.logger)
 
         # Emit signal
         self.phaseUpdated.emit(self.phase.id)
 
-    def dragEnterEvent(self, event: QDragEnterEvent):
-        """Handle drag enter event"""
-        if event.mimeData().hasFormat("application/x-task-id"):
-            event.acceptProposedAction()
-            # Highlight the phase to indicate it can accept the drop
-            self.container.setStyleSheet(self.container.styleSheet() + """
-                QFrame {
-                    border: 2px dashed #3498db;
-                    background-color: #ebf5fb;
-                }
-            """)
-        else:
-            event.ignore()
-
-    def dragLeaveEvent(self, event):
-        """Handle drag leave event"""
-        # Remove highlight
-        self.updateContainerStyle()
-
-    def dropEvent(self, event: QDropEvent):
-        """Handle drop event"""
-        if event.mimeData().hasFormat("application/x-task-id"):
-            task_id = bytes(event.mimeData().data("application/x-task-id")).decode()
-
-            # Load tasks to get the task
-            all_tasks = load_tasks_from_json(self.logger)
-            task = all_tasks.get(task_id)
-
-            if task:
-                # Check if task is already in this phase
-                if task.phase_id == self.phase.id:
-                    self.logger.info(f"Task {task.title} already in phase {self.phase.name}")
-                    self.updateContainerStyle()
-                    return
-
-                # Move task to this phase
-                old_phase_id = task.phase_id
-                success = move_task_to_phase(task_id, self.phase.id, self.logger)
-
-                if success:
-                    self.logger.info(f"Moved task {task.title} to phase {self.phase.name}")
-
-                    # Refresh the task list
-                    self.refreshTasks()
-
-                    # Emit signal to notify parent
-                    self.phaseUpdated.emit(self.phase.id)
-                    if old_phase_id:
-                        self.phaseUpdated.emit(old_phase_id)
-
-                    event.acceptProposedAction()
-                else:
-                    QMessageBox.warning(self, "Error", "Failed to move task to this phase.")
-                    event.ignore()
-            else:
-                event.ignore()
-
-        # Remove highlight
-        self.updateContainerStyle()
-
     def updateContainerStyle(self):
         """Update container styling based on phase state"""
-        border_color = self.project.color if self.phase.is_current else "#e0e0e0"
-        background = "#f8f9fa" if self.phase.is_current else "#ffffff"
+        border_color = self.project.color if self.phase.is_current else AppColors.light_border_alt
+        background = AppColors.light_surface if self.phase.is_current else AppColors.white
 
         self.container.setStyleSheet(f"""
             QFrame {{
@@ -655,8 +592,6 @@ class PhaseWidget(QWidget):
             return
 
         # Create drag object
-        from PyQt5.QtGui import QDrag
-        from PyQt5.QtCore import QMimeData
         import sip
 
         drag = QDrag(self)
@@ -686,11 +621,11 @@ class PhaseWidget(QWidget):
         if mime_data.hasFormat("application/x-task-id"):
             event.acceptProposedAction()
             # Highlight the phase to indicate it can accept the drop
-            self.container.setStyleSheet(self.container.styleSheet() + """
-                QFrame {
-                    border: 2px dashed #3498db;
-                    background-color: #ebf5fb;
-                }
+            self.container.setStyleSheet(self.container.styleSheet() + f"""
+                QFrame {{
+                    border: 2px dashed {AppColors.accent};
+                    background-color: {AppColors.accent_wash};
+                }}
             """)
         # Check if it's a phase being dragged
         elif mime_data.hasText():
@@ -699,10 +634,10 @@ class PhaseWidget(QWidget):
             if dragged_phase_id != self.phase.id:
                 event.acceptProposedAction()
                 # Show drop indicator
-                self.container.setStyleSheet(self.container.styleSheet() + """
-                    QFrame {
-                        border: 3px dashed #27ae60;
-                    }
+                self.container.setStyleSheet(self.container.styleSheet() + f"""
+                    QFrame {{
+                        border: 3px dashed {AppColors.success};
+                    }}
                 """)
         else:
             event.ignore()
@@ -748,7 +683,7 @@ class PhaseWidget(QWidget):
 
                     event.acceptProposedAction()
                 else:
-                    QMessageBox.warning(self, "Error", "Failed to move task to this phase.")
+                    dialogs.warning(self, "Error", "Failed to move task to this phase.")
                     event.ignore()
             else:
                 event.ignore()

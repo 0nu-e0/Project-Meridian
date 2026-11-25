@@ -28,11 +28,12 @@
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
-    QTextEdit, QPushButton, QFormLayout, QWidget, QMessageBox
+    QTextEdit, QPushButton, QFormLayout, QWidget
 )
 
-from models.phase import Phase
+from ui.custom_widgets import dialogs
 from resources.styles import AppStyles
+from resources.styles import AppColors
 
 
 class PhaseDialog(QDialog):
@@ -68,10 +69,10 @@ class PhaseDialog(QDialog):
         self.setWindowTitle("New Phase" if self.mode == "create" else "Edit Phase")
         self.setModal(True)
         self.setMinimumWidth(450)
-        self.setStyleSheet("""
-            QDialog {
-                background-color: #2c3e50;
-            }
+        self.setStyleSheet(f"""
+            QDialog {{
+                background-color: {AppColors.surface};
+            }}
         """)
 
         # Main layout
@@ -81,12 +82,12 @@ class PhaseDialog(QDialog):
 
         # Title
         title_label = QLabel("New Phase" if self.mode == "create" else "Edit Phase")
-        title_label.setStyleSheet("""
-            QLabel {
+        title_label.setStyleSheet(f"""
+            QLabel {{
                 font-size: 20px;
                 font-weight: bold;
-                color: #ecf0f1;
-            }
+                color: {AppColors.text_primary};
+            }}
         """)
         layout.addWidget(title_label)
 
@@ -144,7 +145,7 @@ class PhaseDialog(QDialog):
         # Validate name
         name = self.name_input.text().strip()
         if not name:
-            QMessageBox.warning(self, "Validation Error", "Phase name is required.")
+            dialogs.warning(self, "Validation Error", "Phase name is required.")
             return
 
         # Get form data
@@ -165,38 +166,38 @@ class PhaseDialog(QDialog):
 
     def getInputStyle(self):
         """Get stylesheet for input widgets"""
-        return """
-            QLineEdit, QTextEdit {
+        return f"""
+            QLineEdit, QTextEdit {{
                 padding: 8px;
-                border: 2px solid #3498db;
+                border: 2px solid {AppColors.accent};
                 border-radius: 5px;
-                background-color: #34495e;
-                color: #ecf0f1;
+                background-color: {AppColors.surface_raised};
+                color: {AppColors.text_primary};
                 font-size: 12px;
-            }
-            QLineEdit:focus, QTextEdit:focus {
-                border: 2px solid #5dade2;
-            }
-            QLineEdit::placeholder, QTextEdit::placeholder {
-                color: #7f8c8d;
-            }
+            }}
+            QLineEdit:focus, QTextEdit:focus {{
+                border: 2px solid {AppColors.accent_light};
+            }}
+            QLineEdit::placeholder, QTextEdit::placeholder {{
+                color: {AppColors.text_faint};
+            }}
         """
 
     def getSecondaryButtonStyle(self):
         """Get stylesheet for secondary button"""
-        return """
-            QPushButton {
-                background-color: #34495e;
-                color: #ecf0f1;
-                border: 2px solid #7f8c8d;
+        return f"""
+            QPushButton {{
+                background-color: {AppColors.surface_raised};
+                color: {AppColors.text_primary};
+                border: 2px solid {AppColors.text_faint};
                 border-radius: 5px;
                 font-size: 13px;
                 font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #7f8c8d;
-            }
-            QPushButton:pressed {
-                background-color: #95a5a6;
-            }
+            }}
+            QPushButton:hover {{
+                background-color: {AppColors.text_faint};
+            }}
+            QPushButton:pressed {{
+                background-color: {AppColors.text_muted};
+            }}
         """

@@ -21,18 +21,59 @@
 # SOFTWARE.
 # -----------------------------------------------------------------------------
 # File: styles.py
-# Description: Used to generate the setStyleSheet settings for layouts. 
+# Description: Used to generate the setStyleSheet settings for layouts.
 # Author: Jereme Shaver
 # -----------------------------------------------------------------------------
 
 from datetime import datetime
 from typing import Optional
 from models.task import TaskPriority, TaskStatus, TaskCategory, DueStatus
-from PyQt5.QtWidgets import QGraphicsDropShadowEffect, QPushButton, QWidget, QHBoxLayout, QVBoxLayout, QLabel, QSplitter
+from PyQt5.QtWidgets import QGraphicsDropShadowEffect, QPushButton, QWidget, QHBoxLayout, QVBoxLayout, QLabel
 from PyQt5.QtGui import QColor
-from PyQt5.QtCore import QPropertyAnimation, QEasingCurve, QObject, QEvent, QSize, pyqtSignal
+from PyQt5.QtCore import QEvent, QSize, pyqtSignal
 
 class AppColors:
+    # Theme palette used by the screens' stylesheets. Settings can override any of
+    # these at startup (see utils/settings.py), so stylesheets refer to them by name.
+    # Accent (blue)
+    accent = "#3498db"
+    accent_dark = "#2980b9"
+    accent_light = "#5dade2"
+    accent_wash = "#ebf5fb"
+    # Text
+    text_primary = "#ecf0f1"
+    text_secondary = "#bdc3c7"
+    text_muted = "#95a5a6"
+    text_faint = "#7f8c8d"
+    # Surfaces: panels, cards, inputs
+    surface = "#2c3e50"
+    surface_raised = "#34495e"
+    surface_sunken = "#1e2a38"
+    surface_deep = "#1a252f"
+    surface_highlight = "#243447"
+    surface_hover = "#3e5467"
+    surface_hover_alt = "#3d5a6b"
+    surface_alt = "#2e4057"
+    border_muted = "#5d6d7e"
+    # Status
+    success = "#27ae60"
+    success_dark = "#229954"
+    success_light = "#2ecc71"
+    success_soft = "#52c77a"
+    danger = "#e74c3c"
+    danger_dark = "#c0392b"
+    danger_darker = "#a93226"
+    warning = "#f39c12"
+    warning_dark = "#e67e22"
+    highlight = "#9b59b6"
+    highlight_dark = "#8e44ad"
+    calendar_weekend = "#5f9ea0"
+    # Light colours used by a few dialogs and menus
+    light_border = "#d0d0d0"
+    light_border_alt = "#e0e0e0"
+    light_divider = "#f0f0f0"
+    light_surface = "#f8f9fa"
+
     # Keep all original names but update values
     none = "transparent"
     main_background_color = "#3b3b3b"  # Near-black background
@@ -43,7 +84,7 @@ class AppColors:
     accent_background_color = "#13151A"  # Subtle dark accent
     accent_background_color_dark = "#1C1F26"
     banner_color = "#2E2F73"  # Added back, modern purple
-    label_font_color_light = "#FFFFFF"   
+    label_font_color_light = "#FFFFFF"
     label_font_color_dark = "#000000"  #balck
     button_background_purple = "#2E2F73"  # Deep electric purple
     button_background_gray = "#4D4D4D"
@@ -59,7 +100,7 @@ class AppColors:
     scroll_bar_main = "#2B2B2B"
     slider_groove_background = "#2E2F73"
     slider_handle_background = "#00FFB2"
-    
+
     # Original accent colors with updated values
     button_green = "#00FF9D"
     red = "#FF2D55"
@@ -88,7 +129,7 @@ class AppColors:
         TaskPriority.LOW: "#2ECC71",       # Green
         TaskPriority.TRIVIAL: "#95A5A6"    # Gray
     }
-    
+
     # Status colors
     status_colors = {
         TaskStatus.NOT_STARTED: "#95A5A6",  # Gray
@@ -99,7 +140,7 @@ class AppColors:
         TaskStatus.ON_HOLD: "#F39C12",      # Orange
         TaskStatus.CANCELLED: "#34495E"     # Dark Gray
     }
-   
+
    # Category colors
     category_colors = {
         TaskCategory.FEATURE: "#3498DB",    # Blue
@@ -132,11 +173,11 @@ class AppColors:
     @staticmethod
     def get_status_color(status: TaskStatus):
         return AppColors.status_colors.get(status, AppColors.accent_background_color)
-        
+
     @staticmethod
     def get_category_color(category: TaskCategory):
         return AppColors.category_colors.get(category, AppColors.accent_background_color)
-    
+
     @staticmethod
     def get_progress_color(percentage):
         for (lower, upper), color in AppColors.progress_colors.items():
@@ -148,10 +189,10 @@ class AppColors:
     def get_due_date_status(due_date: Optional[datetime]) -> DueStatus:
         if not due_date:
             return DueStatus.NO_DUE_DATE
-            
+
         now = datetime.now()
         days_until_due = (due_date - now).days
-        
+
         if days_until_due < 0:
             return DueStatus.OVERDUE
         elif days_until_due <= 2:  # 48 hours or less
@@ -191,7 +232,7 @@ class AppPixelSizes:
     slider_groove__height = "10px"
     slider_handle__height = "20px"
     slider_handle__width = "8px"
-    
+
 
 class AppBorders:
     none = "none"
@@ -205,16 +246,16 @@ class AppBorders:
 
 class AppFontFamily:
     helvetica = "Helvetica"
-    
+
 class AppFontWeight:
     norm = "normal"
     bold = "bold"
     light = "300"
-    
+
 class AppFontStyle:
     norm = "normal"
     italic = "italic"
-    oblique = "oblique" 
+    oblique = "oblique"
 
 class AppMargins:
     none = "0px"
@@ -231,67 +272,67 @@ class AppStyles:
 
     @staticmethod
     def time_stamp_label():
-        return f"font-size: 10px; color: gray;"
-    
+        return "font-size: 10px; color: gray;"
+
     @staticmethod
     def label_edit_delete():
-        return f"color: #ffffff; padding-right: 10px; text-decoration: none;"
+        return "color: #ffffff; padding-right: 10px; text-decoration: none;"
 
     @staticmethod
     def label_trans_background():
-        return f"color: white; background-color: transparent; font-weight: bold; border: none;"
+        return "color: white; background-color: transparent; font-weight: bold; border: none;"
 
     @staticmethod
     def label_checklist():
-        return f""" border: none; background-color: transparent; padding-left: 5px; text-decoration: line-through; color: #888; """
-    
+        return """ border: none; background-color: transparent; padding-left: 5px; text-decoration: line-through; color: #888; """
+
     @staticmethod
     def label_checklist_empty():
-        return f"border: none; background-color: transparent; padding-left: 5px; "
+        return "border: none; background-color: transparent; padding-left: 5px; "
 
     @staticmethod
     def label_lgfnt_bold():
         return f"color: {AppColors.label_font_color_light}; font-size: {AppPixelSizes.font_lrg}; font-weight: {AppFontWeight.bold}; font-family: {AppFontFamily.helvetica}; border: none;"
-    
+
     @staticmethod
     def label_xlgfnt_bold_dark():
         return f"color: {AppColors.label_font_color_light}; font-size: {AppPixelSizes.font_xlrg}; font-weight: {AppFontWeight.bold}; font-family: {AppFontFamily.helvetica};"
-    
+
     @staticmethod
     def label_lgfnt():
         return f"color: {AppColors.label_font_color_light}; font-size: {AppPixelSizes.font_lrg}; font-family: {AppFontFamily.helvetica};"
-    
+
     @staticmethod
     def label_xlgfnt():
         return f"color: {AppColors.label_font_color_light}; font-size: {AppPixelSizes.font_xlrg}; font-family: {AppFontFamily.helvetica};"
-    
+
     @staticmethod
     def label_normal():
         return f"color: {AppColors.label_font_color_light}; font-size: {AppPixelSizes.font_xxlrg}; font-style: {AppFontWeight.norm}; font-family: {AppFontFamily.helvetica}; background: transparent;"
-    
+
     @staticmethod
     def list_label_normal():
         return f"color: {AppColors.label_font_color_light}; background-color: {AppColors.list}; font-size: {AppPixelSizes.font_norm}; font-style: {AppFontWeight.norm}; font-family: {AppFontFamily.helvetica};"
-    
+
     @staticmethod
     def label_small():
         return f"color: {AppColors.label_font_color_light}; font-size: {AppPixelSizes.font_sml}; font-weight: {AppFontWeight.norm}; font-family: {AppFontFamily.helvetica};"
-    
+
     @staticmethod
     def label_bold():
         return f"color: {AppColors.label_font_color_light}; font-size: {AppPixelSizes.font_norm}; font-weight: {AppFontWeight.bold}; font-family: {AppFontFamily.helvetica}; border: none;"
-    
+
     @staticmethod
     def label_bold_wht():
         return f"color: {AppColors.label_font_color_light}; font-size: {AppPixelSizes.font_norm}; font-weight: {AppFontWeight.bold}; background-color: {AppColors.white}; font-family: {AppFontFamily.helvetica};"
-    
+
     @staticmethod
     def label_normal_warn():
         return f"color: {AppColors.red}; font-size: {AppPixelSizes.font_norm}; font-style: {AppFontWeight.norm}; font-family: {AppFontFamily.helvetica};"
-    
+
     @staticmethod
     def card_label_single():
-        return """ 
+        return """
             QLabel {
                     color: white;
                     font-size: 16px;
@@ -304,10 +345,10 @@ class AppStyles:
                     border: none;
                 }
             """
-    
+
     @staticmethod
     def card_label_double():
-        return """ 
+        return """
             QLabel {
                     color: white;
                     font-size: 12px;
@@ -320,32 +361,32 @@ class AppStyles:
                     border: none;
                 }
             """
-    
+
 
     ### Container Styles ###
-            
+
     @staticmethod
     def background_color():
         return f"background-color: {AppColors.main_background_color};"
-    
+
     @staticmethod
     def banner_color():
         return f"background-color: {AppColors.banner_color};"
-    
+
     @staticmethod
     def card_color():
         return f"background-color: {AppColors.white};"
-    
+
     @staticmethod
     def banner_header():
         return f"color: {AppColors.label_font_color_light}; font-size: {AppPixelSizes.font_xxlrg}; font-weight: {AppFontWeight.bold};"
-    
+
     @staticmethod
     def drawer_style():
         return f"background-color: {AppColors.accent_background_color}; border-radius: {AppPixelSizes.border_radius_norm};"
-    
+
     ### Button Styles ###
-    
+
     @staticmethod
     def button_normal():
         return f"""
@@ -365,7 +406,7 @@ class AppStyles:
                 background-color: {AppColors.Magenta};
             }}
         """
-    
+
     @staticmethod
     def button_normal_lg_font():
         return f"""
@@ -387,7 +428,7 @@ class AppStyles:
                 background-color: {AppColors.Magenta};
             }}
         """
-    
+
     @staticmethod
     def button_norm_pad5():
         return f"""
@@ -435,46 +476,46 @@ class AppStyles:
                 color: {AppColors.white}; border-style: {AppBorders.solid_border}; font-size: {AppPixelSizes.font_xlrg}; }}
             QPushButton:hover {{background-color: {AppColors.button_toggle_hover}; }}
         """
-    
+
     @staticmethod
     def button_transparent():
-        return f"""
-            QPushButton {{ border: none; background: transparent; }}
+        return """
+            QPushButton { border: none; background: transparent; }
         """
-    
+
     @staticmethod
     def button_calendar_horizontal():
-        return f"""
-            QToolButton {{ font-size: 16px; font-weigh: bold; }}
+        return """
+            QToolButton { font-size: 16px; font-weigh: bold; }
         """
-    
+
     @staticmethod
     def button_calendar_vertical():
-        return f"""
-            QToolButton {{ color: white; background-color: #36454F; border: none; outline; border-radius: 4px; }}
+        return """
+            QToolButton { color: white; background-color: #36454F; border: none; outline; border-radius: 4px; }
         """
-    
+
     @staticmethod
     def save_button():
-        return f"""
-            QPushButton {{
+        return """
+            QPushButton {
                 background: #4D4D4D;
                 border: 1px solid #C0C0C0;
                 border-radius: 4px;
                 color: #FFFFFF;
                 font-size: 12px;
                 padding: 6px 12px;
-            }}
+            }
 
-            QPushButton:hover {{
+            QPushButton:hover {
                 background: #5D5D5D;
-            }}
+            }
 
-            QPushButton:pressed {{
+            QPushButton:pressed {
                 background: #3D3D3D;
-            }}
+            }
         """
-        
+
     @staticmethod
     def post_button():
         return f"""
@@ -495,7 +536,7 @@ class AppStyles:
                 background: {AppColors.button_pressed};
             }}
         """
-    
+
     @staticmethod
     def add_button():
         return f"""
@@ -516,22 +557,22 @@ class AppStyles:
                 background: {AppColors.button_pressed};
             }}
         """
-    
+
     @staticmethod
     def arrow_button():
-        return f""" 
-            QPushButton {{
+        return """
+            QPushButton {
                 border: none;
                 color: #6B778C;
                 font-size: 14px;
                 text-align: left;
                 padding: 0;
                 background-color: transparent;
-            }}
+            }
         """
 
     ### Scroll Bar Styles ###
-    
+
     @staticmethod
     def scroll_area():
         return f"""
@@ -548,6 +589,24 @@ class AppStyles:
             QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{ border: {AppBorders.none}; background: {AppColors.none}; }}
             QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {{ background: {AppColors.none}; }}
         """
+
+    @staticmethod
+    def planning_scroll_area():
+        return f"""
+            QScrollArea {{ border: {AppBorders.none}; background: transparent;}}
+
+            QScrollBar:vertical {{ border: {AppBorders.none}; background-color: #1e2a38; width: {AppPixelSizes.scroll_bar_width}; }}
+            QScrollBar:horizontal {{ border: {AppBorders.none}; background: transparent; height: {AppPixelSizes.scroll_bar_width};}}
+
+            QScrollBar::handle:vertical {{ background: {AppColors.scroll_bar_main}; min-height: {AppPixelSizes.scroll_bar_min_height}; border-radius: {AppPixelSizes.border_radius_xsml}; }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ border: {AppBorders.none}; background: {AppColors.none}; }}
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{ background: {AppColors.none}; }}
+
+            QScrollBar::handle:horizontal {{ background: transparent; min-width: {AppPixelSizes.scroll_bar_min_height}; border-radius: {AppPixelSizes.border_radius_xxsml}; }}
+            QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{ border: {AppBorders.none}; background: {AppColors.none}; }}
+            QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {{ background: {AppColors.none}; }}
+        """
+
 
     ### List Style ###
     @staticmethod
@@ -639,26 +698,150 @@ class AppStyles:
                 background: {AppColors.none};
             }}
         """
-    
+
     @staticmethod
     def list_hover_style():
         return f"""
         QListWidget {{ border: {AppBorders.none}; outline: {AppBorders.none}; color: {AppColors.list}; }}
         QListWidget::item:hover {{background-color: {AppColors.list}; border-radius: {AppPixelSizes.border_radius_sml}; }}
         """
-    
+
     @staticmethod
     def list_select_style():
         return f"background-color: {AppColors.list};" f"border-radius: {AppPixelSizes.border_radius_sml};"
-    
+
     @staticmethod
     def list_style():
         return f"""
             QListWidget {{ border: {AppBorders.none}; outline: {AppBorders.none}; background-color: {AppColors.main_background_color}; color: {AppColors.list}; border-radius: {AppPixelSizes.border_radius_sml}; margin-right: 10px; margin-left: 10px;  }}
             QListWidget::item {{ border: {AppBorders.none}; outline: {AppBorders.none}; color: {AppColors.list}; border-radius: {AppPixelSizes.border_radius_sml}; }}
-            
-            
+
+
             QScrollArea {AppStyles.scroll_area()}
+        """
+
+    # ---- Accent controls (blue-bordered inputs used on the Projects and Settings screens)
+
+    @staticmethod
+    def toolbar_strip():
+        """Dark strip under the banner holding a screen's main controls"""
+        return f"background-color: {AppColors.accent_background_color};"
+
+    @staticmethod
+    def line_edit_accent():
+        return f"""
+            QLineEdit {{
+                background-color: {AppColors.surface_raised};
+                border: 2px solid {AppColors.accent};
+                border-radius: 5px;
+                padding: 8px 12px;
+                color: {AppColors.text_primary};
+                font-size: 13px;
+            }}
+            QLineEdit:focus {{
+                border: 2px solid {AppColors.accent_light};
+            }}
+            QLineEdit::placeholder {{
+                color: {AppColors.text_faint};
+            }}
+        """
+
+    @staticmethod
+    def combo_box_accent():
+        return f"""
+            QComboBox {{
+                background-color: {AppColors.surface_raised};
+                border: 2px solid {AppColors.accent};
+                border-radius: 5px;
+                padding: 6px 10px;
+                color: {AppColors.text_primary};
+                font-size: 13px;
+            }}
+            QComboBox:hover {{
+                border: 2px solid {AppColors.accent_light};
+            }}
+            QComboBox::drop-down {{
+                width: 20px;
+                border: none;
+            }}
+            QComboBox::down-arrow {{
+                image: none;
+                border-left: 4px solid transparent;
+                border-right: 4px solid transparent;
+                border-top: 4px solid {AppColors.text_primary};
+                margin-right: 5px;
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: {AppColors.surface};
+                border: 2px solid {AppColors.accent};
+                selection-background-color: {AppColors.accent};
+                color: {AppColors.text_primary};
+                padding: 4px;
+            }}
+        """
+
+    @staticmethod
+    def checkbox_accent():
+        return f"""
+            QCheckBox {{
+                color: {AppColors.text_primary};
+                font-size: 13px;
+                font-weight: bold;
+                spacing: 8px;
+            }}
+            QCheckBox::indicator {{
+                width: 18px;
+                height: 18px;
+                border: 2px solid {AppColors.accent};
+                border-radius: 3px;
+                background-color: {AppColors.surface_raised};
+            }}
+            QCheckBox::indicator:checked {{
+                background-color: {AppColors.accent};
+                border-color: {AppColors.accent};
+            }}
+            QCheckBox::indicator:hover {{
+                border: 2px solid {AppColors.accent_light};
+            }}
+        """
+
+    @staticmethod
+    def card_panel(selector="QFrame"):
+        """Rounded dark panel, like a project card"""
+        return f"""
+            {selector} {{
+                background-color: {AppColors.surface};
+                border: 2px solid {AppColors.surface_raised};
+                border-radius: 10px;
+            }}
+        """
+
+    @staticmethod
+    def field_label():
+        """Small bold label above an input, as in the task card"""
+        return f"color: {AppColors.text_secondary}; font-size: 11px; font-weight: bold; background: transparent; border: none;"
+
+    @staticmethod
+    def list_widget_accent():
+        return f"""
+            QListWidget {{
+                background-color: {AppColors.surface_sunken};
+                border: 2px solid {AppColors.surface_raised};
+                border-radius: 6px;
+                outline: none;
+                padding: 4px;
+            }}
+            QListWidget::item {{
+                border-radius: 5px;
+                margin: 2px;
+            }}
+            QListWidget::item:selected {{
+                background-color: {AppColors.surface_raised};
+                border: 1px solid {AppColors.accent};
+            }}
+            QListWidget::item:hover {{
+                background-color: {AppColors.surface_highlight};
+            }}
         """
 
     @staticmethod
@@ -666,11 +849,11 @@ class AppStyles:
         return f"""
             QListWidget {{ border: {AppBorders.none}; outline: {AppBorders.none}; background-color: {AppColors.main_background_color}; color: {AppColors.notes_list}; border-radius: {AppPixelSizes.border_radius_sml}; margin-right: 10px; margin-left: 10px; font-size: {AppPixelSizes.font_lrg}; }}
             QListWidget::item {{ border: {AppBorders.none}; outline: {AppBorders.none}; color: {AppColors.notes_list}; border-radius: {AppPixelSizes.border_radius_sml}; }}
-            
-            
+
+
             QScrollArea {AppStyles.scroll_area()}
         """
-    
+
     @staticmethod
     def list_style_step_running():
         return f"""
@@ -696,7 +879,7 @@ class AppStyles:
             QListWidget {{ border: {AppBorders.none}; outline: {AppBorders.none}; background-color: {AppColors.main_background_color}; color: {AppColors.list}; border-radius: {AppPixelSizes.border_radius_sml}; margin-right: 10px; margin-left: 10px;  }}
             QListWidget::item {{ border: {AppBorders.none}; outline: {AppBorders.none}; color: {AppColors.list}; border-radius: {AppPixelSizes.border_radius_sml}; }}
             QScrollArea {{ border: {AppBorders.none}; }}
-            
+
             QScrollBar:vertical {{ border: {AppBorders.none}; background: {AppColors.accent_background_color}; width: {AppPixelSizes.scroll_bar_width}; }}
             QScrollBar:horizontal {{ border: {AppBorders.none}; background: {AppColors.accent_background_color}; }}
 
@@ -708,7 +891,7 @@ class AppStyles:
             QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{ border: {AppBorders.none}; background: {AppColors.none}; }}
             QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {{ background: {AppColors.none}; }}
         """
-    
+
     @staticmethod
     def list_style_graph():
         return f"""
@@ -727,7 +910,7 @@ class AppStyles:
             QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{ border: {AppBorders.none}; background: {AppColors.none}; }}
             QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {{ background: {AppColors.none}; }}
         """
-    
+
     @staticmethod
     def list_style_graph_item():
         return f"""
@@ -746,7 +929,7 @@ class AppStyles:
             QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{ border: {AppBorders.none}; background: {AppColors.none}; }}
             QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {{ background: {AppColors.none}; }}
         """
-    
+
     @staticmethod
     def list_style_inner_list_item():
         return f"""
@@ -765,27 +948,27 @@ class AppStyles:
             QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{ border: {AppBorders.none}; background: {AppColors.none}; }}
             QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {{ background: {AppColors.none}; }}
         """
-    
+
     @staticmethod
     def log_list():
-        return f"""
-            QListWidget {{ background-color: transparent; border: 0px solid #ccc; border-radius: 8px; padding: 5px; }}
-            QListWidget::item {{ background-color: transparent; border: none; padding: 5px; border-radius: 5px; }}
+        return """
+            QListWidget { background-color: transparent; border: 0px solid #ccc; border-radius: 8px; padding: 5px; }
+            QListWidget::item { background-color: transparent; border: none; padding: 5px; border-radius: 5px; }
         """
 
     ### Slider Styles ###
-    
+
     @staticmethod
     def slider_norm():
         return f"""
-            QSlider::groove:horizontal {{ background: {AppColors.slider_groove_background}; border: {AppBorders.none}; border-radius: {AppPixelSizes.border_radius_xsml}; 
+            QSlider::groove:horizontal {{ background: {AppColors.slider_groove_background}; border: {AppBorders.none}; border-radius: {AppPixelSizes.border_radius_xsml};
                     margin:{AppMargins.slider_groove}; height: {AppPixelSizes.slider_groove__height}; }}
             QSlider::handle:horizontal {{ background: {AppColors.slider_handle_background}; border: {AppBorders.none}; border-radius: {AppPixelSizes.border_radius_xsml};
                     margin: {AppMargins.slider_handle}; height: {AppPixelSizes.slider_handle__height}; width: {AppPixelSizes.slider_handle__width}; }}
         """
-        
+
     ### Line Edit Styles ###
-    
+
     @staticmethod
     def line_edit_norm():
         return f"""
@@ -793,7 +976,7 @@ class AppStyles:
                 background-color: {AppColors.white}; color: {AppColors.label_font_color_dark}; font-size: {AppPixelSizes.font_norm}; font-style: {AppFontStyle.norm}; }}
             QLineEdit:focus {{ border: {AppBorders.line_edit_focus}; }}
         """
-    
+
     @staticmethod
     def line_edit_small():
         return f"""
@@ -801,21 +984,21 @@ class AppStyles:
                 background-color: {AppColors.white}; color: {AppColors.label_font_color}; font-size: {AppPixelSizes.font_norm}; font-style: {AppFontStyle.norm}; }}
             QLineEdit:focus {{ border: {AppBorders.line_edit_focus}; }}
         """
-    
+
     @staticmethod
     def line_edit_warn():
         return f"""
-            QLineEdit {{border: {AppBorders.line_edit_warn}; border-radius: {AppPixelSizes.border_radius_xsml}; padding: {AppPixelSizes.border_radius_xsml}; 
+            QLineEdit {{border: {AppBorders.line_edit_warn}; border-radius: {AppPixelSizes.border_radius_xsml}; padding: {AppPixelSizes.border_radius_xsml};
                 background-color: {AppColors.white}; color: {AppColors.label_font_color}; font-size: {AppPixelSizes.font_norm}; font-style: {AppFontStyle.norm}; }}
             QLineEdit:focus {{ border: {AppBorders.line_edit_warn}; }}
         """
-    
+
     @staticmethod
     def log_line_edit():
-        return f"""
-            QLineEdit {{ border: 1px solid #ccc; border-radius: 8px; padding: 5px; }}
+        return """
+            QLineEdit { border: 1px solid #ccc; border-radius: 8px; padding: 5px; }
         """
-    
+
     ### Text Edit Styles ##
 
     @staticmethod
@@ -825,7 +1008,7 @@ class AppStyles:
                 background-color: {AppColors.white}; color: {AppColors.label_font_color_dark}; font-size: {AppPixelSizes.font_norm}; font-style: {AppFontStyle.norm}; }}
             QTextEdit:focus {{ border: {AppBorders.text_edit_focus}; }}
         """
-    
+
     @staticmethod
     def text_edit_small():
         return f"""
@@ -833,7 +1016,7 @@ class AppStyles:
                 background-color: {AppColors.white}; color: {AppColors.label_font_color}; font-size: {AppPixelSizes.font_norm}; font-style: {AppFontStyle.norm}; }}
             QTextEdit:focus {{ border: {AppBorders.text_edit_focus}; }}
         """
-    
+
     @staticmethod
     def combo_box_norm():
         return f"""
@@ -887,7 +1070,7 @@ class AppStyles:
                 border-radius: {AppPixelSizes.border_radius_xsml}; /* Ensure selection does not extend outside */
             }}
         """
-    
+
     @staticmethod
     def combo_box_text_size():
         return f"""
@@ -925,7 +1108,7 @@ class AppStyles:
             QComboBox QAbstractItemView::item, QComboBox QListView::item {{
                 padding: 4px 8px;
                 height: 24px;
-                border-radius: {AppPixelSizes.border_radius_xsml}; 
+                border-radius: {AppPixelSizes.border_radius_xsml};
                 font-size: {AppPixelSizes.font_norm};  /* Ensure proper font size */
             }}
 
@@ -939,7 +1122,7 @@ class AppStyles:
                 background: transparent;
                 width: {AppPixelSizes.scroll_bar_width};
             }}
-            
+
             QComboBox QScrollBar:horizontal {{
                 border: {AppBorders.none};
                 background: transparent;
@@ -952,13 +1135,13 @@ class AppStyles:
                 border-radius: {AppPixelSizes.border_radius_xsml};
             }}
 
-            QComboBox QScrollBar::add-line:vertical, 
+            QComboBox QScrollBar::add-line:vertical,
             QComboBox QScrollBar::sub-line:vertical {{
                 border: {AppBorders.none};
                 background: {AppColors.none};
             }}
 
-            QComboBox QScrollBar::add-page:vertical, 
+            QComboBox QScrollBar::add-page:vertical,
             QComboBox QScrollBar::sub-page:vertical {{
                 background: {AppColors.none};
             }}
@@ -969,13 +1152,13 @@ class AppStyles:
                 border-radius: {AppPixelSizes.border_radius_xxsml};
             }}
 
-            QComboBox QScrollBar::add-line:horizontal, 
+            QComboBox QScrollBar::add-line:horizontal,
             QComboBox QScrollBar::sub-line:horizontal {{
                 border: {AppBorders.none};
                 background: {AppColors.none};
             }}
 
-            QComboBox QScrollBar::add-page:horizontal, 
+            QComboBox QScrollBar::add-page:horizontal,
             QComboBox QScrollBar::sub-page:horizontal {{
                 background: {AppColors.none};
             }}
@@ -984,27 +1167,27 @@ class AppStyles:
     @staticmethod
     def combo_box_norm_warn():
         return f"""
-            QComboBox {{border: {AppBorders.line_edit_warn}; border-radius: {AppPixelSizes.border_radius_xsml}; padding: {AppPixelSizes.border_radius_xsml}; 
+            QComboBox {{border: {AppBorders.line_edit_warn}; border-radius: {AppPixelSizes.border_radius_xsml}; padding: {AppPixelSizes.border_radius_xsml};
                 background-color: {AppColors.white}; color: {AppColors.label_font_color}; font-size: {AppPixelSizes.font_norm}; font-style: {AppFontStyle.norm}; }}
             QComboBox::drop-down {{subcontrol-origin: padding; subcontrol-position: top right; width: 10px; border-left-width: 1px; border-left-style: solid; border-top-right-radius: 1px; border-bottom-right-radius: 1px; }}
         """
-    
+
     @staticmethod
     def combo_box_wide():
         return f"""
-            QComboBox {{border: {AppBorders.combo_box_norm}; border-radius: {AppPixelSizes.border_radius_xsml}; padding: {AppPixelSizes.border_radius_xsml}; 
+            QComboBox {{border: {AppBorders.combo_box_norm}; border-radius: {AppPixelSizes.border_radius_xsml}; padding: {AppPixelSizes.border_radius_xsml};
                 background-color: {AppColors.white}; color: {AppColors.label_font_color_light}; font-size: {AppPixelSizes.font_norm}; font-style: {AppFontStyle.norm}; }}
             QComboBox::drop-down {{subcontrol-origin: padding; subcontrol-position: top right; width: 30px; border-left-width: 1px; border-left-style: solid; border-top-right-radius: 1px; border-bottom-right-radius: 1px; }}
         """
-    
+
     @staticmethod
     def combo_box_x_wide():
         return f"""
-            QComboBox {{border: {AppBorders.combo_box_norm}; border-radius: {AppPixelSizes.border_radius_xsml}; padding: {AppPixelSizes.border_radius_xsml}; 
+            QComboBox {{border: {AppBorders.combo_box_norm}; border-radius: {AppPixelSizes.border_radius_xsml}; padding: {AppPixelSizes.border_radius_xsml};
                 background-color: {AppColors.white}; color: {AppColors.label_font_color_light}; font-size: {AppPixelSizes.font_norm}; font-style: {AppFontStyle.norm}; }}
             QComboBox::drop-down {{subcontrol-origin: padding; subcontrol-position: top right; width: 80px; border-left-width: 1px; border-left-style: solid; border-top-right-radius: 1px; border-bottom-right-radius: 1px; }}
         """
-    
+
     ### Splitter Styles ##
     @staticmethod
     def splitter_hor_norm():
@@ -1012,13 +1195,13 @@ class AppStyles:
 
             QSplitter::handle:horizontal {{width: {AppPixelSizes.splitter_height}; }}
         """
-    
+
     @staticmethod
     def splitter_ver_norm():
         return f"""
             QSplitter::handle:vertical {{height: {AppPixelSizes.splitter_height}; }}
         """
-    
+
     ### Widget Styles ###
 
     @staticmethod
@@ -1026,13 +1209,13 @@ class AppStyles:
         return f"""
             QWidget {{background-color: {AppColors.accent_background_color_dark}; border-radius: {AppPixelSizes.border_radius_sml}; }}
         """
-    
+
     @staticmethod
     def border_widget():
         return """
             QWidget { border: 1px solid #ccc; border-radius: 4px; }
         """
-    
+
     @staticmethod
     def header_widget():
         return f"""
@@ -1045,130 +1228,130 @@ class AppStyles:
                 border: none;
             }}
         """
-    
+
     @staticmethod
     def widget_trans():
         return "background: transparent; border: none;"
-    
+
     ### Test Widget Border ###
 
     @staticmethod
     def widget_border(color):
         return f"border: 1px solid {color}; "
-    
+
 
     ### Calendar Styles
     @staticmethod
     def calendar_norm():
-        return f"""
+        return """
             /* Main calendar widget styling */
-            QCalendarWidget {{
+            QCalendarWidget {
                 background-color: #000000;  /* Pure Black - main background */
                 border: 1px solid #e0e0e0;  /* Light Gray - border */
                 border-radius: 8px;         /* Rounded corners */
-            }}
-            QCalendarWidget QHeaderView::section {{
+            }
+            QCalendarWidget QHeaderView::section {
                 background-color: #36454F;  /* Charcoal Gray - header background */
                 color: #f0f0f0;            /* Off White - header text */
                 padding: 4px;
                 border: 1px solid #e0e0e0;  /* Light Gray - header border */
                 border-radius: 4px;
-            }}
-            QCalendarWidget QAbstractItemView {{
+            }
+            QCalendarWidget QAbstractItemView {
                 background-color: #f0f0f0;  /* Off White - cell background */
                 color: #000000;            /* Black - cell text */
                 border: 1px solid #e0e0e0;  /* Light Gray - cell border */
                 border-radius: 4px;
-            }}
-            QCalendarWidget QAbstractItemView:selected {{
+            }
+            QCalendarWidget QAbstractItemView:selected {
                 background-color: #2980b9;  /* Blue - selected day background */
                 color: #ffffff;            /* White - selected day text */
                 border-radius: 4px;
-            }}
-            QCalendarWidget QAbstractItemView:disabled {{
+            }
+            QCalendarWidget QAbstractItemView:disabled {
                 color: #808080;            /* Gray - other month's days */
-            }}
-            QCalendarWidget QToolButton {{
+            }
+            QCalendarWidget QToolButton {
                 color: #000000;            /* Black - button text */
                 background-color: transparent;
                 border: none;
                 padding: 4px;
                 border-radius: 4px;
-            }}
-            QCalendarWidget QToolButton::menu-indicator {{
+            }
+            QCalendarWidget QToolButton::menu-indicator {
                 image: none;
-            }}
-            QCalendarWidget QWidget {{
+            }
+            QCalendarWidget QWidget {
                 alternate-background-color: #f5f5f5;  /* Very Light Gray - alternate rows */
-            }}
-            QCalendarWidget QToolButton {{
+            }
+            QCalendarWidget QToolButton {
                 color: #000000;            /* Black - button text */
                 background-color: transparent;
                 border: none;
                 padding: 4px;
                 qproperty-autoRaise: true;
-            }}
-            QCalendarWidget QToolButton:hover {{
+            }
+            QCalendarWidget QToolButton:hover {
                 background-color: #e8f0fe;  /* Light Blue - button hover */
-            }}
+            }
         """
-    
+
     ### Tab Section Styles
     @staticmethod
     def tab_norm():
         return f"""
             QTabWidget::pane {{
-                border-top: 2px solid #C2C7CB; 
+                border-top: 2px solid #C2C7CB;
                 position: absolute;
-                top: -2px; 
+                top: -2px;
             }}
             QTabWidget::tab-bar {{
-                left: 5px; 
+                left: 5px;
             }}
             QTabBar::tab {{
-                background: {AppColors.main_background_color}; 
+                background: {AppColors.main_background_color};
                 border: 1px solid #C4C4C3;
-                border-bottom-color: #C2C7CB; 
+                border-bottom-color: #C2C7CB;
                 border-top-left-radius: 4px;
                 border-top-right-radius: 4px;
                 min-width: 8ex;
                 padding: 2px;
             }}
             QTabBar::tab:selected, QTabBar::tab:hover {{
-                background: {AppColors.main_background_color};  
-                border-color: #9B9B9B; 
-                border-bottom-color: {AppColors.main_background_color};  
+                background: {AppColors.main_background_color};
+                border-color: #9B9B9B;
+                border-bottom-color: {AppColors.main_background_color};
             }}
             QTabBar::tab:selected {{
                 border-color: #9B9B9B;
-                border-bottom-color: {AppColors.main_background_color}; 
+                border-bottom-color: {AppColors.main_background_color};
             }}
             QTabBar::tab:!selected {{
-                margin-top: 2px; 
+                margin-top: 2px;
             }}
         """
-    
+
     ### Toolbar Action Styles ###
     @staticmethod
     def toolbar_action_norm():
-        return f"""
-            QToolButton {{
+        return """
+            QToolButton {
                 background-color: #444;  /* Dark background */
                 color: white;  /* White text */
                 font-weight: bold;  /* Make text bold */
                 border-radius: 5px;
                 padding: 5px;
-            }}
-            
-            QToolButton:hover {{
+            }
+
+            QToolButton:hover {
                 background-color: #666;  /* Lighter gray when hovered */
-            }}
-            
-            QToolButton:checked {{
+            }
+
+            QToolButton:checked {
                 background-color: #888;  /* Even lighter when toggled */
-            }}
+            }
         """
-    
+
     ### Shadow Styles ###
 
     @staticmethod
@@ -1179,7 +1362,7 @@ class AppStyles:
         shadow.setXOffset(1)
         shadow.setYOffset(1)
         return shadow
-    
+
     @staticmethod
     def shadow_rad_3():
         shadow = QGraphicsDropShadowEffect()
@@ -1187,7 +1370,7 @@ class AppStyles:
         shadow.setXOffset(1)
         shadow.setYOffset(1)
         return shadow
-    
+
     @staticmethod
     def shadow_rad_10():
         shadow = QGraphicsDropShadowEffect()
@@ -1195,7 +1378,7 @@ class AppStyles:
         shadow.setXOffset(1)
         shadow.setYOffset(1)
         return shadow
-    
+
     @staticmethod
     def shadow_rad_100_alpha60():
         shadow = QGraphicsDropShadowEffect()
@@ -1204,7 +1387,7 @@ class AppStyles:
         shadow.setYOffset(1)
         shadow.setColor(QColor(0, 0, 0, 60))
         return shadow
-    
+
     ### Widgets
 
     @staticmethod
@@ -1225,11 +1408,11 @@ class AppStyles:
                 margin: 8px;
             }}
         """
-    
+
     @staticmethod
     def task_card():
         return f"""
-            QWidget#card_container {{  
+            QWidget#card_container {{
                 background-color: {AppColors.accent_background_color};
                 border-radius: 8px;
                 padding: 10px;
@@ -1241,15 +1424,15 @@ class AppStyles:
                 border-radius: 8px; /* Ensure border radius remains on hover */
             }}
             QLabel {{
-                border: none; 
+                border: none;
                 border-radius: 0px; /* Remove border radius from labels */
             }}
             QLabel:hover {{
-                border: none;  
+                border: none;
                 border-radius: 0px; /* Remove border radius from labels on hover */
             }}
         """
-    
+
 
     @staticmethod
     def expanded_task_card():
@@ -1261,7 +1444,7 @@ class AppStyles:
                 border: 1px solid {AppColors.border_light};
             }}
         """
-    
+
 class AnimatedDrawerButton(QPushButton):
     def __init__(self, text=None, parent=None):
         super().__init__(text, parent)
@@ -1279,7 +1462,7 @@ class AnimatedDrawerButton(QPushButton):
         self.shadow.setYOffset(1)
         self.setGraphicsEffect(self.shadow)
         self.installEventFilter(self)
-        
+
     def eventFilter(self, obj, event):
         if obj == self:
             if event.type() == QEvent.MouseButtonPress:
@@ -1291,11 +1474,11 @@ class AnimatedDrawerButton(QPushButton):
         return super().eventFilter(obj, event)
 
 class AnimatedButton(QPushButton):
-    def __init__(self, text, parent=None, x=None, y=None, set_max_width:bool=None, 
+    def __init__(self, text, parent=None, x=None, y=None, set_max_width:bool=None,
                  is_fixed_size=False, blur=None, offsetX=None, offsetY=None):
         super().__init__(text, parent)
         self.setContentsMargins(0, 0, 0, 0)
-        
+
         # Handle size settings
         if x and y:
             if is_fixed_size:
@@ -1304,7 +1487,7 @@ class AnimatedButton(QPushButton):
                 self.setMinimumSize(x, y)
             if set_max_width:
                 self.setMaximumWidth(x)
-        
+
         # Setup shadow effect
         if blur is not None:
             self.original_blur = blur
@@ -1315,7 +1498,7 @@ class AnimatedButton(QPushButton):
             if offsetY is not None:
                 self.shadow.setYOffset(offsetY)
             self.setGraphicsEffect(self.shadow)
-        
+
         self.installEventFilter(self)
 
     def eventFilter(self, obj, event):
@@ -1327,7 +1510,7 @@ class AnimatedButton(QPushButton):
                 if hasattr(self, 'shadow'):
                     self.shadow.setEnabled(True)
         return super().eventFilter(obj, event)
-    
+
 
 class AnimatedButtonMultiText(QPushButton):
     clickedButton = pyqtSignal(QPushButton)
@@ -1345,7 +1528,7 @@ class AnimatedButtonMultiText(QPushButton):
     def initUI(self, name_text, rssi_text, x, y, blur, offsetX, offsetY):
         self.x = x
         self.y = y
-    
+
         container_layout = QHBoxLayout(self)
 
         name_label = QLabel(name_text)
@@ -1366,7 +1549,7 @@ class AnimatedButtonMultiText(QPushButton):
 
         self.shadow = QGraphicsDropShadowEffect(self)
         self.shadow.setBlurRadius(self.original_blur)
-        if offsetX: 
+        if offsetX:
             self.shadow.setXOffset(offsetX)
         if offsetY:
             self.shadow.setYOffset(offsetY)
@@ -1404,7 +1587,7 @@ class ButtonContainer(QWidget):
         self.currentlyEnlargedButton = clickedButton
 
         self.installEventFilter(self)
-        
+
     def eventFilter(self, obj, event):
         if obj == self:
             if event.type() == QEvent.MouseButtonPress:
@@ -1413,7 +1596,7 @@ class ButtonContainer(QWidget):
                 self.shadow.setEnabled(True)
 
         return super().eventFilter(obj, event)
-    
+
     def enterEvent(self, event):
         if self.enlarge:
             self.setFixedSize(self.x_larg, self.y_larg)
