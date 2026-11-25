@@ -76,6 +76,17 @@ def load_notes_from_json(logger):
 
     return read_json(json_file_path, logger)
 
+def rename_note_in_json(note_id, title, logger):
+    """Give a saved note a new title, leaving its content alone. Returns True if renamed."""
+    json_file_path = AppConfig().notes_file
+    notes_data = read_json(json_file_path, logger)
+    if note_id not in notes_data:
+        logger.error("Note to rename not found in saved data.")
+        return False
+    notes_data[note_id]['title'] = title
+    notes_data[note_id]['modified_date'] = datetime.now().strftime('%Y-%m-%d, %H:%M:%S')
+    return write_json(json_file_path, notes_data, logger)
+
 def delete_note_from_json(note_id, logger):
     """
     Delete a note by its ID from the JSON file in the user's app data directory.

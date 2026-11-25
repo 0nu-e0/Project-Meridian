@@ -25,149 +25,99 @@
 # Author: Jereme Shaver
 # -----------------------------------------------------------------------------
 
-from PyQt5.QtCore import Qt, pyqtSignal, QMimeData
-from PyQt5.QtWidgets import QFrame, QHBoxLayout, QLabel, QSizePolicy
+from PyQt5.QtCore import QMimeData, Qt, pyqtSignal
 from PyQt5.QtGui import QDrag
+from PyQt5.QtWidgets import QFrame, QHBoxLayout, QLabel, QSizePolicy
 
 from models.task import Task, TaskStatus
 from resources.styles import AppColors
+from ui.project_files.project_look import ROW_BACKGROUND, TASK_STATUS_ICONS, priority_badge, short_date
+
+TASK_MIME = "application/x-task-id"
 
 
 class DraggableTaskItem(QFrame):
-    """
-    Draggable task item widget that can be dragged between phases
-    """
+    """A task in a phase: click to open it, drag it onto another phase to move it there"""
 
-    clicked = pyqtSignal(object)  # Emits task when clicked
+    clicked = pyqtSignal(object)  # the task
 
     def __init__(self, task: Task, parent=None):
         super().__init__(parent)
         self.task = task
-        self.setAcceptDrops(False)  # This widget doesn't accept drops, the phase widget does
+        self.drag_start_position = None
+        self.setAcceptDrops(False)  # the phase takes drops
+        self.setObjectName("taskRow")
+        self.setCursor(Qt.PointingHandCursor)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.setToolTip(f"{task.title}\n{task.status.value}  ·  click to open, drag to move")
         self.initUI()
 
     def initUI(self):
-        """Initialize the widget UI"""
+        task = self.task
+        finished = task.status in (TaskStatus.COMPLETED, TaskStatus.CANCELLED)
         self.setStyleSheet(f"""
-            QFrame {{
-                background-color: {AppColors.surface_raised};
-                border: 2px solid {AppColors.accent};
-                border-radius: 5px;
-                padding: 8px;
-            }}
-            QFrame:hover {{
-                border: 2px solid {AppColors.accent_light};
-                background-color: {AppColors.accent};
-            }}
-        """)
-        self.setCursor(Qt.OpenHandCursor)
-        self.setMinimumHeight(50)
-        self.setMaximumHeight(80)  # Prevent stretching in vertical layouts
-
-        # Set size policy to prevent vertical expansion
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-
+            QFrame#taskRow {{ background-color: {ROW_BACKGROUND}; border: 1px solid transparent; border-radius: 6px; }}
+            QFrame#taskRow:hover {{ border-color: {AppColors.accent}; }}
+            QLabel {{ background: transparent; border: none; }}""")
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(10, 8, 10, 8)
-        layout.setSpacing(10)
+        layout.setContentsMargins(10, 7, 10, 7)
+        layout.setSpacing(8)
 
-        # Drag handle
-        drag_label = QLabel("⋮⋮")
-        drag_label.setStyleSheet(f"color: {AppColors.text_secondary}; font-size: 14px;")
-        drag_label.setAlignment(Qt.AlignTop)
-        layout.addWidget(drag_label)
+        status = QLabel(TASK_STATUS_ICONS.get(task.status, "○"))
+        status.setToolTip(task.status.value)
+        status.setFixedWidth(16)
+        status.setAlignment(Qt.AlignCenter)
+        status.setStyleSheet(f"color: {AppColors.get_status_color(task.status)}; font-size: 14px;")
+        layout.addWidget(status)
 
-        # Status icon
-        status_icon = self.getStatusIcon(self.task.status)
-        status_label = QLabel(status_icon)
-        status_label.setStyleSheet("font-size: 14px;")
-        status_label.setAlignment(Qt.AlignTop)
-        layout.addWidget(status_label)
+        self.title_label = QLabel(task.title)
+        self.title_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+        self.title_label.setMinimumWidth(60)
+        font = self.title_label.font()
+        font.setStrikeOut(task.status == TaskStatus.COMPLETED)
+        self.title_label.setFont(font)
+        self.title_label.setStyleSheet(f"color: {AppColors.text_muted if finished else AppColors.text_primary}; "
+                                       f"font-size: 13px;")
+        layout.addWidget(self.title_label, 1)
 
-        # Task title
-        title_label = QLabel(self.task.title)
-        title_label.setStyleSheet(f"font-size: 13px; color: {AppColors.text_primary}; line-height: 1.4;")
-        title_label.setWordWrap(True)
-        title_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        layout.addWidget(title_label, stretch=1)
+        if task.due_date is not None and not finished:
+            due = QLabel(short_date(task.due_date))
+            due.setToolTip(f"Due {short_date(task.due_date, with_year=True)}")
+            due.setStyleSheet(f"color: {AppColors.get_due_date_color(task.due_date)}; font-size: 11px; "
+                              f"font-weight: bold;")
+            layout.addWidget(due)
+        if not finished:
+            layout.addWidget(priority_badge(task.priority))
 
-        # Priority badge
-        priority_badge = QLabel(self.task.priority.name)
-        priority_color = self.getPriorityColor(self.task.priority.name)
-        priority_badge.setStyleSheet(f"""
-            QLabel {{
-                background-color: {priority_color};
-                color: white;
-                font-size: 10px;
-                font-weight: bold;
-                padding: 3px 8px;
-                border-radius: 3px;
-            }}
-        """)
-        priority_badge.setAlignment(Qt.AlignTop)
-        layout.addWidget(priority_badge)
-
-    def getStatusIcon(self, status):
-        """Get icon for task status"""
-        status_icons = {
-            TaskStatus.NOT_STARTED: "○",
-            TaskStatus.IN_PROGRESS: "◐",
-            TaskStatus.COMPLETED: "●",
-            TaskStatus.IN_REVIEW: "◑",
-            TaskStatus.BLOCKED: "✖",
-            TaskStatus.ON_HOLD: "⊝",
-            TaskStatus.CANCELLED: "⊗"
-        }
-        return status_icons.get(status, "○")
-
-    def getPriorityColor(self, priority_name):
-        """Get color for priority badge"""
-        priority_colors = {
-            "HIGH": AppColors.danger,
-            "MEDIUM": AppColors.warning,
-            "LOW": AppColors.accent,
-            "CRITICAL": AppColors.danger_dark
-        }
-        return priority_colors.get(priority_name, AppColors.text_faint)
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.title_label.setText(self.title_label.fontMetrics().elidedText(
+            self.task.title, Qt.ElideRight, max(self.title_label.width(), 40)))
 
     def mousePressEvent(self, event):
-        """Handle mouse press - start drag or emit clicked"""
         if event.button() == Qt.LeftButton:
-            # Store the press position
             self.drag_start_position = event.pos()
 
     def mouseMoveEvent(self, event):
-        """Handle mouse move - initiate drag if moved enough"""
-        if not (event.buttons() & Qt.LeftButton):
+        if not (event.buttons() & Qt.LeftButton) or self.drag_start_position is None:
             return
-
-        # Check if moved enough to start drag
         if (event.pos() - self.drag_start_position).manhattanLength() < 10:
             return
-
-        # Start drag operation
         drag = QDrag(self)
         mime_data = QMimeData()
-
-        # Store task ID in mime data
         mime_data.setText(self.task.id)
-        mime_data.setData("application/x-task-id", self.task.id.encode())
-
+        mime_data.setData(TASK_MIME, self.task.id.encode())
         drag.setMimeData(mime_data)
-
-        # Change cursor during drag
+        drag.setPixmap(self.grab())
+        self.drag_start_position = None
         self.setCursor(Qt.ClosedHandCursor)
-
-        # Execute drag
         drag.exec_(Qt.MoveAction)
-
-        # Reset cursor
-        self.setCursor(Qt.OpenHandCursor)
+        from PyQt5 import sip
+        if not sip.isdeleted(self):
+            self.setCursor(Qt.PointingHandCursor)
 
     def mouseReleaseEvent(self, event):
-        """Handle mouse release - emit clicked if not dragging"""
-        if event.button() == Qt.LeftButton:
-            # If we didn't move much, it's a click
-            if hasattr(self, 'drag_start_position'):
-                if (event.pos() - self.drag_start_position).manhattanLength() < 10:
-                    self.clicked.emit(self.task)
+        if event.button() == Qt.LeftButton and self.drag_start_position is not None:
+            if (event.pos() - self.drag_start_position).manhattanLength() < 10:
+                self.clicked.emit(self.task)
+        self.drag_start_position = None

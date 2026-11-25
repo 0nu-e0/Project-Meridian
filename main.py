@@ -273,6 +273,7 @@ class MainWindow(QWidget):
 
         self.mindmaps_screen = MindMapScreen(logger=self.logger)
         self.mindmaps_screen.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.mindmaps_screen.projectRequested.connect(self.showProjectDetail)
 
         self.settings_screen = SettingsScreen(logger=self.logger)
         self.settings_screen.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
@@ -513,6 +514,7 @@ class MainWindow(QWidget):
 
         # Connect task update signal to refresh dashboard
         project_detail_view.taskUpdated.connect(self.dashboard_screen.refreshDashboard)
+        project_detail_view.mindmapClicked.connect(self.openMindmap)
 
         # Add to stacked widget and show it
         self.stacked_widget.addWidget(project_detail_view)
@@ -565,6 +567,13 @@ class MainWindow(QWidget):
         self._discardTransientViews(keep=(detail_view,))
         self.banner_header.setText("Project Details")
 
+    def openMindmap(self, mindmap_id):
+        """Show a mind map (e.g. a project's), offering to save the one open first"""
+        screen = self.mindmaps_screen
+        self.showScreenNow("mindmaps_screen")
+        if screen.current_mindmap_id != mindmap_id:
+            screen.load_mindmap_by_id(mindmap_id)
+
     def returnToProjectsScreen(self):
         """Return to the projects screen from project detail view"""
         self._cancelTransition()
@@ -614,6 +623,7 @@ class MainWindow(QWidget):
         self.dashboard_screen.refreshDashboard()
         self.planning_screen.refreshPlanningUI()
         self.projects_screen.refreshProjects()
+        self.notes_screen.reloadFromStorage()
         current = self.stacked_widget.currentWidget()
         if isinstance(current, ProjectDetailView):
             current.refresh()

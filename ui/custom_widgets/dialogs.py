@@ -148,6 +148,20 @@ class StyledDialog(QDialog):
             button.setFocus()
         return button
 
+    def addActionButton(self, label, handler, kind=PRIMARY, default=False):
+        """A button that runs handler instead of closing (e.g. to check a form first, then call accept)"""
+        button = QPushButton(label)
+        button.setCursor(Qt.PointingHandCursor)
+        button.setStyleSheet(_button_style(kind))
+        button.setAutoDefault(default)
+        button.setDefault(default)
+        button.clicked.connect(handler)
+        if self.buttons.count() == 0 or not any(
+                self.buttons.itemAt(i).spacerItem() for i in range(self.buttons.count())):
+            self.buttons.addStretch(1)
+        self.buttons.addWidget(button)
+        return button
+
     def _finish(self, value):
         self.value = value
         self.accept()

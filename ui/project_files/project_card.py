@@ -23,252 +23,124 @@
 # Author: Jereme Shaver
 # -----------------------------------------------------------------------------
 
-from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QProgressBar
-)
+from PyQt5.QtCore import QPoint, Qt, pyqtSignal
+from PyQt5.QtWidgets import QFrame, QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout
 
-from models.project import Project, ProjectStatus
-from utils.projects_io import load_phases_from_json
+from models.project import Project
 from resources.styles import AppColors
+from ui.project_files.project_look import (CARD_BACKGROUND, CARD_BORDER, badge, due_text, priority_badge,
+                                           progress_bar, status_badge)
+from utils.projects_io import load_phases_from_json
+
+MIN_CARD_WIDTH = 290
 
 
-class ProjectCard(QWidget):
-    """
-    Card widget for displaying project information
-    Shows title, status, current phase, progress, and task counts
-    """
+class ProjectCard(QFrame):
+    """A project on the Projects screen: name, status, priority, phase, progress, and due date.
+    Click to open it; right-click for more."""
 
-    clicked = pyqtSignal(str)  # Emits project_id when clicked
+    clicked = pyqtSignal(str)  # project id
+    menuRequested = pyqtSignal(str, QPoint)  # project id, global position
 
-    def __init__(self, project: Project, logger):
+    def __init__(self, project: Project, logger, phases=None):
         super().__init__()
         self.project = project
         self.logger = logger
-        self.setFixedSize(320, 220)
+        self._phases = phases  # all phases, if the caller has them already
+        self.setObjectName("projectCard")
         self.setCursor(Qt.PointingHandCursor)
-
+        self.setMinimumWidth(MIN_CARD_WIDTH)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.setToolTip(project.title)
         self.initUI()
 
     def initUI(self):
-        """Initialize the card UI"""
-        # Main container with border - dark theme
+        project = self.project
         self.setStyleSheet(f"""
-            ProjectCard {{
-                background-color: {AppColors.surface};
-                border: 2px solid {self.project.color};
-                border-radius: 10px;
-            }}
-            ProjectCard:hover {{
-                border: 3px solid {self.project.color};
-                background-color: {AppColors.surface_raised};
-            }}
-        """)
+            QFrame#projectCard {{ background-color: {CARD_BACKGROUND}; border: 1px solid {CARD_BORDER};
+                                  border-left: 4px solid {project.color}; border-radius: 8px; }}
+            QFrame#projectCard:hover {{ border-color: {AppColors.accent}; border-left: 4px solid {project.color}; }}
+            QLabel {{ background: transparent; border: none; }}""")
 
-        # Main layout
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(15, 15, 15, 15)
-        layout.setSpacing(10)
+        layout.setContentsMargins(16, 14, 16, 14)
+        layout.setSpacing(8)
 
-        # Header row: Title and Status badge
-        header_layout = QHBoxLayout()
-        header_layout.setSpacing(10)
+        self.title_label = QLabel(project.title)
+        self.title_label.setStyleSheet(f"color: {AppColors.text_primary if not project.archived else AppColors.text_muted}; "
+                                       f"font-size: 15px; font-weight: bold;")
+        self.title_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+        layout.addWidget(self.title_label)
 
-        # Title with folder icon
-        title_label = QLabel(f"📁 {self.project.title}")
-        title_label.setStyleSheet(f"""
-            QLabel {{
-                font-size: 16px;
-                font-weight: bold;
-                color: {AppColors.text_primary};
-            }}
-        """)
-        title_label.setWordWrap(True)
-        title_label.setMaximumWidth(220)
-        header_layout.addWidget(title_label, stretch=1)
+        badges = QHBoxLayout()
+        badges.setSpacing(6)
+        badges.addWidget(status_badge(project.status))
+        badges.addWidget(priority_badge(project.priority))
+        if project.archived:
+            badges.addWidget(badge("Archived", AppColors.text_faint))
+        badges.addStretch(1)
+        layout.addLayout(badges)
 
-        # Status badge
-        status_badge = self.createStatusBadge()
-        header_layout.addWidget(status_badge)
-        header_layout.addStretch()
+        self.description_label = QLabel(project.description.splitlines()[0] if project.description else "No description")
+        self.description_label.setStyleSheet(f"color: {AppColors.text_muted if project.description else AppColors.text_faint}; "
+                                             f"font-size: 12px;")
+        self.description_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+        layout.addWidget(self.description_label)
+        self._fullTexts = {self.title_label: project.title, self.description_label: self.description_label.text()}
 
-        layout.addLayout(header_layout)
-
-        # Priority indicator
-        priority_label = QLabel(f"Priority: {self.project.priority.name}")
-        priority_color = self.getPriorityColor()
-        priority_label.setStyleSheet(f"""
-            QLabel {{
-                font-size: 11px;
-                color: {priority_color};
-                font-weight: bold;
-            }}
-        """)
-        layout.addWidget(priority_label)
-
-        # Current phase info
-        phase_info = self.getPhaseInfo()
-        phase_label = QLabel(phase_info)
-        phase_label.setStyleSheet(f"""
-            QLabel {{
-                font-size: 12px;
-                color: {AppColors.text_secondary};
-            }}
-        """)
+        phase_label = QLabel(self.getPhaseInfo())
+        phase_label.setStyleSheet(f"color: {AppColors.text_secondary}; font-size: 12px;")
         layout.addWidget(phase_label)
 
-        # Progress bar
-        progress_bar = QProgressBar()
-        progress_bar.setTextVisible(True)
-        progress = int(self.project.get_progress_percentage())
-        progress_bar.setValue(progress)
-        progress_bar.setFormat(f"{progress}%")
-        progress_bar.setFixedHeight(20)
-        progress_bar.setStyleSheet(f"""
-            QProgressBar {{
-                border: 2px solid {AppColors.accent};
-                border-radius: 5px;
-                text-align: center;
-                font-size: 11px;
-                font-weight: bold;
-                background-color: {AppColors.surface_raised};
-                color: {AppColors.text_primary};
-            }}
-            QProgressBar::chunk {{
-                background-color: {self.project.color};
-                border-radius: 4px;
-            }}
-        """)
-        layout.addWidget(progress_bar)
+        progress = project.get_progress_percentage()
+        progress_row = QHBoxLayout()
+        progress_row.setSpacing(8)
+        progress_row.addWidget(progress_bar(project.color, progress), 1)
+        percent = QLabel(f"{progress:.0f}%")
+        percent.setStyleSheet(f"color: {AppColors.text_secondary}; font-size: 11px; font-weight: bold;")
+        progress_row.addWidget(percent)
+        layout.addLayout(progress_row)
 
-        # Task count
-        total_tasks = self.project.get_total_tasks()
-        completed_tasks = self.project.get_completed_tasks()
-        task_label = QLabel(f"📋 {completed_tasks}/{total_tasks} tasks")
-        task_label.setStyleSheet(f"""
-            QLabel {{
-                font-size: 12px;
-                color: {AppColors.text_primary};
-            }}
-        """)
-        layout.addWidget(task_label)
-
-        # Dates row
-        dates_layout = QHBoxLayout()
-        dates_layout.setSpacing(10)
-
-        # Start date
-        if self.project.start_date:
-            start_label = QLabel(f"Started: {self.project.start_date.strftime('%m/%d/%Y')}")
-            start_label.setStyleSheet(f"""
-                QLabel {{
-                    font-size: 10px;
-                    color: {AppColors.text_secondary};
-                }}
-            """)
-            dates_layout.addWidget(start_label)
-
-        # Due date
-        if self.project.target_completion:
-            due_label = QLabel(f"Due: {self.project.target_completion.strftime('%m/%d/%Y')}")
-            due_label.setStyleSheet(f"""
-                QLabel {{
-                    font-size: 10px;
-                    color: {AppColors.text_secondary};
-                }}
-            """)
-            dates_layout.addWidget(due_label)
-
-        dates_layout.addStretch()
-        layout.addLayout(dates_layout)
-
-        # Indicators row (mindmap, scheduled)
-        indicators_layout = QHBoxLayout()
-        indicators_layout.setSpacing(5)
-
-        # Mindmap indicator
-        if self.project.mindmap_id:
-            mindmap_label = QLabel("🧠 Mindmap")
-            mindmap_label.setStyleSheet(f"""
-                QLabel {{
-                    font-size: 10px;
-                    color: {AppColors.text_primary};
-                    background-color: {AppColors.accent};
-                    padding: 3px 6px;
-                    border-radius: 3px;
-                }}
-            """)
-            indicators_layout.addWidget(mindmap_label)
-
-        indicators_layout.addStretch()
-        layout.addLayout(indicators_layout)
-
-        # Add spacer at bottom
-        layout.addStretch()
-
-    def createStatusBadge(self):
-        """Create a colored badge for the project status"""
-        badge = QLabel(self.project.status.value)
-        badge_color = self.getStatusColor()
-
-        badge.setStyleSheet(f"""
-            QLabel {{
-                background-color: {badge_color};
-                color: white;
-                font-size: 10px;
-                font-weight: bold;
-                padding: 4px 8px;
-                border-radius: 4px;
-            }}
-        """)
-        badge.setAlignment(Qt.AlignCenter)
-        return badge
-
-    def getStatusColor(self):
-        """Get color for status badge"""
-        status_colors = {
-            ProjectStatus.PLANNING: AppColors.highlight,      # Purple
-            ProjectStatus.ACTIVE: AppColors.success,        # Green
-            ProjectStatus.ON_HOLD: AppColors.warning,       # Orange
-            ProjectStatus.COMPLETED: AppColors.success_light,     # Light green
-            ProjectStatus.CANCELLED: AppColors.danger      # Red
-        }
-        return status_colors.get(self.project.status, AppColors.text_muted)
-
-    def getPriorityColor(self):
-        """Get color for priority text"""
-        from models.task import TaskPriority
-
-        priority_colors = {
-            TaskPriority.CRITICAL: AppColors.danger_dark,   # Dark red
-            TaskPriority.HIGH: AppColors.warning_dark,       # Orange
-            TaskPriority.MEDIUM: AppColors.warning,     # Yellow-orange
-            TaskPriority.LOW: AppColors.accent,        # Blue
-            TaskPriority.TRIVIAL: AppColors.text_muted     # Gray
-        }
-        return priority_colors.get(self.project.priority, AppColors.text_faint)
+        footer = QHBoxLayout()
+        footer.setSpacing(8)
+        total, done = project.get_total_tasks(), project.get_completed_tasks()
+        counts = f"{done} of {total} task{'s' if total != 1 else ''} done" if total else "No tasks yet"
+        if project.mindmap_id:
+            counts += "  ·  Mind map"
+        tasks_label = QLabel(counts)
+        tasks_label.setStyleSheet(f"color: {AppColors.text_muted}; font-size: 11px;")
+        footer.addWidget(tasks_label)
+        footer.addStretch(1)
+        text, color = due_text(project)
+        if text:
+            due = QLabel(text)
+            due.setStyleSheet(f"color: {color}; font-size: 11px; font-weight: bold;")
+            footer.addWidget(due)
+        layout.addLayout(footer)
 
     def getPhaseInfo(self):
-        """Get formatted phase information string"""
-        if not self.project.phases:
+        """e.g. "Phase 2 of 4 · Build", or how many phases there are"""
+        count = len(self.project.phases)
+        if not count:
             return "No phases yet"
-
-        total_phases = len(self.project.phases)
-
         if self.project.current_phase_id:
-            # Load phases to get current phase details
-            phases = load_phases_from_json(self.logger)
-            current_phase = phases.get(self.project.current_phase_id)
+            phases = self._phases if self._phases is not None else load_phases_from_json(self.logger)
+            current = phases.get(self.project.current_phase_id)
+            if current:
+                return f"Phase {current.order + 1} of {count}  ·  {current.name}"
+        return f"{count} phase{'s' if count != 1 else ''}"
 
-            if current_phase:
-                # Find the order of current phase
-                current_order = current_phase.order + 1  # +1 for human-readable numbering
-                return f"📌 Phase {current_order} of {total_phases}: {current_phase.name}"
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        # Long names and descriptions end in "…" rather than widening the card
+        width = max(self.width() - 40, 40)
+        for label, text in self._fullTexts.items():
+            label.setText(label.fontMetrics().elidedText(text, Qt.ElideRight, width))
 
-        return f"📌 {total_phases} phase{'s' if total_phases != 1 else ''}"
-
-    def mousePressEvent(self, event):
-        """Handle mouse click on card"""
-        if event.button() == Qt.LeftButton:
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.LeftButton and self.rect().contains(event.pos()):
             self.clicked.emit(self.project.id)
-        super().mousePressEvent(event)
+        super().mouseReleaseEvent(event)
+
+    def contextMenuEvent(self, event):
+        self.menuRequested.emit(self.project.id, event.globalPos())

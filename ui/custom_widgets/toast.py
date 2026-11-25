@@ -102,3 +102,11 @@ class Toast(QFrame):
         self.hide()
         if action is not None:
             action()
+
+
+def show_toast(widget, text, action_text=None, action=None):
+    """Show a notice at the bottom of widget's window (falls back to nothing outside the app window)"""
+    window = widget.window() if widget is not None else None
+    toast = getattr(window, "toast", None)
+    if toast is not None:
+        toast.show_message(text, action_text, action)

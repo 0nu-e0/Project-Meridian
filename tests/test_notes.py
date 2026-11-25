@@ -26,6 +26,7 @@ def answers(monkeypatch):
     from ui.custom_widgets import dialogs
     queue = []
     monkeypatch.setattr(dialogs, "question", lambda *a, **k: queue.pop(0) if queue else QMessageBox.Yes)
+    monkeypatch.setattr(dialogs, "confirm", lambda *a, **k: (queue.pop(0) if queue else QMessageBox.Yes) == QMessageBox.Yes)
     monkeypatch.setattr(dialogs, "ask_to_save", lambda *a, **k: queue.pop(0) if queue else QMessageBox.Discard)
     monkeypatch.setattr(dialogs, "critical", lambda *a, **k: None)
     return queue
@@ -33,8 +34,12 @@ def answers(monkeypatch):
 
 @pytest.fixture
 def screen(app):
+    from PyQt5 import sip
     from ui.notes_screen import NotesScreen
-    return NotesScreen(logger=logger)
+    screen = NotesScreen(logger=logger)
+    yield screen
+    # Delete it now, rather than whenever Python's garbage collector gets to it
+    sip.delete(screen)
 
 
 def stored():
@@ -47,9 +52,16 @@ def write(screen, title, body):
     screen.editor.setPlainText(body)
 
 
+def listed(screen, visible_only=False):
+    """Titles in the list, top to bottom"""
+    from ui.notes_screen import TITLE_ROLE
+    return [item.data(TITLE_ROLE) for item in screen.noteList.items()
+            if not (visible_only and item.isHidden())]
+
+
 def select(screen, title):
-    item = next(screen.notes_list.item(i) for i in range(screen.notes_list.count())
-                if screen.notes_list.item(i).text() == title)
+    from ui.notes_screen import TITLE_ROLE
+    item = next(item for item in screen.noteList.items() if item.data(TITLE_ROLE) == title)
     screen.loadSelectedNote(item)
 
 
@@ -111,3 +123,119 @@ def test_loading_a_note_is_not_an_edit(screen, answers):
     screen.createNewNote()
     select(screen, "Only")
     assert screen._dirty is False
+
+
+def test_deleting_can_be_undone(screen, answers):
+    from utils.data_history import history
+    write(screen, "Keep me", "precious")
+    screen.saveCurrentNote()
+
+    screen.deleteCurrentNote()
+    assert stored() == {}
+    assert history().undoLabel() == "Deleted note \u201cKeep me\u201d"
+
+    history().undo()
+    screen.reloadFromStorage()
+    assert "precious" in stored()["Keep me"]["content"]
+    assert listed(screen) == ["Keep me"]
+
+
+def test_newest_edit_is_listed_first(screen, answers, monkeypatch):
+    import utils.notes_io as notes_io
+    from datetime import datetime
+
+    class Clock(datetime):
+        now_value = datetime(2026, 1, 1, 9, 0, 0)
+
+        @classmethod
+        def now(cls, tz=None):
+            return cls.now_value
+
+    monkeypatch.setattr(notes_io, "datetime", Clock)
+    for hour, title in ((9, "Old"), (10, "Middle"), (11, "New")):
+        Clock.now_value = datetime(2026, 1, 1, hour)
+        screen.createNewNote()
+        write(screen, title, title)
+        screen.saveCurrentNote()
+    assert listed(screen) == ["New", "Middle", "Old"]
+
+    # Editing an old note moves it to the top
+    Clock.now_value = datetime(2026, 1, 1, 12)
+    select(screen, "Old")
+    screen.editor.setPlainText("changed")
+    screen.saveCurrentNote()
+    assert listed(screen) == ["Old", "New", "Middle"]
+
+
+def test_search_matches_titles_and_text(screen, answers):
+    for title, body in (("Groceries", "milk and eggs"), ("Work", "call the plumber")):
+        screen.createNewNote()
+        write(screen, title, body)
+        screen.saveCurrentNote()
+
+    screen.noteList.search.setText("plumb")
+    assert listed(screen, visible_only=True) == ["Work"]
+    screen.noteList.search.setText("GROC")
+    assert listed(screen, visible_only=True) == ["Groceries"]
+    screen.noteList.search.setText("nothing like this")
+    assert listed(screen, visible_only=True) == []
+    assert not screen.noteList.noMatches.isHidden()
+    screen.noteList.search.clear()
+    assert sorted(listed(screen, visible_only=True)) == ["Groceries", "Work"]
+
+
+def test_renaming_keeps_the_text_and_unsaved_state(screen, answers, monkeypatch):
+    from ui.custom_widgets import dialogs
+    write(screen, "Draft", "body")
+    screen.saveCurrentNote()
+    note_id = screen.current_note_id
+
+    monkeypatch.setattr(dialogs, "ask_text", lambda *a, **k: ("Final", True))
+    screen.renameNote(note_id)
+    assert set(stored()) == {"Final"}
+    assert "body" in stored()["Final"]["content"]
+    assert screen.title_editor.text() == "Final"
+    assert screen._dirty is False
+
+
+def test_unsaved_edits_are_marked(screen, answers):
+    write(screen, "Marked", "x")
+    screen.saveCurrentNote()
+    assert "Saved at" in screen.statusLabel.text()
+
+    screen.editor.setPlainText("y")
+    assert "Unsaved" in screen.statusLabel.text()
+    assert screen.noteList.list.itemWidget(screen.noteList.items()[0]).findChildren(
+        type(screen.statusLabel))[0].text().endswith("●")
+
+
+def test_old_black_text_is_made_readable(screen, answers):
+    from utils.notes_io import save_note_to_json
+    from models.note import Note
+    note = Note(title="Old", content='<p><span style="color:#000000;">dark</span> '
+                                     '<span style="color:#e74c3c;">red</span></p>')
+    save_note_to_json(note, logger)
+    screen.updateNotesList()
+    select(screen, "Old")
+
+    def colour_of(word):
+        from PyQt5.QtGui import QTextDocument
+        cursor = screen.editor.document().find(word, 0, QTextDocument.FindCaseSensitively)
+        cursor.setPosition(cursor.selectionStart() + 1)
+        return cursor.charFormat()
+
+    assert not colour_of("dark").hasProperty(colour_of("dark").ForegroundBrush)
+    assert colour_of("red").foreground().color().name() == "#e74c3c"
+    assert screen._dirty is False
+
+
+def test_pasted_dark_text_is_made_readable_and_undoes_in_one_step(screen, answers):
+    from PyQt5.QtCore import QMimeData
+    data = QMimeData()
+    data.setHtml('<span style="color:#111111;">pasted</span>')
+    screen.editor.insertFromMimeData(data)
+
+    fmt = screen.editor.document().begin().begin().fragment().charFormat()
+    assert not fmt.hasProperty(fmt.ForegroundBrush)
+    screen.editor.undo()
+    assert screen.editor.toPlainText() == ""

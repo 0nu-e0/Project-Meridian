@@ -25,216 +25,54 @@
 # Author: Jereme Shaver
 # -----------------------------------------------------------------------------
 
-from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
-    QTextEdit, QPushButton, QComboBox, QFormLayout, QWidget
-)
+from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtWidgets import QLineEdit
 
-from ui.custom_widgets import dialogs
 from models.task import TaskPriority, TaskStatus
-from resources.styles import AppStyles
-from resources.styles import AppColors
+from ui.project_files.form_dialog import FormDialog
 
 
-class TaskDialog(QDialog):
-    """
-    Simple dialog for creating or editing a task within a phase
-    """
+class TaskDialog(FormDialog):
+    """Add a task to a phase: a title, and optionally a description, priority, and status.
+    Open the task afterwards for everything else (dates, checklist, people…)."""
 
-    taskSaved = pyqtSignal(dict)  # Emits task data when saved
+    taskSaved = pyqtSignal(dict)  # the task's data, when saved
 
-    def __init__(self, project_id=None, phase_id=None, logger=None, parent=None):
-        """
-        Args:
-            project_id: Project ID (required)
-            phase_id: Phase ID (required)
-            logger: Logger instance
-            parent: Parent widget
-        """
-        super().__init__(parent)
+    def __init__(self, project_id=None, phase_id=None, logger=None, parent=None, phase_name=None):
         self.project_id = project_id
         self.phase_id = phase_id
         self.logger = logger
-        self._saving = False  # Flag to prevent duplicate saves
+        self.task_data = None
+        self._saving = False  # one task per press, even if Enter is held
+        super().__init__(parent, f"Add a task to “{phase_name}”" if phase_name else "Add a task",
+                         "Click it afterwards to add dates, a checklist, and more.",
+                         icon="☑", save_label="Add task")
+        self.title_input = self.addRow("Title", QLineEdit())
+        self.title_input.setPlaceholderText("What needs doing")
+        self.description_input = self.addRow("Description", self.textArea("Details (optional)", 70))
+        self.priority_combo = self.addRow("Priority", self.combo([(p.name.title(), p) for p in TaskPriority],
+                                                                 TaskPriority.MEDIUM))
+        self.status_combo = self.addRow("Status", self.combo([(s.value, s) for s in TaskStatus]))
+        self.title_input.setFocus()
 
-        self.initUI()
-
-    def initUI(self):
-        """Initialize the dialog UI"""
-        self.setWindowTitle("Add Task to Phase")
-        self.setModal(True)
-        self.setMinimumWidth(500)
-        self.setStyleSheet(f"""
-            QDialog {{
-                background-color: {AppColors.surface};
-            }}
-        """)
-
-        # Main layout
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(15)
-
-        # Title
-        title_label = QLabel("Add Task to Phase")
-        title_label.setStyleSheet(f"""
-            QLabel {{
-                font-size: 20px;
-                font-weight: bold;
-                color: {AppColors.text_primary};
-            }}
-        """)
-        layout.addWidget(title_label)
-
-        # Form layout
-        form_layout = QFormLayout()
-        form_layout.setSpacing(12)
-        form_layout.setLabelAlignment(Qt.AlignRight)
-
-        # Title input
-        self.title_input = QLineEdit()
-        self.title_input.setPlaceholderText("Enter task title")
-        self.title_input.setStyleSheet(self.getInputStyle())
-        form_layout.addRow("Title *:", self.title_input)
-
-        # Description input
-        self.description_input = QTextEdit()
-        self.description_input.setPlaceholderText("Enter task description (optional)")
-        self.description_input.setMaximumHeight(100)
-        self.description_input.setStyleSheet(self.getInputStyle())
-        form_layout.addRow("Description:", self.description_input)
-
-        # Priority dropdown
-        self.priority_combo = QComboBox()
-        for priority in TaskPriority:
-            self.priority_combo.addItem(priority.name, priority)
-        # Set default to MEDIUM
-        self.priority_combo.setCurrentText("MEDIUM")
-        self.priority_combo.setStyleSheet(self.getInputStyle())
-        form_layout.addRow("Priority:", self.priority_combo)
-
-        # Status dropdown
-        self.status_combo = QComboBox()
-        for status in TaskStatus:
-            self.status_combo.addItem(status.value, status)
-        # Set default to INCOMPLETE
-        self.status_combo.setCurrentIndex(0)
-        self.status_combo.setStyleSheet(self.getInputStyle())
-        form_layout.addRow("Status:", self.status_combo)
-
-        form_widget = QWidget()
-        form_widget.setLayout(form_layout)
-        layout.addWidget(form_widget)
-
-        # Buttons
-        buttons_layout = QHBoxLayout()
-        buttons_layout.setSpacing(10)
-        buttons_layout.addStretch()
-
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.setFixedSize(100, 35)
-        cancel_btn.setStyleSheet(self.getSecondaryButtonStyle())
-        cancel_btn.clicked.connect(self.reject)
-        cancel_btn.setAutoDefault(False)  # Prevent this from being default
-        buttons_layout.addWidget(cancel_btn)
-
-        save_btn = QPushButton("Add Task")
-        save_btn.setFixedSize(100, 35)
-        save_btn.setStyleSheet(AppStyles.save_button())
-        save_btn.clicked.connect(self.onSave)
-        save_btn.setDefault(True)  # Make this the default button for Enter key
-        buttons_layout.addWidget(save_btn)
-
-        layout.addLayout(buttons_layout)
+    def validate(self):
+        if self._saving:
+            return False
+        title = self.title_input.text().strip()
+        if not title:
+            self.showError("Give the task a title.", self.title_input)
+            return False
+        self._saving = True
+        self.task_data = {
+            'title': title,
+            'description': self.description_input.toPlainText().strip(),
+            'priority': self.priority_combo.currentData(),
+            'status': self.status_combo.currentData(),
+            'project_id': self.project_id,
+            'phase_id': self.phase_id,
+        }
+        self.taskSaved.emit(self.task_data)
+        return True
 
     def onSave(self):
-        """Validate and save task data"""
-        # Prevent duplicate saves
-        if self._saving:
-            return
-
-        self._saving = True
-
-        try:
-            # Validate title
-            title = self.title_input.text().strip()
-            if not title:
-                dialogs.warning(self, "Validation Error", "Task title is required.")
-                self._saving = False  # Reset flag on validation failure
-                return
-
-            # Get form data
-            task_data = {
-                'title': title,
-                'description': self.description_input.toPlainText().strip(),
-                'priority': self.priority_combo.currentData(),
-                'status': self.status_combo.currentData(),
-                'project_id': self.project_id,
-                'phase_id': self.phase_id
-            }
-
-            # Emit signal with task data
-            self.taskSaved.emit(task_data)
-
-            # Close dialog
-            self.accept()
-        except Exception as e:
-            self._saving = False  # Reset flag on error
-            raise e
-
-    def getInputStyle(self):
-        """Get stylesheet for input widgets"""
-        return f"""
-            QLineEdit, QTextEdit, QComboBox {{
-                padding: 8px;
-                border: 2px solid {AppColors.accent};
-                border-radius: 5px;
-                background-color: {AppColors.surface_raised};
-                color: {AppColors.text_primary};
-                font-size: 12px;
-            }}
-            QLineEdit:focus, QTextEdit:focus, QComboBox:focus {{
-                border: 2px solid {AppColors.accent_light};
-            }}
-            QLineEdit::placeholder, QTextEdit::placeholder {{
-                color: {AppColors.text_faint};
-            }}
-            QComboBox::drop-down {{
-                border: none;
-                width: 20px;
-            }}
-            QComboBox::down-arrow {{
-                image: none;
-                border-left: 4px solid transparent;
-                border-right: 4px solid transparent;
-                border-top: 6px solid {AppColors.text_primary};
-                margin-right: 8px;
-            }}
-            QComboBox QAbstractItemView {{
-                background-color: {AppColors.surface};
-                border: 2px solid {AppColors.accent};
-                selection-background-color: {AppColors.accent};
-                color: {AppColors.text_primary};
-                padding: 4px;
-            }}
-        """
-
-    def getSecondaryButtonStyle(self):
-        """Get stylesheet for secondary button"""
-        return f"""
-            QPushButton {{
-                background-color: {AppColors.surface_raised};
-                color: {AppColors.text_primary};
-                border: 2px solid {AppColors.text_faint};
-                border-radius: 5px;
-                font-size: 13px;
-                font-weight: bold;
-            }}
-            QPushButton:hover {{
-                background-color: {AppColors.text_faint};
-            }}
-            QPushButton:pressed {{
-                background-color: {AppColors.text_muted};
-            }}
-        """
+        self._save()

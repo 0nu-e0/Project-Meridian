@@ -25,179 +25,49 @@
 # Author: Jereme Shaver
 # -----------------------------------------------------------------------------
 
-from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
-    QTextEdit, QPushButton, QFormLayout, QWidget
-)
+from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtWidgets import QLineEdit
 
-from ui.custom_widgets import dialogs
-from resources.styles import AppStyles
-from resources.styles import AppColors
+from ui.project_files.form_dialog import FormDialog
 
 
-class PhaseDialog(QDialog):
-    """
-    Dialog for creating or editing a phase
-    """
+class PhaseDialog(FormDialog):
+    """Create or edit a phase: a name and an optional description"""
 
-    phaseSaved = pyqtSignal(dict)  # Emits phase data when saved
+    phaseSaved = pyqtSignal(dict)  # the phase's data, when saved
 
     def __init__(self, mode="create", project_id=None, phase=None, logger=None, parent=None):
-        """
-        Args:
-            mode: "create" or "edit"
-            project_id: Project ID (required for create mode)
-            phase: Phase object (required if mode is "edit")
-            logger: Logger instance
-            parent: Parent widget
-        """
-        super().__init__(parent)
         self.mode = mode
         self.project_id = project_id
         self.phase = phase
         self.logger = logger
-
-        self.initUI()
-
-        # Pre-fill fields if editing
-        if mode == "edit" and phase:
+        self.phase_data = None
+        editing = mode == "edit" and phase is not None
+        super().__init__(parent, "Edit phase" if editing else "New phase",
+                         "" if editing else "A stage of the project, such as Design or Build. "
+                                            "It's added after the others; drag it to move it.",
+                         icon="▤", save_label="Save" if editing else "Add phase")
+        self.name_input = self.addRow("Name", QLineEdit())
+        self.name_input.setPlaceholderText("e.g. Design")
+        self.description_input = self.addRow("Description", self.textArea("What happens in this phase (optional)"))
+        if editing:
             self.fillFields()
-
-    def initUI(self):
-        """Initialize the dialog UI"""
-        self.setWindowTitle("New Phase" if self.mode == "create" else "Edit Phase")
-        self.setModal(True)
-        self.setMinimumWidth(450)
-        self.setStyleSheet(f"""
-            QDialog {{
-                background-color: {AppColors.surface};
-            }}
-        """)
-
-        # Main layout
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(15)
-
-        # Title
-        title_label = QLabel("New Phase" if self.mode == "create" else "Edit Phase")
-        title_label.setStyleSheet(f"""
-            QLabel {{
-                font-size: 20px;
-                font-weight: bold;
-                color: {AppColors.text_primary};
-            }}
-        """)
-        layout.addWidget(title_label)
-
-        # Form layout
-        form_layout = QFormLayout()
-        form_layout.setSpacing(12)
-        form_layout.setLabelAlignment(Qt.AlignRight)
-
-        # Name input
-        self.name_input = QLineEdit()
-        self.name_input.setPlaceholderText("Enter phase name")
-        self.name_input.setStyleSheet(self.getInputStyle())
-        form_layout.addRow("Name *:", self.name_input)
-
-        # Description input
-        self.description_input = QTextEdit()
-        self.description_input.setPlaceholderText("Enter phase description (optional)")
-        self.description_input.setMaximumHeight(100)
-        self.description_input.setStyleSheet(self.getInputStyle())
-        form_layout.addRow("Description:", self.description_input)
-
-        form_widget = QWidget()
-        form_widget.setLayout(form_layout)
-        layout.addWidget(form_widget)
-
-        # Buttons
-        buttons_layout = QHBoxLayout()
-        buttons_layout.setSpacing(10)
-        buttons_layout.addStretch()
-
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.setFixedSize(100, 35)
-        cancel_btn.setStyleSheet(self.getSecondaryButtonStyle())
-        cancel_btn.clicked.connect(self.reject)
-        buttons_layout.addWidget(cancel_btn)
-
-        save_btn = QPushButton("Save")
-        save_btn.setFixedSize(100, 35)
-        save_btn.setStyleSheet(AppStyles.save_button())
-        save_btn.clicked.connect(self.onSave)
-        buttons_layout.addWidget(save_btn)
-
-        layout.addLayout(buttons_layout)
+        self.name_input.setFocus()
 
     def fillFields(self):
-        """Fill form fields with phase data (for edit mode)"""
-        if not self.phase:
-            return
-
         self.name_input.setText(self.phase.name)
-        self.description_input.setPlainText(self.phase.description)
+        self.description_input.setPlainText(self.phase.description or "")
 
-    def onSave(self):
-        """Validate and save phase data"""
-        # Validate name
+    def validate(self):
         name = self.name_input.text().strip()
         if not name:
-            dialogs.warning(self, "Validation Error", "Phase name is required.")
-            return
-
-        # Get form data
-        phase_data = {
-            'name': name,
-            'description': self.description_input.toPlainText().strip()
-        }
-
-        # If editing, include phase_id
+            self.showError("Give the phase a name.", self.name_input)
+            return False
+        self.phase_data = {'name': name, 'description': self.description_input.toPlainText().strip()}
         if self.mode == "edit" and self.phase:
-            phase_data['phase_id'] = self.phase.id
+            self.phase_data['phase_id'] = self.phase.id
+        self.phaseSaved.emit(self.phase_data)
+        return True
 
-        # Emit signal with phase data
-        self.phaseSaved.emit(phase_data)
-
-        # Close dialog
-        self.accept()
-
-    def getInputStyle(self):
-        """Get stylesheet for input widgets"""
-        return f"""
-            QLineEdit, QTextEdit {{
-                padding: 8px;
-                border: 2px solid {AppColors.accent};
-                border-radius: 5px;
-                background-color: {AppColors.surface_raised};
-                color: {AppColors.text_primary};
-                font-size: 12px;
-            }}
-            QLineEdit:focus, QTextEdit:focus {{
-                border: 2px solid {AppColors.accent_light};
-            }}
-            QLineEdit::placeholder, QTextEdit::placeholder {{
-                color: {AppColors.text_faint};
-            }}
-        """
-
-    def getSecondaryButtonStyle(self):
-        """Get stylesheet for secondary button"""
-        return f"""
-            QPushButton {{
-                background-color: {AppColors.surface_raised};
-                color: {AppColors.text_primary};
-                border: 2px solid {AppColors.text_faint};
-                border-radius: 5px;
-                font-size: 13px;
-                font-weight: bold;
-            }}
-            QPushButton:hover {{
-                background-color: {AppColors.text_faint};
-            }}
-            QPushButton:pressed {{
-                background-color: {AppColors.text_muted};
-            }}
-        """
+    def onSave(self):
+        self._save()

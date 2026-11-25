@@ -25,37 +25,50 @@
 # Author: Jereme Shaver
 # -----------------------------------------------------------------------------
 
-from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QScrollArea, QGridLayout, QFrame, QLineEdit, QComboBox, QCheckBox, QFileDialog
-)
+from datetime import datetime
 
-from ui.custom_widgets import dialogs
+from PyQt5.QtCore import Qt, QTimer, pyqtSignal
+from PyQt5.QtWidgets import (QComboBox, QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QMenu, QPushButton,
+                             QScrollArea, QVBoxLayout, QWidget)
+
 from models.project import ProjectStatus
 from models.task import TaskPriority
-from utils.projects_io import (
-    load_projects_from_json, create_project,
-    import_project_from_json
-)
-from resources.styles import AppStyles, AnimatedButton
-from ui.project_files.project_card import ProjectCard
 from resources.styles import AppColors
+from ui.custom_widgets.panel_styles import (COMBO_STYLE, EMPTY_HINT_STYLE, LINK_BUTTON_STYLE, MENU_STYLE,
+                                            PANEL_BUTTON_STYLE, PRIMARY_BUTTON_STYLE, SEARCH_BOX_STYLE)
+from ui.project_files import project_actions
+from ui.project_files.project_card import MIN_CARD_WIDTH, ProjectCard
+from utils.projects_io import load_phases_from_json, load_projects_from_json
+
+GRID_SPACING = 16
+GRID_MARGIN = 20
+
+SORTS = {
+    "Newest first": lambda p: (-p.creation_date.timestamp(),),
+    "Due soonest": lambda p: (p.target_completion is None, p.target_completion or datetime.max),
+    "Name": lambda p: (p.title.lower(),),
+}
+
+SCROLL_STYLE = f"""
+    QScrollArea {{ background: transparent; border: none; }}
+    QScrollBar:vertical {{ background: transparent; width: 10px; margin: 2px; }}
+    QScrollBar::handle:vertical {{ background: {AppColors.surface_raised}; border-radius: 4px; min-height: 30px; }}
+    QScrollBar::handle:vertical:hover {{ background: {AppColors.accent}; }}
+    QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0px; }}
+    QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{ background: transparent; }}"""
 
 
 class ProjectsScreen(QWidget):
-    """
-    Main screen for displaying all projects in a grid layout
-    """
+    """Every project as a card: search, filter, and sort them; click one to open it"""
 
-    projectClicked = pyqtSignal(str)  # Emits project_id when clicked
+    projectClicked = pyqtSignal(str)  # project id
 
     def __init__(self, logger):
         super().__init__()
         self.logger = logger
         self.projects = {}
         self.project_cards = []
-        self.detail_view = None  # Will hold the detail view when shown
+        self._columns = 0
         self.search_text = ""
         self.filter_status = "All"
         self.filter_priority = "All"
@@ -64,391 +77,297 @@ class ProjectsScreen(QWidget):
         self.initUI()
         self.loadProjects()
 
+    # -- layout -----------------------------------------------------------------
     def initUI(self):
-        """Initialize the user interface"""
-        # Main layout - similar to dashboard
         self.main_layout = QVBoxLayout(self)
         self.main_layout.setContentsMargins(0, 0, 0, 0)
         self.main_layout.setSpacing(0)
+        self.main_layout.addWidget(self.initToolbar())
+        self.main_layout.addWidget(self.initContentArea(), 1)
 
-        # Banner header
-        # self.initBannerHeader()
+    def initToolbar(self):
+        bar = QWidget()
+        layout = QHBoxLayout(bar)
+        layout.setContentsMargins(GRID_MARGIN, 16, GRID_MARGIN, 6)
+        layout.setSpacing(8)
 
-        # Separator
-        self.addSeparator()
-
-        # Filter section
-        self.initFilterSection()
-
-        # Separator
-        self.addSeparator()
-
-        # Scrollable content area
-        self.initContentArea()
-
-    # def initBannerHeader(self):
-    #     """Create banner header like dashboard"""
-    #     banner_widget = QWidget()
-    #     banner_widget.setStyleSheet("background-color: #2E2F73;")  # Purple banner
-    #     banner_layout = QHBoxLayout(banner_widget)
-    #     banner_layout.setContentsMargins(20, 15, 20, 15)
-    #     banner_layout.setSpacing(15)
-
-    #     # Title with icon
-    #     title_label = QLabel("📋 Projects")
-    #     title_label.setStyleSheet(AppStyles.banner_header())
-    #     banner_layout.addWidget(title_label)
-
-    #     # Spacer
-    #     banner_layout.addStretch()
-
-    #     # Import button
-    #     self.import_project_btn = AnimatedButton("📥 Import")
-    #     self.import_project_btn.setStyleSheet(AppStyles.button_normal())
-    #     self.import_project_btn.setFixedHeight(40)
-    #     self.import_project_btn.clicked.connect(self.onImportProject)
-    #     banner_layout.addWidget(self.import_project_btn)
-
-    #     # Add Project button
-    #     self.add_project_btn = AnimatedButton("+ New Project")
-    #     self.add_project_btn.setStyleSheet(AppStyles.add_button())
-    #     self.add_project_btn.setFixedHeight(40)
-    #     self.add_project_btn.clicked.connect(self.onAddProject)
-    #     banner_layout.addWidget(self.add_project_btn)
-
-    #     self.main_layout.addWidget(banner_widget)
-
-    def addSeparator(self):
-        """Add separator line like dashboard"""
-        separator = QFrame()
-        separator.setFrameShape(QFrame.HLine)
-        separator.setFixedHeight(2)
-        separator.setStyleSheet(f"background-color: {AppColors.button_toggle};")  # Cyan separator
-        self.main_layout.addWidget(separator)
-
-    def initFilterSection(self):
-        """Create filter controls section"""
-        filter_widget = QWidget()
-        filter_widget.setStyleSheet(f"background-color: {AppColors.accent_background_color};")  # Dark accent background
-        filter_layout = QHBoxLayout(filter_widget)
-        filter_layout.setContentsMargins(20, 15, 20, 15)
-        filter_layout.setSpacing(15)
-
-        # Search box
         self.search_box = QLineEdit()
-        self.search_box.setPlaceholderText("🔍 Search projects...")
-        self.search_box.setStyleSheet(AppStyles.line_edit_accent())
-        self.search_box.setFixedWidth(300)
-        self.search_box.setFixedHeight(36)
+        self.search_box.setPlaceholderText("Search projects")
+        self.search_box.setClearButtonEnabled(True)
+        self.search_box.setStyleSheet(SEARCH_BOX_STYLE)
+        self.search_box.setMinimumWidth(130)
+        self.search_box.setMaximumWidth(260)
         self.search_box.textChanged.connect(self.onSearchTextChanged)
-        filter_layout.addWidget(self.search_box)
+        layout.addWidget(self.search_box)
 
-        # Status filter
-        status_label = QLabel("Status:")
-        status_label.setStyleSheet(AppStyles.label_bold())
-        filter_layout.addWidget(status_label)
+        self.status_filter = self._combo([("All statuses", "All")] + [(s.value, s.value) for s in ProjectStatus])
+        self.status_filter.setToolTip("Show only projects with this status")
+        self.status_filter.currentIndexChanged.connect(
+            lambda: self.onStatusFilterChanged(self.status_filter.currentData()))
+        layout.addWidget(self.status_filter)
 
-        self.status_filter = QComboBox()
-        self.status_filter.addItem("All")
-        for status in ProjectStatus:
-            self.status_filter.addItem(status.value)
-        self.status_filter.setStyleSheet(AppStyles.combo_box_accent())
-        self.status_filter.setFixedHeight(36)
-        self.status_filter.setMinimumWidth(140)
-        self.status_filter.currentTextChanged.connect(self.onStatusFilterChanged)
-        filter_layout.addWidget(self.status_filter)
+        self.priority_filter = self._combo([("All priorities", "All")] + [(p.name.title(), p.name) for p in TaskPriority])
+        self.priority_filter.setToolTip("Show only projects with this priority")
+        self.priority_filter.currentIndexChanged.connect(
+            lambda: self.onPriorityFilterChanged(self.priority_filter.currentData()))
+        layout.addWidget(self.priority_filter)
 
-        # Priority filter
-        priority_label = QLabel("Priority:")
-        priority_label.setStyleSheet(AppStyles.label_bold())
-        filter_layout.addWidget(priority_label)
+        self.sort_combo = self._combo([(name, name) for name in SORTS])
+        self.sort_combo.setToolTip("Order of the projects")
+        self.sort_combo.currentIndexChanged.connect(self.displayProjects)
+        layout.addWidget(self.sort_combo)
 
-        self.priority_filter = QComboBox()
-        self.priority_filter.addItem("All")
-        for priority in TaskPriority:
-            self.priority_filter.addItem(priority.name)
-        self.priority_filter.setStyleSheet(AppStyles.combo_box_accent())
-        self.priority_filter.setFixedHeight(36)
-        self.priority_filter.setMinimumWidth(140)
-        self.priority_filter.currentTextChanged.connect(self.onPriorityFilterChanged)
-        filter_layout.addWidget(self.priority_filter)
+        self.archived_checkbox = QPushButton("Show archived")
+        self.archived_checkbox.setCheckable(True)
+        self.archived_checkbox.setToolTip("Also show projects you've archived")
+        self.archived_checkbox.setStyleSheet(PANEL_BUTTON_STYLE)
+        self.archived_checkbox.toggled.connect(self.onArchivedToggled)
+        layout.addWidget(self.archived_checkbox)
 
-        # Show archived checkbox
-        self.archived_checkbox = QCheckBox("Show Archived")
-        self.archived_checkbox.setStyleSheet(AppStyles.checkbox_accent())
-        self.archived_checkbox.stateChanged.connect(self.onArchivedCheckboxChanged)
-        filter_layout.addWidget(self.archived_checkbox)
+        self.clear_button = QPushButton("Clear filters")
+        self.clear_button.setStyleSheet(LINK_BUTTON_STYLE)
+        self.clear_button.clicked.connect(self.onClearFilters)
+        layout.addWidget(self.clear_button)
 
-        # Spacer
-        filter_layout.addStretch()
+        layout.addStretch(1)
 
-        # Import button
-        self.import_project_btn = AnimatedButton("📥 Import")
+        self.count_label = QLabel()
+        self.count_label.setStyleSheet(f"color: {AppColors.text_muted}; font-size: 12px;")
+        layout.addWidget(self.count_label)
+
+        self.import_project_btn = QPushButton("Import…")
         self.import_project_btn.setToolTip("Bring in a project exported from Project Meridian")
-        self.import_project_btn.setStyleSheet(AppStyles.button_normal())
-        self.import_project_btn.setFixedHeight(40)
+        self.import_project_btn.setStyleSheet(PANEL_BUTTON_STYLE)
         self.import_project_btn.clicked.connect(self.onImportProject)
-        filter_layout.addWidget(self.import_project_btn)
+        layout.addWidget(self.import_project_btn)
 
-        # Add Project button
-        self.add_project_btn = AnimatedButton("+ New Project")
+        self.add_project_btn = QPushButton("+  New project")
         self.add_project_btn.setToolTip("Start a new project")
-        self.add_project_btn.setStyleSheet(AppStyles.add_button())
-        self.add_project_btn.setFixedHeight(40)
+        self.add_project_btn.setStyleSheet(PANEL_BUTTON_STYLE + PRIMARY_BUTTON_STYLE)
         self.add_project_btn.clicked.connect(self.onAddProject)
-        filter_layout.addWidget(self.add_project_btn)
+        layout.addWidget(self.add_project_btn)
 
-        # Clear filters button
-        clear_btn = AnimatedButton("Clear Filters")
-        clear_btn.setToolTip("Show all projects again")
-        clear_btn.setStyleSheet(AppStyles.button_normal())
-        clear_btn.setFixedHeight(36)
-        clear_btn.clicked.connect(self.onClearFilters)
-        filter_layout.addWidget(clear_btn)
+        for button in (self.archived_checkbox, self.clear_button, self.import_project_btn, self.add_project_btn):
+            button.setCursor(Qt.PointingHandCursor)
+        return bar
 
-        self.main_layout.addWidget(filter_widget)
+    @staticmethod
+    def _combo(items):
+        box = QComboBox()
+        box.setStyleSheet(COMBO_STYLE)
+        box.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        box.setMinimumContentsLength(9)
+        box.setCursor(Qt.PointingHandCursor)
+        for text, value in items:
+            box.addItem(text, value)
+        return box
 
     def initContentArea(self):
-        """Create scrollable content area"""
-        # Scroll area with AppStyles
-        scroll_area = QScrollArea()
-        scroll_area.setStyleSheet(AppStyles.scroll_area())
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setFrameShape(QFrame.NoFrame)
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.scroll_area.setStyleSheet(SCROLL_STYLE)
 
-        # Container widget
         self.container_widget = QWidget()
-        self.container_widget.setStyleSheet(AppStyles.background_color())
         self.container_layout = QVBoxLayout(self.container_widget)
-        self.container_layout.setContentsMargins(20, 20, 20, 20)
-        self.container_layout.setSpacing(20)
+        self.container_layout.setContentsMargins(GRID_MARGIN, 10, GRID_MARGIN, GRID_MARGIN)
+        self.container_layout.setSpacing(GRID_SPACING)
 
-        # Grid layout for project cards
         self.grid_layout = QGridLayout()
-        self.grid_layout.setSpacing(20)
-        self.grid_layout.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+        self.grid_layout.setSpacing(GRID_SPACING)
+        self.grid_layout.setAlignment(Qt.AlignTop)
         self.container_layout.addLayout(self.grid_layout)
 
-        # Empty state widget
         self.empty_state_widget = self.createEmptyState()
         self.container_layout.addWidget(self.empty_state_widget)
+        self.container_layout.addStretch(1)
 
-        # Add spacer
-        self.container_layout.addStretch()
-
-        scroll_area.setWidget(self.container_widget)
-        self.main_layout.addWidget(scroll_area)
+        self.scroll_area.setWidget(self.container_widget)
+        return self.scroll_area
 
     def createEmptyState(self):
-        """Create empty state widget"""
-        empty_widget = QWidget()
-        empty_widget.setStyleSheet(AppStyles.background_color())
-        empty_layout = QVBoxLayout(empty_widget)
-        empty_layout.setAlignment(Qt.AlignCenter)
-        empty_layout.setSpacing(20)
+        """Shown when no cards are: either there are no projects, or none match the filters"""
+        empty = QWidget()
+        layout = QVBoxLayout(empty)
+        layout.setContentsMargins(0, 60, 0, 0)
+        layout.setSpacing(10)
+        layout.setAlignment(Qt.AlignHCenter)
+        self.empty_title = QLabel()
+        self.empty_title.setAlignment(Qt.AlignCenter)
+        self.empty_title.setStyleSheet(f"color: {AppColors.text_primary}; font-size: 17px; font-weight: bold;")
+        layout.addWidget(self.empty_title)
+        self.empty_text = QLabel()
+        self.empty_text.setAlignment(Qt.AlignCenter)
+        self.empty_text.setWordWrap(True)
+        self.empty_text.setFixedWidth(460)
+        self.empty_text.setStyleSheet(EMPTY_HINT_STYLE + "padding: 0;")
+        layout.addWidget(self.empty_text)
+        self.empty_button = QPushButton()
+        self.empty_button.setCursor(Qt.PointingHandCursor)
+        self.empty_button.setStyleSheet(PANEL_BUTTON_STYLE + PRIMARY_BUTTON_STYLE)
+        self.empty_button.clicked.connect(lambda: self.onClearFilters() if self._filtersActive() else self.onAddProject())
+        layout.addWidget(self.empty_button, 0, Qt.AlignHCenter)
+        empty.hide()
+        return empty
 
-        # Icon
-        icon_label = QLabel("📋")
-        icon_label.setStyleSheet("font-size: 80px;")
-        icon_label.setAlignment(Qt.AlignCenter)
-        empty_layout.addWidget(icon_label)
-
-        # Title
-        title_label = QLabel("No Projects Yet")
-        title_label.setStyleSheet(AppStyles.label_lgfnt_bold())
-        title_label.setAlignment(Qt.AlignCenter)
-        empty_layout.addWidget(title_label)
-
-        # Description
-        desc_label = QLabel("Create your first project to get started")
-        desc_label.setStyleSheet(AppStyles.label_small())
-        desc_label.setAlignment(Qt.AlignCenter)
-        empty_layout.addWidget(desc_label)
-
-        # Create button
-        create_btn = AnimatedButton("+ Create Project")
-        create_btn.setStyleSheet(AppStyles.add_button())
-        create_btn.setFixedSize(150, 40)
-        create_btn.clicked.connect(self.onAddProject)
-        empty_layout.addWidget(create_btn, alignment=Qt.AlignCenter)
-
-        empty_widget.hide()
-        return empty_widget
-
+    # -- showing the cards ----------------------------------------------------------
     def loadProjects(self):
-        """Load projects from storage"""
         self.projects = load_projects_from_json(self.logger)
         self.displayProjects()
 
+    def refreshProjects(self):
+        self.loadProjects()
+
     def displayProjects(self):
-        """Display project cards in grid"""
-        # Clear existing cards
         for card in self.project_cards:
+            self.grid_layout.removeWidget(card)
+            card.hide()
             card.deleteLater()
         self.project_cards.clear()
 
-        # Clear grid layout
-        while self.grid_layout.count():
-            item = self.grid_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
-
-        # Apply filters
-        filtered_projects = self.applyFilters()
-
-        # Show/hide empty state
-        if not filtered_projects:
-            self.empty_state_widget.show()
-            return
-        else:
-            self.empty_state_widget.hide()
-
-        # Create cards
-        cols = 3
-        for idx, project in enumerate(filtered_projects):
-            row = idx // cols
-            col = idx % cols
-
-            card = ProjectCard(project, self.logger)
-            card.clicked.connect(lambda pid=project.id: self.onProjectClicked(pid))
-
-            self.grid_layout.addWidget(card, row, col)
+        shown = self.applyFilters()
+        phases = load_phases_from_json(self.logger) if shown else {}
+        for project in shown:
+            card = ProjectCard(project, self.logger, phases=phases)
+            card.clicked.connect(self.onProjectClicked)
+            card.menuRequested.connect(self.showProjectMenu)
             self.project_cards.append(card)
+        self._columns = 0
+        self._placeCards()
+        self._updateStatusLine(len(shown))
+
+    def _columnCount(self):
+        available = self.scroll_area.viewport().width() - 2 * GRID_MARGIN
+        return max(1, (available + GRID_SPACING) // (MIN_CARD_WIDTH + GRID_SPACING))
+
+    def _placeCards(self):
+        """Put the cards in as many columns as fit, each column the same width"""
+        columns = self._columnCount()
+        if columns == self._columns:
+            return
+        for column in range(max(columns, self._columns)):
+            self.grid_layout.setColumnStretch(column, 1 if column < columns else 0)
+        self._columns = columns
+        for card in self.project_cards:
+            self.grid_layout.removeWidget(card)
+        for index, card in enumerate(self.project_cards):
+            self.grid_layout.addWidget(card, index // columns, index % columns)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.count_label.setVisible(self.width() >= 1150)  # room for the filters first
+        self._placeCards()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        QTimer.singleShot(0, self._placeCards)  # the real width is known once shown
+
+    def _filtersActive(self):
+        return bool(self.search_text.strip()) or self.filter_status != "All" or self.filter_priority != "All"
+
+    def _updateStatusLine(self, shown):
+        visible = [p for p in self.projects.values() if self.show_archived or not p.archived]
+        total = len(visible)
+        self.count_label.setText(f"{shown} of {total} projects" if shown != total
+                                 else f"{total} project{'s' if total != 1 else ''}")
+        self.clear_button.setVisible(self._filtersActive())
+
+        self.empty_state_widget.setVisible(shown == 0)
+        if shown:
+            return
+        if self._filtersActive():
+            self.empty_title.setText("No projects match")
+            self.empty_text.setText("Try other filters, or clear them to see every project.")
+            self.empty_button.setText("Clear filters")
+        elif self.projects and not self.show_archived:
+            self.empty_title.setText("Every project is archived")
+            self.empty_text.setText("Press Show archived to see them, or start a new one.")
+            self.empty_button.setText("+  New project")
+        else:
+            self.empty_title.setText("No projects yet")
+            self.empty_text.setText("A project holds phases, and phases hold tasks.\n"
+                                    "It gets a Gantt chart, and can have a mind map.")
+            self.empty_button.setText("+  New project")
 
     def applyFilters(self):
-        """Apply search and filter criteria"""
-        filtered = []
-
+        """The projects to show, in the chosen order"""
+        search = self.search_text.strip().lower()
+        shown = []
         for project in self.projects.values():
-            # Archived filter
             if project.archived and not self.show_archived:
                 continue
+            if search and search not in project.title.lower() and search not in (project.description or "").lower():
+                continue
+            if self.filter_status != "All" and project.status.value != self.filter_status:
+                continue
+            if self.filter_priority != "All" and project.priority.name != self.filter_priority:
+                continue
+            shown.append(project)
+        shown.sort(key=SORTS.get(self.sort_combo.currentData(), SORTS["Newest first"]))
+        return shown
 
-            # Search filter
-            if self.search_text:
-                search_lower = self.search_text.lower()
-                if (search_lower not in project.title.lower() and
-                    search_lower not in project.description.lower()):
-                    continue
-
-            # Status filter
-            if self.filter_status != "All":
-                if project.status.value != self.filter_status:
-                    continue
-
-            # Priority filter
-            if self.filter_priority != "All":
-                if project.priority.name != self.filter_priority:
-                    continue
-
-            filtered.append(project)
-
-        # Sort by creation date (most recent first)
-        filtered.sort(key=lambda p: p.creation_date, reverse=True)
-        return filtered
-
+    # -- filters ------------------------------------------------------------------
     def onSearchTextChanged(self, text):
-        """Handle search text changes"""
         self.search_text = text
         self.displayProjects()
 
     def onStatusFilterChanged(self, status):
-        """Handle status filter changes"""
-        self.filter_status = status
+        self.filter_status = status or "All"
         self.displayProjects()
 
     def onPriorityFilterChanged(self, priority):
-        """Handle priority filter changes"""
-        self.filter_priority = priority
+        self.filter_priority = priority or "All"
         self.displayProjects()
 
-    def onArchivedCheckboxChanged(self, state):
-        """Handle archived checkbox changes"""
-        self.show_archived = state == Qt.Checked
+    def onArchivedToggled(self, checked):
+        self.show_archived = checked
         self.displayProjects()
 
     def onClearFilters(self):
-        """Clear all filters"""
-        self.search_box.setText("")
+        for widget in (self.search_box, self.status_filter, self.priority_filter):
+            widget.blockSignals(True)
+        self.search_box.clear()
         self.status_filter.setCurrentIndex(0)
         self.priority_filter.setCurrentIndex(0)
-        self.archived_checkbox.setChecked(False)
-        self.search_text = ""
-        self.filter_status = "All"
-        self.filter_priority = "All"
-        self.show_archived = False
+        for widget in (self.search_box, self.status_filter, self.priority_filter):
+            widget.blockSignals(False)
+        self.search_text, self.filter_status, self.filter_priority = "", "All", "All"
         self.displayProjects()
 
+    # -- actions ------------------------------------------------------------------
     def onAddProject(self):
-        """Handle add project button click"""
-        from ui.project_files.project_dialog import ProjectDialog
-
-        dialog = ProjectDialog(mode="create", logger=self.logger, parent=self)
-        if dialog.exec_():
-            # project_data = dialog.getProjectData()
-            project_data = dialog.project_data
-            if project_data:
-                # Create project
-                project = create_project(
-                    title=project_data['title'],
-                    description=project_data['description'],
-                    status=project_data['status'],
-                    priority=project_data['priority'],
-                    color=project_data['color'],
-                    logger=self.logger,
-                    start_date=project_data.get('start_date'),
-                    target_completion=project_data.get('target_completion')
-                )
-
-                if project:
-                    self.logger.info(f"Created project: {project.title}")
-                    self.loadProjects()
-
-                    # Show success message
-                    dialogs.information(
-                        self,
-                        "Success",
-                        f"Project '{project.title}' created successfully!"
-                    )
+        project = project_actions.new_project(self, self.logger)
+        if project:
+            self.loadProjects()
+            self.projectClicked.emit(project.id)  # straight into it, to add phases
 
     def onImportProject(self):
-        """Handle import project button click"""
-        file_path, _ = QFileDialog.getOpenFileName(
-            self,
-            "Import Project",
-            "",
-            "JSON Files (*.json)"
-        )
-
-        if file_path:
-            try:
-                new_project_id = import_project_from_json(file_path, self.logger)
-                if new_project_id:
-                    self.loadProjects()
-                    dialogs.information(
-                        self,
-                        "Success",
-                        "Project imported successfully!"
-                    )
-                else:
-                    dialogs.warning(
-                        self,
-                        "Import Failed",
-                        "Failed to import project. Check the log for details."
-                    )
-            except Exception as e:
-                self.logger.error(f"Error importing project: {e}")
-                dialogs.critical(
-                    self,
-                    "Error",
-                    f"Error importing project: {str(e)}"
-                )
+        if project_actions.import_project(self, self.logger):
+            self.loadProjects()
 
     def onProjectClicked(self, project_id):
-        """Handle project card click"""
         self.projectClicked.emit(project_id)
 
-    def refreshProjects(self):
-        """Refresh the projects display"""
-        self.loadProjects()
+    def showProjectMenu(self, project_id, global_pos):
+        project = self.projects.get(project_id)
+        if project is None:
+            return
+        menu = QMenu(self)
+        menu.setStyleSheet(MENU_STYLE)
+        menu.addAction("Open", lambda: self.onProjectClicked(project_id))
+        menu.addAction("Edit details…", lambda: self._afterAction(project_actions.edit_project(self, project, self.logger)))
+        menu.addAction("Export…", lambda: project_actions.export_project(self, project, self.logger))
+        menu.addSeparator()
+        if project.archived:
+            menu.addAction("Restore from archive",
+                           lambda: self._afterAction(project_actions.set_archived(self, project, False, self.logger)))
+        else:
+            menu.addAction("Archive",
+                           lambda: self._afterAction(project_actions.set_archived(self, project, True, self.logger)))
+        menu.addAction("Delete…", lambda: self._afterAction(project_actions.delete_project(self, project, self.logger)))
+        menu.exec_(global_pos)
+
+    def _afterAction(self, changed):
+        if changed:
+            self.loadProjects()

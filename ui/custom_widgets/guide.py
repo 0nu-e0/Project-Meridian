@@ -45,6 +45,9 @@ SECTIONS = [
     ]),
     ("Projects", [
         "Projects hold phases, and phases hold tasks. Open a project for its phases, Gantt chart, and mind map.",
+        "Right-click a project's card to edit, export, archive, or delete it. Search, filter, and sort at the top.",
+        "In a project: drag a phase by its ⋮⋮ to reorder, drag a task onto another phase to move it, and use a "
+        "phase's ⋯ to edit it or make it the current phase. Deleted something? Undo brings it back.",
         "The Gantt chart: drag bars to change dates, drag their ends to change length. "
         "Right-click a row (or select a bar and press Delete) to remove it.",
     ]),
@@ -58,6 +61,11 @@ SECTIONS = [
         "in a frame (right-click › Frame these) to box them under a title.",
         "Your saved mind maps are in the <b>Mind maps</b> tab.",
     ]),
+    ("Notes", [
+        "Write on the right, then press <b>Save</b> (Ctrl+S). A ● means the note has unsaved changes.",
+        "Your notes are listed on the left, newest edit first. Type in the box above them to search.",
+        "Right-click a note to rename or delete it. Deleted by mistake? Undo brings it back.",
+    ]),
     ("Anywhere", [
         "Search everything (tasks, projects, notes, mind maps) from the box in the banner.",
         "Made a mistake? Ctrl+Z undoes it, and the notice at the bottom has an Undo button too.",
@@ -70,10 +78,11 @@ SHORTCUTS = [
     ("Ctrl+N", "New task"),
     ("Ctrl+Z", "Undo (on a mind map, undoes the map)"),
     ("Ctrl+Y or Ctrl+Shift+Z", "Redo"),
-    ("Ctrl+S", "Save the mind map"),
+    ("Ctrl+S", "Save the mind map or note"),
     ("Ctrl+G / Ctrl+Shift+G", "Group / ungroup the selected shapes"),
     ("Delete", "Delete the selected shapes, lines, bend, or Gantt bar"),
-    ("Ctrl+B / Ctrl+I", "Bold / italic in a task description"),
+    ("Ctrl+B / Ctrl+I", "Bold / italic in a task description or note"),
+    ("Ctrl+U", "Underline in a note"),
     ("Ctrl + / Ctrl − / Ctrl 0", "Zoom the mind map in / out / to actual size"),
     ("Enter / Shift+Enter", "Finish typing in a shape / new line"),
     ("Esc", "Close search results; stop typing in a shape"),

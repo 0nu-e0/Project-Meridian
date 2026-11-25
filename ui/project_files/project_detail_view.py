@@ -25,40 +25,41 @@
 # Author: Jereme Shaver
 # -----------------------------------------------------------------------------
 
-from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QScrollArea, QFrame, QProgressBar, QMessageBox, QGridLayout,
-    QDialog, QListWidget, QListWidgetItem, QDialogButtonBox, QMenu,
-    QFileDialog, QSizePolicy, QSpacerItem
-)
+from PyQt5.QtCore import Qt, QTimer, pyqtSignal
+from PyQt5.QtWidgets import (QFrame, QGridLayout, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QMenu,
+                             QPushButton, QScrollArea, QSizePolicy, QVBoxLayout, QWidget)
 
-
-from ui.custom_widgets import dialogs
 from models.project import ProjectStatus
-from utils.projects_io import (
-    load_projects_from_json, load_phases_from_json,
-    save_phases_to_json, create_phase, save_project_fields,
-    export_project_to_json
-)
-from utils.mindmap_io import (
-    link_mindmap_to_project,
-    unlink_mindmap_from_project, get_unlinked_mindmaps
-)
-from resources.styles import AppStyles, AnimatedButton
-from ui.project_files.project_dialog import ProjectDialog
-from ui.project_files.phase_widget import PhaseWidget
 from resources.styles import AppColors
+from ui.custom_widgets import dialogs
+from ui.custom_widgets.panel_styles import (CARD_LIST_STYLE, LINK_BUTTON_STYLE, MENU_STYLE, PANEL_BUTTON_STYLE,
+                                            PRIMARY_BUTTON_STYLE, SECTION_HEADER_STYLE)
+from ui.project_files import project_actions
+from ui.project_files.phase_widget import PhaseWidget
+from ui.project_files.project_look import badge, priority_badge, progress_bar, short_date, status_badge
+from utils.data_history import history
+from utils.mindmap_io import get_unlinked_mindmaps, link_mindmap_to_project, unlink_mindmap_from_project
+from utils.projects_io import (create_phase, load_phases_from_json, load_projects_from_json, save_phases_to_json,
+                               save_project_fields)
+
+TWO_COLUMNS_FROM = 900  # narrower than this, phases stack in one column
+
+SCROLL_STYLE = f"""
+    QScrollArea {{ background: transparent; border: none; }}
+    QScrollBar:vertical {{ background: transparent; width: 10px; margin: 2px; }}
+    QScrollBar::handle:vertical {{ background: {AppColors.surface_raised}; border-radius: 4px; min-height: 30px; }}
+    QScrollBar::handle:vertical:hover {{ background: {AppColors.accent}; }}
+    QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0px; }}
+    QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{ background: transparent; }}"""
 
 
 class ProjectDetailView(QWidget):
-    """
-    Detailed view of a project showing all phases and tasks
-    """
+    """One project: its details at the top, then its phases (each with its tasks)"""
 
-    backClicked = pyqtSignal()  # Emitted when back button is clicked
-    ganttChartClicked = pyqtSignal(str)  # Emitted when Gantt chart button is clicked (project_id)
-    taskUpdated = pyqtSignal()  # Emitted when a task in this project is updated
+    backClicked = pyqtSignal()
+    ganttChartClicked = pyqtSignal(str)  # project id
+    mindmapClicked = pyqtSignal(str)  # mind map id
+    taskUpdated = pyqtSignal()  # a task in this project changed
 
     def __init__(self, project_id: str, logger, parent=None):
         super().__init__(parent)
@@ -67,849 +68,465 @@ class ProjectDetailView(QWidget):
         self.project = None
         self.phases = []
         self.phase_widgets = []
+        self._columns = 0
 
         self.loadProjectData()
         self.initUI()
 
     def loadProjectData(self):
-        """Load project and phase data from JSON"""
-        projects = load_projects_from_json(self.logger)
-        self.project = projects.get(self.project_id)
-
+        self.project = load_projects_from_json(self.logger).get(self.project_id)
         if not self.project:
             self.logger.error(f"Project {self.project_id} not found")
+            self.phases = []
             return
-
-        # Load phases for this project
         all_phases = load_phases_from_json(self.logger)
-        self.phases = [
-            all_phases[phase_id]
-            for phase_id in self.project.phases
-            if phase_id in all_phases
-        ]
-        # Sort by order
-        self.phases.sort(key=lambda p: p.order)
+        self.phases = sorted((all_phases[pid] for pid in self.project.phases if pid in all_phases),
+                             key=lambda phase: phase.order)
 
+    # -- layout -----------------------------------------------------------------
     def initUI(self):
-        """Initialize the user interface"""
-
-        self.initCentralWidget()
-        self.setupLayout()
-
-    def initCentralWidget(self):
-        self.central_widget = QWidget()
-        self.central_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.main_layout = QVBoxLayout(self.central_widget)
-        self.main_layout.setContentsMargins(0, 0, 0, 0)
-        self.main_layout.setSpacing(0)
-        self.setLayout(self.main_layout)
-
-    def setupLayout(self):
+        self.main_layout = QVBoxLayout(self)
+        self.main_layout.setContentsMargins(24, 16, 24, 0)
+        self.main_layout.setSpacing(12)
 
         if not self.project:
-            # Show error state
-            layout = QVBoxLayout(self)
-            error_label = QLabel("Project not found")
-            error_label.setStyleSheet(f"font-size: 18px; color: {AppColors.danger};")
-            layout.addWidget(error_label, alignment=Qt.AlignCenter)
+            missing = QLabel("This project no longer exists.")
+            missing.setStyleSheet(f"color: {AppColors.text_muted}; font-size: 15px;")
+            back = self._linkButton("←  All projects", self.onBackClicked)
+            self.main_layout.addWidget(back, 0, Qt.AlignLeft)
+            self.main_layout.addWidget(missing, 1, Qt.AlignCenter)
             return
 
-        # Main layout
+        self.header_widget = QWidget()
+        self.header_layout = QVBoxLayout(self.header_widget)
+        self.header_layout.setContentsMargins(0, 0, 0, 0)
+        self.header_layout.setSpacing(10)
+        self.main_layout.addWidget(self.header_widget)
+        self.buildHeader()
 
-        main_widget = QWidget()
-        main_layout = QVBoxLayout(main_widget)
-        main_layout.setContentsMargins(20, 20, 20, 20)
-        main_layout.setSpacing(20)
-
-        # Header section
-        header_layout = self.createHeader()
-        main_layout.addLayout(header_layout)
-
-        # Info section (status, priority, dates, progress)
-        info_section = self.createInfoSection()
-        main_layout.addWidget(info_section)
-
-        # Action buttons (View Mindmap, Add to Planning)
-        action_buttons = self.createActionButtons()
-        main_layout.addLayout(action_buttons)
-
-        # Scrollable area for phases
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
         scroll_area.setFrameShape(QFrame.NoFrame)
-        scroll_area.setStyleSheet("""
-            QScrollArea {
-                background-color: transparent;
-                border: none;
-            }
-        """)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll_area.setStyleSheet(SCROLL_STYLE)
+        self.scroll_area = scroll_area
 
-        # Container for phases
         self.phases_container = QWidget()
-        phases_main_layout = QVBoxLayout(self.phases_container)
-        phases_main_layout.setContentsMargins(0, 0, 0, 0)
-        phases_main_layout.setSpacing(15)
-
-        # Grid layout for phases (2 columns)
+        container_layout = QVBoxLayout(self.phases_container)
+        container_layout.setContentsMargins(0, 0, 4, 20)
+        container_layout.setSpacing(14)
         self.phases_layout = QGridLayout()
-        self.phases_layout.setSpacing(15)
-        self.phases_layout.setAlignment(Qt.AlignTop | Qt.AlignLeft)
-        phases_main_layout.addLayout(self.phases_layout)
+        self.phases_layout.setSpacing(14)
+        self.phases_layout.setAlignment(Qt.AlignTop)
+        container_layout.addLayout(self.phases_layout)
+        container_layout.addStretch(1)
+        scroll_area.setWidget(self.phases_container)
+        self.main_layout.addWidget(scroll_area, 1)
 
-        # Populate phases
         self.populatePhases()
 
-        # Add "+ Add Phase" button at bottom
-        add_phase_btn = AnimatedButton("+ Add Phase")
-        add_phase_btn.setToolTip("Add a phase to the project")
-        add_phase_btn.setStyleSheet(AppStyles.add_button())
-        add_phase_btn.setFixedHeight(40)
-        add_phase_btn.clicked.connect(self.onAddPhase)
-        phases_main_layout.addWidget(add_phase_btn)
+    @staticmethod
+    def _linkButton(text, handler):
+        button = QPushButton(text)
+        button.setCursor(Qt.PointingHandCursor)
+        button.setStyleSheet(LINK_BUTTON_STYLE + "QPushButton { font-size: 13px; }")
+        button.clicked.connect(handler)
+        return button
 
-        scroll_area.setWidget(self.phases_container)
-        main_layout.addWidget(scroll_area)
+    @staticmethod
+    def _panelButton(text, tip, handler, primary=False):
+        button = QPushButton(text)
+        button.setToolTip(tip)
+        button.setCursor(Qt.PointingHandCursor)
+        button.setStyleSheet(PANEL_BUTTON_STYLE + (PRIMARY_BUTTON_STYLE if primary else ""))
+        button.clicked.connect(handler)
+        return button
 
-        self.main_layout.addWidget(main_widget)
+    def buildHeader(self):
+        """The top of the page, rebuilt whenever the project changes"""
+        while self.header_layout.count():
+            item = self.header_layout.takeAt(0)
+            if item.widget():
+                item.widget().hide()
+                item.widget().deleteLater()
+            elif item.layout():
+                self._deleteLayout(item.layout())
+        project = self.project
 
-    def createHeader(self):
-        """Create header with back button, title, and action buttons"""
-        header_layout = QHBoxLayout()
-        header_layout.setSpacing(15)
-
-        # Back button
-        back_btn = QPushButton("← Back")
-        back_btn.setToolTip("Back to all projects")
-        back_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: transparent;
-                border: none;
-                color: {AppColors.accent};
-                font-size: 14px;
-                font-weight: bold;
-                padding: 5px 10px;
-            }}
-            QPushButton:hover {{
-                color: {AppColors.accent_dark};
-                text-decoration: underline;
-            }}
-        """)
-        back_btn.clicked.connect(self.onBackClicked)
-        header_layout.addSpacerItem(QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Minimum))
-        header_layout.addWidget(back_btn)
-
-        # Project title with folder icon
-        title_label = QLabel(f"📁 {self.project.title}")
-        title_label.setStyleSheet(f"""
-            QLabel {{
-                font-size: 24px;
-                font-weight: bold;
-                color: {AppColors.text_primary};
-            }}
-        """)
-        header_layout.addWidget(title_label)
-
-        # Spacer
-        header_layout.addStretch()
-
-        # Edit button
-        edit_btn = AnimatedButton("Edit")
-        edit_btn.setStyleSheet(AppStyles.button_normal())
-        edit_btn.setFixedSize(80, 35)
-        edit_btn.clicked.connect(self.onEditProject)
-        header_layout.addWidget(edit_btn)
-
-        # Menu button (⋮) for additional actions
-        menu_btn = QPushButton("⋮")
-        menu_btn.setToolTip("More: archive, export, delete")
-        menu_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {AppColors.surface_raised};
-                border: 2px solid {AppColors.accent};
-                border-radius: 5px;
-                font-size: 20px;
-                font-weight: bold;
-                color: {AppColors.text_primary};
-                padding: 5px 15px;
-            }}
-            QPushButton:hover {{
-                background-color: {AppColors.accent};
-            }}
-        """)
-        menu_btn.setFixedSize(50, 35)
-        menu_btn.clicked.connect(self.onMenuClicked)
-        header_layout.addWidget(menu_btn)
-
-        return header_layout
-
-    def createInfoSection(self):
-        """Create condensed info section showing project details"""
-        info_widget = QFrame()
-        info_widget.setStyleSheet(f"""
-            QFrame {{
-                background-color: {AppColors.surface};
-                border: 2px solid {AppColors.accent};
-                border-radius: 8px;
-                padding: 8px 12px;
-            }}
-        """)
-
-        # Main horizontal layout - everything in one row
-        main_layout = QHBoxLayout(info_widget)
-        main_layout.setSpacing(15)
-        main_layout.setContentsMargins(5, 5, 5, 5)
-
-        # Description (shortened)
-        if self.project.description:
-            desc_label = QLabel(self.project.description[:100] + ("..." if len(self.project.description) > 100 else ""))
-            desc_label.setWordWrap(False)
-            desc_label.setStyleSheet(f"font-size: 11px; color: {AppColors.text_secondary};")
-            desc_label.setMaximumWidth(200)
-            main_layout.addWidget(desc_label, stretch=1)
-
-        # Vertical separator
-        separator = QFrame()
-        separator.setFrameShape(QFrame.VLine)
-        separator.setStyleSheet(f"background-color: {AppColors.accent};")
-        separator.setFixedWidth(2)
-        main_layout.addWidget(separator)
-
-        # Status badge
-        status_badge = QLabel(self.project.status.value)
-        status_color = self.getStatusColor()
-        status_badge.setStyleSheet(f"""
-            QLabel {{
-                background-color: {status_color};
-                color: white;
-                font-size: 9px;
-                font-weight: bold;
-                padding: 3px 6px;
-                border-radius: 3px;
-            }}
-        """)
-        main_layout.addWidget(status_badge)
-
-        # Priority badge
-        priority_badge = QLabel(self.project.priority.name)
-        priority_color = self.getPriorityColor()
-        priority_badge.setStyleSheet(f"""
-            QLabel {{
-                background-color: {priority_color};
-                color: white;
-                font-size: 9px;
-                font-weight: bold;
-                padding: 3px 6px;
-                border-radius: 3px;
-            }}
-        """)
-        main_layout.addWidget(priority_badge)
-
-        # Due date
-        if self.project.target_completion:
-            due_label = QLabel(f"Due: {self.project.target_completion.strftime('%m/%d/%y')}")
-            due_label.setStyleSheet(f"font-size: 11px; color: {AppColors.text_primary};")
-            main_layout.addWidget(due_label)
-
-        # Progress bar (compact) - store reference for updates
-        self.info_progress_bar = QProgressBar()
-        progress = int(self.project.get_progress_percentage())
-        self.info_progress_bar.setValue(progress)
-        self.info_progress_bar.setFormat(f"{progress}%")
-        self.info_progress_bar.setFixedHeight(16)
-        self.info_progress_bar.setFixedWidth(120)
-        self.info_progress_bar.setStyleSheet(f"""
-            QProgressBar {{
-                border: 2px solid {AppColors.accent};
-                border-radius: 3px;
-                text-align: center;
-                font-size: 9px;
-                font-weight: bold;
-                background-color: {AppColors.surface_raised};
-                color: {AppColors.text_primary};
-            }}
-            QProgressBar::chunk {{
-                background-color: {self.project.color};
-                border-radius: 2px;
-            }}
-        """)
-        main_layout.addWidget(self.info_progress_bar)
-
-        # Task count - store reference for updates
-        total_tasks = self.project.get_total_tasks()
-        completed_tasks = self.project.get_completed_tasks()
-        self.info_task_count_label = QLabel(f"📋 {completed_tasks}/{total_tasks}")
-        self.info_task_count_label.setStyleSheet(f"font-size: 10px; color: {AppColors.text_secondary};")
-        main_layout.addWidget(self.info_task_count_label)
-
-        main_layout.addStretch()
-
-        return info_widget
-
-    def getStatusColor(self):
-        """Get color for status badge"""
-        status_colors = {
-            ProjectStatus.PLANNING: AppColors.highlight,      # Purple
-            ProjectStatus.ACTIVE: AppColors.success,        # Green
-            ProjectStatus.ON_HOLD: AppColors.warning,       # Orange
-            ProjectStatus.COMPLETED: AppColors.success_light,     # Light green
-            ProjectStatus.CANCELLED: AppColors.danger      # Red
-        }
-        return status_colors.get(self.project.status, AppColors.text_muted)
-
-    def getPriorityColor(self):
-        """Get color for priority badge"""
-        from models.task import TaskPriority
-
-        priority_colors = {
-            TaskPriority.CRITICAL: AppColors.danger_dark,   # Dark red
-            TaskPriority.HIGH: AppColors.warning_dark,       # Orange
-            TaskPriority.MEDIUM: AppColors.warning,     # Yellow-orange
-            TaskPriority.LOW: AppColors.accent,        # Blue
-            TaskPriority.TRIVIAL: AppColors.text_muted     # Gray
-        }
-        return priority_colors.get(self.project.priority, AppColors.text_faint)
-
-    def createActionButtons(self):
-        """Create action buttons row"""
-        buttons_layout = QHBoxLayout()
-        buttons_layout.setSpacing(10)
-
-        # Gantt Chart button
-        gantt_btn = AnimatedButton("📊 View Gantt Chart")
-        gantt_btn.setToolTip("Open the project's timeline")
-        gantt_btn.setStyleSheet(AppStyles.button_normal())
-        gantt_btn.setFixedHeight(35)
-        gantt_btn.clicked.connect(self.onViewGanttChart)
-        buttons_layout.addWidget(gantt_btn)
-
-        # View Mindmap button (if linked) or Link Mindmap button (if not linked)
-        if self.project.mindmap_id:
-            mindmap_btn = AnimatedButton("🧠 View Mindmap")
-            mindmap_btn.setToolTip("Open the mind map linked to this project")
-            mindmap_btn.setStyleSheet(AppStyles.button_normal())
-            mindmap_btn.setFixedHeight(35)
-            mindmap_btn.clicked.connect(self.onViewMindmap)
-            buttons_layout.addWidget(mindmap_btn)
-
-            # Unlink button
-            unlink_btn = AnimatedButton("🔗 Unlink Mindmap")
-            unlink_btn.setToolTip("Stop linking this mind map to the project (the mind map is kept)")
-            unlink_btn.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: {AppColors.danger};
-                    color: white;
-                    border: none;
-                    border-radius: 5px;
-                    padding: 8px 16px;
-                    font-size: 12px;
-                    font-weight: bold;
-                }}
-                QPushButton:hover {{
-                    background-color: {AppColors.danger_dark};
-                }}
-            """)
-            unlink_btn.setFixedHeight(35)
-            unlink_btn.clicked.connect(self.onUnlinkMindmap)
-            buttons_layout.addWidget(unlink_btn)
+        # Back, and what can be done with the project
+        top = QHBoxLayout()
+        top.setSpacing(8)
+        top.addWidget(self._linkButton("←  All projects", self.onBackClicked))
+        top.addStretch(1)
+        top.addWidget(self._panelButton("📊  Gantt chart", "Open the project's timeline", self.onViewGanttChart))
+        if project.mindmap_id:
+            top.addWidget(self._panelButton("🧠  Mind map", "Open the mind map linked to this project",
+                                            self.onViewMindmap))
         else:
-            link_btn = AnimatedButton("🔗 Link Mindmap")
-            link_btn.setToolTip("Link one of your mind maps to this project")
-            link_btn.setStyleSheet(AppStyles.button_normal())
-            link_btn.setFixedHeight(35)
-            link_btn.clicked.connect(self.onLinkMindmap)
-            buttons_layout.addWidget(link_btn)
+            top.addWidget(self._panelButton("🧠  Link mind map…", "Link one of your mind maps, or start one",
+                                            self.onLinkMindmap))
+        top.addWidget(self._panelButton("Edit", "Change the name, status, dates, or colour", self.onEditProject))
+        self.menu_button = self._panelButton("⋯", "More: export, archive, delete", self.onMenuClicked)
+        self.menu_button.setFixedWidth(40)
+        top.addWidget(self.menu_button)
+        self.header_layout.addLayout(top)
 
-        buttons_layout.addStretch()
+        if project.archived:
+            banner = QFrame()
+            banner.setObjectName("archivedBanner")
+            banner.setStyleSheet(f"QFrame#archivedBanner {{ background-color: {AppColors.surface_raised}; "
+                                 f"border-radius: 6px; }} QLabel {{ background: transparent; }}")
+            row = QHBoxLayout(banner)
+            row.setContentsMargins(12, 6, 8, 6)
+            note = QLabel("This project is archived, so it's hidden on the Projects screen.")
+            note.setStyleSheet(f"color: {AppColors.text_secondary}; font-size: 12px;")
+            row.addWidget(note)
+            row.addStretch(1)
+            row.addWidget(self._linkButton("Restore", self.onRestoreProject))
+            self.header_layout.addWidget(banner)
 
-        return buttons_layout
+        # Name, status, and priority
+        title_row = QHBoxLayout()
+        title_row.setSpacing(10)
+        dot = QLabel()
+        dot.setFixedSize(14, 14)
+        dot.setStyleSheet(f"background-color: {project.color}; border-radius: 7px;")
+        title_row.addWidget(dot)
+        self.title_label = QLabel(project.title)
+        self.title_label.setStyleSheet(f"color: {AppColors.text_primary}; font-size: 24px; font-weight: bold; "
+                                       f"background: transparent;")
+        self.title_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        title_row.addWidget(self.title_label)
+        title_row.addSpacing(4)
+        title_row.addWidget(status_badge(project.status))
+        title_row.addWidget(priority_badge(project.priority))
+        if project.archived:
+            title_row.addWidget(badge("Archived", AppColors.text_faint))
+        title_row.addStretch(1)
+        self.header_layout.addLayout(title_row)
+
+        if project.description:
+            description = QLabel(project.description)
+            description.setWordWrap(True)
+            description.setTextInteractionFlags(Qt.TextSelectableByMouse)
+            description.setStyleSheet(f"color: {AppColors.text_secondary}; font-size: 13px; background: transparent;")
+            description.setMaximumHeight(60)
+            self.header_layout.addWidget(description)
+
+        # Dates and progress
+        meta = QHBoxLayout()
+        meta.setSpacing(14)
+        dates = self._datesText()
+        if dates:
+            dates_label = QLabel(dates)
+            dates_label.setStyleSheet(f"color: {AppColors.text_muted}; font-size: 12px; background: transparent;")
+            meta.addWidget(dates_label)
+        due, color = self._dueStatus()
+        if due:
+            due_label = QLabel(due)
+            due_label.setStyleSheet(f"color: {color}; font-size: 12px; font-weight: bold; background: transparent;")
+            meta.addWidget(due_label)
+        meta.addStretch(1)
+        progress = project.get_progress_percentage()
+        self.info_progress_bar = progress_bar(project.color, progress, height=8)
+        self.info_progress_bar.setFixedWidth(220)
+        meta.addWidget(self.info_progress_bar)
+        total, done = project.get_total_tasks(), project.get_completed_tasks()
+        self.info_task_count_label = QLabel(f"{progress:.0f}%  ·  {done} of {total} task{'s' if total != 1 else ''} done"
+                                            if total else "No tasks yet")
+        self.info_task_count_label.setStyleSheet(f"color: {AppColors.text_secondary}; font-size: 12px; "
+                                                 f"background: transparent;")
+        meta.addWidget(self.info_task_count_label)
+        self.header_layout.addLayout(meta)
+
+        # The phases' heading
+        section = QHBoxLayout()
+        section.setContentsMargins(0, 8, 0, 0)
+        count = len(self.phases)
+        heading = QLabel(f"PHASES  ·  {count}" if count else "PHASES")
+        heading.setStyleSheet(SECTION_HEADER_STYLE)
+        section.addWidget(heading)
+        hint = QLabel("Drag a phase by its ⋮⋮ to reorder; drag a task onto another phase to move it.")
+        hint.setStyleSheet(f"color: {AppColors.text_faint}; font-size: 11px; background: transparent;")
+        hint.setVisible(count > 0)
+        section.addSpacing(10)
+        section.addWidget(hint)
+        section.addStretch(1)
+        section.addWidget(self._panelButton("+  Add phase", "Add a phase after the others", self.onAddPhase,
+                                            primary=True))
+        self.header_layout.addLayout(section)
+
+    def _deleteLayout(self, layout):
+        while layout.count():
+            item = layout.takeAt(0)
+            if item.widget():
+                item.widget().hide()
+                item.widget().deleteLater()
+            elif item.layout():
+                self._deleteLayout(item.layout())
+
+    def _datesText(self):
+        start, due = self.project.start_date, self.project.target_completion
+        if start and due:
+            same_year = start.year == due.year
+            return f"{short_date(start, with_year=not same_year)} – {short_date(due, with_year=True)}"
+        if start:
+            return f"Started {short_date(start, with_year=True)}"
+        if due:
+            return f"Due {short_date(due, with_year=True)}"
+        return ""
+
+    def _dueStatus(self):
+        """("Due in 3 days", colour) while the project is under way"""
+        from datetime import datetime
+        due = self.project.target_completion
+        if due is None or self.project.status in (ProjectStatus.COMPLETED, ProjectStatus.CANCELLED):
+            return "", None
+        days = (due.date() - datetime.now().date()).days
+        if days < 0:
+            text = f"{-days} day{'s' if days != -1 else ''} overdue"
+        elif days == 0:
+            text = "Due today"
+        else:
+            text = f"Due in {days} day{'s' if days != 1 else ''}"
+        return text, AppColors.get_due_date_color(due)
 
     def populatePhases(self):
-        """Populate the phases container with phase widgets in a grid"""
-        # Clear existing widgets from grid
+        """Fill the grid with a box per phase (or a hint when there are none)"""
         while self.phases_layout.count():
             item = self.phases_layout.takeAt(0)
             if item.widget():
+                item.widget().hide()
                 item.widget().deleteLater()
-
         self.phase_widgets.clear()
+        self._columns = 0
 
-        # Show empty state if no phases
         if not self.phases:
-            empty_label = QLabel("No phases yet. Click '+ Add Phase' to create one.")
-            empty_label.setStyleSheet(f"""
-                QLabel {{
-                    font-size: 14px;
-                    color: {AppColors.text_muted};
-                    padding: 20px;
-                }}
-            """)
-            empty_label.setAlignment(Qt.AlignCenter)
-            self.phases_layout.addWidget(empty_label, 0, 0, 1, 2)  # Span 2 columns
+            empty = QLabel("No phases yet.\nPhases are the stages of a project, such as Design, Build, and Test.\n"
+                           "Press + Add phase to make the first one.")
+            empty.setAlignment(Qt.AlignCenter)
+            empty.setStyleSheet(f"color: {AppColors.text_muted}; font-size: 13px; padding: 40px;")
+            self.phases_layout.addWidget(empty, 0, 0)
             return
 
-        # Create phase widgets in a 2-column grid
-        columns = 2
-        for index, phase in enumerate(self.phases):
-            row = index // columns
-            col = index % columns
-
+        for phase in self.phases:
             phase_widget = PhaseWidget(phase, self.project, self.logger)
             phase_widget.phaseUpdated.connect(self.onPhaseUpdated)
             phase_widget.phaseDeleted.connect(self.onPhaseDeleted)
             phase_widget.phaseReordered.connect(self.onPhaseReordered)
-            phase_widget.taskUpdated.connect(self.taskUpdated.emit)  # Propagate task updates
-
-            # Set a minimum width for phase widgets
+            phase_widget.taskUpdated.connect(self.onTaskUpdated)
             phase_widget.setMinimumWidth(300)
-
-            # Set size policy to prevent vertical stretching
-            from PyQt5.QtWidgets import QSizePolicy
             phase_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
-
             self.phase_widgets.append(phase_widget)
-            self.phases_layout.addWidget(phase_widget, row, col, Qt.AlignTop)
+        self._placePhases()
 
+    def _placePhases(self):
+        if not self.phase_widgets:
+            return
+        columns = 2 if self.scroll_area.viewport().width() >= TWO_COLUMNS_FROM else 1
+        if columns == self._columns:
+            return
+        self._columns = columns
+        for column in range(2):
+            self.phases_layout.setColumnStretch(column, 1 if column < columns else 0)
+        for widget in self.phase_widgets:
+            self.phases_layout.removeWidget(widget)
+        for index, widget in enumerate(self.phase_widgets):
+            self.phases_layout.addWidget(widget, index // columns, index % columns, Qt.AlignTop)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if self.project:
+            self._placePhases()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if self.project:
+            QTimer.singleShot(0, self._placePhases)
+
+    # -- navigation ---------------------------------------------------------------
     def onBackClicked(self):
-        """Handle back button click"""
         self.backClicked.emit()
 
-    def onEditProject(self):
-        """Handle edit project button click"""
-        dialog = ProjectDialog(mode="edit", project=self.project, logger=self.logger, parent=self)
-        dialog.projectSaved.connect(self.onProjectEdited)
-        dialog.exec_()
-
-    def onProjectEdited(self, project_data):
-        """Handle project edited from dialog"""
-        # Update project fields
-        self.project.title = project_data['title']
-        self.project.description = project_data['description']
-        self.project.status = project_data['status']
-        self.project.priority = project_data['priority']
-        self.project.color = project_data['color']
-
-        if project_data.get('start_date'):
-            self.project.start_date = project_data['start_date']
-
-        if project_data.get('target_completion'):
-            self.project.target_completion = project_data['target_completion']
-
-        # Save just the edited fields, so changes made elsewhere aren't overwritten
-        save_project_fields(self.project, ['title', 'description', 'status', 'priority', 'color',
-                                           'start_date', 'target_completion'], self.logger)
-
-        # Refresh UI
-        self.refresh()
-
-    def onMenuClicked(self):
-        """Handle menu button click - show context menu"""
-        menu = QMenu(self)
-        menu.setStyleSheet(f"""
-            QMenu {{
-                background-color: white;
-                border: 1px solid {AppColors.light_border};
-                border-radius: 5px;
-                padding: 5px;
-            }}
-            QMenu::item {{
-                padding: 8px 20px;
-                border-radius: 3px;
-                color: {AppColors.main_background_hover_color};  /* dark gray text */
-            }}
-            QMenu::item:selected {{
-                background-color: {AppColors.accent};
-                color: white;
-            }}
-        """)
-
-        # Export action
-        export_action = menu.addAction("📤 Export Project")
-        export_action.triggered.connect(self.onExportProject)
-
-        menu.addSeparator()
-
-        # Archive/Unarchive action
-        if self.project.archived:
-            restore_action = menu.addAction("📂 Restore from Archive")
-            restore_action.triggered.connect(self.onRestoreProject)
-        else:
-            archive_action = menu.addAction("📦 Archive Project")
-            archive_action.triggered.connect(self.onArchiveProject)
-
-        menu.addSeparator()
-
-        # Delete action
-        delete_action = menu.addAction("🗑️ Delete Project")
-        delete_action.triggered.connect(self.onDeleteProject)
-
-        # Show menu at cursor position
-        menu.exec_(self.sender().mapToGlobal(self.sender().rect().bottomLeft()))
-
-    def onLinkMindmap(self):
-        """Handle link mindmap button click"""
-        # Get all unlinked mindmaps
-        unlinked_mindmaps = get_unlinked_mindmaps(self.logger)
-
-        if not unlinked_mindmaps:
-            # No mindmaps available - offer to create one
-            reply = dialogs.question(
-                self,
-                "No Mindmaps Available",
-                "There are no available mindmaps to link. Would you like to create a new mindmap for this project?",
-                QMessageBox.Yes | QMessageBox.No
-            )
-
-            if reply == QMessageBox.Yes:
-                # Create a new mindmap
-                from utils.mindmap_io import create_mindmap
-
-                mindmap = create_mindmap(
-                    title=f"{self.project.title} Mindmap",
-                    description=f"Mindmap for project: {self.project.title}",
-                    project_id=self.project_id,
-                    logger=self.logger
-                )
-
-                # Update project
-                self.project.mindmap_id = mindmap.id
-                save_project_fields(self.project, ['mindmap_id'], self.logger)
-
-                dialogs.information(
-                    self,
-                    "Success",
-                    f"Created and linked new mindmap: {mindmap.title}"
-                )
-
-                # Refresh the view
-                self.refresh()
-            return
-
-        # Create dialog to select mindmap
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Link Mindmap")
-        dialog.setModal(True)
-        dialog.setMinimumWidth(400)
-        dialog.setMinimumHeight(300)
-
-        layout = QVBoxLayout(dialog)
-
-        # Label
-        label = QLabel("Select a mindmap to link to this project:")
-        label.setStyleSheet("font-size: 14px; padding: 10px;")
-        layout.addWidget(label)
-
-        # List widget
-        list_widget = QListWidget()
-        list_widget.setStyleSheet(f"""
-            QListWidget {{
-                border: 1px solid {AppColors.light_border};
-                border-radius: 4px;
-                background-color: white;
-            }}
-            QListWidget::item {{
-                padding: 8px;
-                border-bottom: 1px solid {AppColors.light_divider};
-            }}
-            QListWidget::item:selected {{
-                background-color: {AppColors.accent};
-                color: white;
-            }}
-            QListWidget::item:hover {{
-                background-color: {AppColors.text_primary};
-            }}
-        """)
-
-        for mindmap in unlinked_mindmaps:
-            item = QListWidgetItem(f"🧠 {mindmap.title}")
-            item.setData(Qt.UserRole, mindmap.id)
-            if mindmap.description:
-                item.setToolTip(mindmap.description)
-            list_widget.addItem(item)
-
-        layout.addWidget(list_widget)
-
-        # Buttons
-        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        button_box.accepted.connect(dialog.accept)
-        button_box.rejected.connect(dialog.reject)
-        layout.addWidget(button_box)
-
-        # Show dialog
-        if dialog.exec_() == QDialog.Accepted:
-            selected_items = list_widget.selectedItems()
-            if selected_items:
-                mindmap_id = selected_items[0].data(Qt.UserRole)
-
-                # Link the mindmap to the project
-                if link_mindmap_to_project(mindmap_id, self.project_id, self.logger):
-                    dialogs.information(
-                        self,
-                        "Success",
-                        "Mindmap linked successfully!"
-                    )
-
-                    # Refresh the view
-                    self.refresh()
-                else:
-                    dialogs.warning(
-                        self,
-                        "Error",
-                        "Failed to link mindmap. Please try again."
-                    )
-
-    def onUnlinkMindmap(self):
-        """Handle unlink mindmap button click"""
-        reply = dialogs.question(
-            self,
-            "Unlink Mindmap",
-            "Are you sure you want to unlink this mindmap from the project?",
-            QMessageBox.Yes | QMessageBox.No
-        )
-
-        if reply == QMessageBox.Yes:
-            if unlink_mindmap_from_project(self.project.mindmap_id, self.logger):
-                dialogs.information(
-                    self,
-                    "Success",
-                    "Mindmap unlinked successfully!"
-                )
-
-                # Refresh the view
-                self.refresh()
-            else:
-                dialogs.warning(
-                    self,
-                    "Error",
-                    "Failed to unlink mindmap. Please try again."
-                )
-
     def onViewGanttChart(self):
-        """Handle view Gantt chart button click"""
         self.ganttChartClicked.emit(self.project_id)
 
     def onViewMindmap(self):
-        """Handle view mindmap button click"""
-        # Emit a signal to open the mindmap screen
-        # This will be handled by the main window
-        if hasattr(self.parent(), 'openMindmapScreen'):
-            self.parent().openMindmapScreen(self.project.mindmap_id)
+        if self.project.mindmap_id:
+            self.mindmapClicked.emit(self.project.mindmap_id)
+
+    # -- the project ----------------------------------------------------------------
+    def onEditProject(self):
+        if project_actions.edit_project(self, self.project, self.logger):
+            self.refresh()
+
+    def onProjectEdited(self, project_data):
+        """Kept for callers: save edited details and show them"""
+        project_actions.apply_edit(self.project, project_data, self.logger)
+        self.refresh()
+
+    def onMenuClicked(self):
+        menu = QMenu(self)
+        menu.setStyleSheet(MENU_STYLE)
+        menu.addAction("Export…", self.onExportProject)
+        if self.project.mindmap_id:
+            menu.addAction("Unlink mind map…", self.onUnlinkMindmap)
+        menu.addSeparator()
+        if self.project.archived:
+            menu.addAction("Restore from archive", self.onRestoreProject)
         else:
-            dialogs.information(
-                self,
-                "View Mindmap",
-                f"Mindmap ID: {self.project.mindmap_id}\n\nMindmap screen integration will be completed in the next step."
-            )
+            menu.addAction("Archive", self.onArchiveProject)
+        menu.addAction("Delete project…", self.onDeleteProject)
+        button = getattr(self, "menu_button", None)
+        menu.exec_(button.mapToGlobal(button.rect().bottomLeft()) if button else self.cursor().pos())
 
+    def onArchiveProject(self):
+        """Archive it (hidden on the Projects screen; Undo or Restore brings it back) and go back"""
+        project_actions.set_archived(self, self.project, True, self.logger)
+        self.backClicked.emit()
+
+    def onRestoreProject(self):
+        project_actions.set_archived(self, self.project, False, self.logger)
+        self.refresh()
+
+    def onDeleteProject(self):
+        if project_actions.delete_project(self, self.project, self.logger):
+            self.backClicked.emit()
+
+    def onExportProject(self):
+        project_actions.export_project(self, self.project, self.logger)
+
+    # -- mind map -----------------------------------------------------------------
+    def onLinkMindmap(self):
+        """Link one of the mind maps not yet in a project, or start a new one for this project"""
+        unlinked = get_unlinked_mindmaps(self.logger)
+        dialog = dialogs.StyledDialog(
+            self, "Link a mind map",
+            "Pick one of your mind maps for this project, or start a new one." if unlinked
+            else "All your mind maps belong to other projects. Start a new one for this project?",
+            icon="🧠", cancel_value=None)
+        mindmap_list = None
+        if unlinked:
+            mindmap_list = QListWidget()
+            mindmap_list.setStyleSheet(CARD_LIST_STYLE + "QListWidget::item { padding: 8px 10px; color: white; }")
+            mindmap_list.setSpacing(2)
+            mindmap_list.setMinimumHeight(min(260, 44 * len(unlinked) + 10))
+            for mindmap in unlinked:
+                item = QListWidgetItem(mindmap.title)
+                item.setData(Qt.UserRole, mindmap.id)
+                item.setToolTip(mindmap.description or mindmap.title)
+                mindmap_list.addItem(item)
+            mindmap_list.setCurrentRow(0)
+            mindmap_list.itemDoubleClicked.connect(lambda *_: dialog._finish("link"))
+            dialog.content.addWidget(mindmap_list)
+        dialog.addButton("Start a new one", "new", left=True)
+        dialog.addButton("Cancel", None)
+        if unlinked:
+            dialog.addButton("Link", "link", dialogs.PRIMARY, default=True)
+        choice = dialog.ask()
+
+        title = f"“{self.project.title}”"
+        if choice == "link" and mindmap_list is not None and mindmap_list.currentItem() is not None:
+            with history().action(f"Linked a mind map to {title}"):
+                linked = link_mindmap_to_project(mindmap_list.currentItem().data(Qt.UserRole), self.project_id,
+                                                 self.logger)
+            if not linked:
+                dialogs.warning(self, "Couldn't link the mind map", "See app.log for details.")
+        elif choice == "new":
+            from utils.mindmap_io import create_mindmap
+            with history().action(f"Started a mind map for {title}"):
+                mindmap = create_mindmap(title=f"{self.project.title} mind map",
+                                         description=f"Mind map for the project {self.project.title}",
+                                         project_id=self.project_id, logger=self.logger)
+                self.project.mindmap_id = mindmap.id
+                save_project_fields(self.project, ['mindmap_id'], self.logger)
+        else:
+            return
+        self.refresh()
+
+    def onUnlinkMindmap(self):
+        if not dialogs.confirm(self, "Unlink the mind map?",
+                               "It stays in your mind maps; it just won't belong to this project.", "Unlink",
+                               danger=False):
+            return
+        with history().action(f"Unlinked the mind map from “{self.project.title}”"):
+            unlinked = unlink_mindmap_from_project(self.project.mindmap_id, self.logger)
+        if not unlinked:
+            dialogs.warning(self, "Couldn't unlink the mind map", "See app.log for details.")
+        self.refresh()
+
+    # -- phases ---------------------------------------------------------------------
     def onAddPhase(self):
-        """Handle add phase button click"""
         from ui.project_files.phase_dialog import PhaseDialog
-
         dialog = PhaseDialog(mode="create", project_id=self.project_id, logger=self.logger, parent=self)
         dialog.phaseSaved.connect(self.onPhaseSaved)
         dialog.exec_()
 
     def onPhaseSaved(self, phase_data):
-        """Handle phase saved from dialog"""
-        # Create the phase
-        create_phase(
-            project_id=self.project_id,
-            name=phase_data['name'],
-            description=phase_data['description'],
-            order=len(self.project.phases),  # Add at the end
-            logger=self.logger
-        )
-
-        # Refresh the view
+        with history().action(f"Added phase “{phase_data['name']}”"):
+            create_phase(project_id=self.project_id, name=phase_data['name'],
+                         description=phase_data['description'], order=len(self.project.phases), logger=self.logger)
         self.refresh()
 
-    def updateInfoSection(self):
-        """Update the info section widgets with fresh data"""
-        if not hasattr(self, 'info_progress_bar') or not hasattr(self, 'info_task_count_label'):
-            return
-
-        # Update progress bar
-        progress = int(self.project.get_progress_percentage())
-        self.info_progress_bar.setValue(progress)
-        self.info_progress_bar.setFormat(f"{progress}%")
-
-        # Update task count
-        total_tasks = self.project.get_total_tasks()
-        completed_tasks = self.project.get_completed_tasks()
-        self.info_task_count_label.setText(f"📋 {completed_tasks}/{total_tasks} tasks")
-
     def onPhaseUpdated(self, phase_id):
-        """Handle phase updated signal"""
         self.refresh()
 
     def onPhaseDeleted(self, phase_id):
-        """Handle phase deleted signal"""
         self.refresh()
 
+    def onTaskUpdated(self):
+        self.refreshHeader()
+        self.taskUpdated.emit()
+
     def onPhaseReordered(self, dragged_phase_id, target_position):
-        """Handle phase reordering via drag and drop"""
-        from utils.projects_io import load_phases_from_json
-
-        # Load all phases
+        """Drop a phase onto another: it takes that phase's place, and the rest move along"""
         all_phases = load_phases_from_json(self.logger)
-
-        # Get the phases for this project
-        project_phases = [p for p in all_phases.values() if p.project_id == self.project.id]
-
-        # Sort by current order
-        project_phases.sort(key=lambda p: p.order)
-
-        # Find the dragged phase
-        dragged_phase = next((p for p in project_phases if p.id == dragged_phase_id), None)
-        if not dragged_phase:
+        project_phases = sorted((p for p in all_phases.values() if p.project_id == self.project.id),
+                                key=lambda p: p.order)
+        dragged = next((p for p in project_phases if p.id == dragged_phase_id), None)
+        if not dragged:
             self.logger.warning(f"Dragged phase {dragged_phase_id} not found")
             return
 
         # Work in list positions: stored orders can have gaps or repeats, so they
         # can't be used as indexes. target_position is the drop target's order.
-        current_position = project_phases.index(dragged_phase)
+        current_position = project_phases.index(dragged)
         target_index = next((i for i, p in enumerate(project_phases) if p.order == target_position),
                             len(project_phases) - 1)
-
         project_phases.pop(current_position)
-        project_phases.insert(target_index, dragged_phase)
-
-        # Update order for all phases
-        for idx, phase in enumerate(project_phases):
-            phase.order = idx
+        project_phases.insert(target_index, dragged)
+        for index, phase in enumerate(project_phases):
+            phase.order = index
             all_phases[phase.id] = phase
 
-        # Save updated phases
-        save_phases_to_json(all_phases, self.logger)
-
-        self.logger.info(f"Reordered phase {dragged_phase.name} from position {current_position} to {target_position}")
-
-        # Refresh the display
+        with history().action(f"Moved phase “{dragged.name}”"):
+            save_phases_to_json(all_phases, self.logger)
+        self.logger.info(f"Reordered phase {dragged.name} from position {current_position} to {target_index}")
         self.refresh()
 
-    def refresh(self):
-        """Refresh the entire view"""
-        # Invalidate task cache before reloading to get fresh data
-        if self.project:
-            self.project.invalidate_task_cache()
-
+    # -- refreshing -------------------------------------------------------------------
+    def refreshHeader(self):
+        """Reload the project and redraw the top (after a task changed: progress, counts)"""
         self.loadProjectData()
-
-        # Invalidate cache on the newly loaded project instance too
         if self.project:
             self.project.invalidate_task_cache()
+            self.buildHeader()
 
-        # Simply repopulate the phases without rebuilding the entire UI
+    def updateInfoSection(self):
+        """Kept for callers"""
+        self.refreshHeader()
+
+    def refresh(self):
+        """Reload everything from the files and redraw the page"""
+        if self.project:
+            self.project.invalidate_task_cache()
+        self.loadProjectData()
+        if not self.project:
+            # Deleted (e.g. its creation was undone): nothing to show here any more
+            QTimer.singleShot(0, self.backClicked.emit)
+            return
+        self.project.invalidate_task_cache()
+        if not hasattr(self, "header_layout"):
+            return
+        self.buildHeader()
         self.populatePhases()
-
-        # Update the info section to reflect any task changes
-        self.updateInfoSection()
-
-    def onArchiveProject(self):
-        """Handle archive project action"""
-        reply = dialogs.question(
-            self,
-            "Archive Project",
-            f"Are you sure you want to archive '{self.project.title}'?\n\n"
-            "Archived projects will be hidden from the main view but can be restored later.",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No
-        )
-
-        if reply == QMessageBox.Yes:
-            self.project.archived = True
-            save_project_fields(self.project, ['archived'], self.logger)
-
-            dialogs.information(
-                self,
-                "Success",
-                f"Project '{self.project.title}' has been archived."
-            )
-
-            # Go back to projects list
-            self.backClicked.emit()
-
-    def onRestoreProject(self):
-        """Handle restore project from archive action"""
-        self.project.archived = False
-        save_project_fields(self.project, ['archived'], self.logger)
-
-        dialogs.information(
-            self,
-            "Success",
-            f"Project '{self.project.title}' has been restored from archive."
-        )
-
-        # Go back to projects list
-        self.backClicked.emit()
-
-    def onDeleteProject(self):
-        """Handle delete project action"""
-        from utils.projects_io import delete_project
-
-        reply = dialogs.warning(
-            self,
-            "Delete Project",
-            f"Are you sure you want to DELETE '{self.project.title}'?\n\n"
-            "⚠️ This action cannot be undone!\n\n"
-            "All phases and task associations will be removed.",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No
-        )
-
-        if reply == QMessageBox.Yes:
-            # Double confirmation for destructive action
-            typed_name, ok = dialogs.getText(
-                self,
-                "Final Confirmation",
-                f"This will permanently delete '{self.project.title}'.\n\n"
-                "Type the project name to confirm deletion:"
-            )
-
-            if ok and typed_name.strip() != self.project.title.strip():
-                dialogs.information(self, "Not Deleted", "The name didn't match, so the project was kept.")
-            elif ok:
-                # Delete the project
-                if delete_project(self.project_id, self.logger):
-                    dialogs.information(
-                        self,
-                        "Success",
-                        f"Project '{self.project.title}' has been deleted."
-                    )
-
-                    # Go back to projects list
-                    self.backClicked.emit()
-                else:
-                    dialogs.critical(
-                        self,
-                        "Error",
-                        "Failed to delete project. Please try again."
-                    )
-
-    def onExportProject(self):
-        """Handle export project action"""
-        # Open file dialog to select export location
-        default_filename = f"{self.project.title.replace(' ', '_')}_export.json"
-        file_path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Export Project",
-            default_filename,
-            "JSON Files (*.json)"
-        )
-
-        if file_path:
-            # Export the project
-            success = export_project_to_json(self.project_id, file_path, self.logger)
-
-            if success:
-                dialogs.information(
-                    self,
-                    "Success",
-                    f"Project '{self.project.title}' has been exported to:\n{file_path}"
-                )
-            else:
-                dialogs.critical(
-                    self,
-                    "Error",
-                    "Failed to export project. Please try again."
-                )
-

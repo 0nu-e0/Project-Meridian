@@ -33,6 +33,8 @@ from ui.custom_widgets.mindmap_nodes import (NODE_COLORS, SHAPES, BendHandle, Co
                                              shape_preview)
 from resources.styles import AppColors
 from ui.custom_widgets import dialogs
+from ui.custom_widgets.panel_styles import (CARD_LIST_STYLE, EMPTY_HINT_STYLE, MENU_STYLE, PANEL_BUTTON_STYLE,
+                                             PRIMARY_BUTTON_STYLE, SEARCH_BOX_STYLE)
 from PyQt5.QtWidgets import (QGraphicsScene, QGraphicsView, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame,
                              QSizePolicy, QPushButton, QMessageBox, QSlider, QGridLayout, QMenu, QApplication,
                              QShortcut, QToolButton, QStackedWidget, QLineEdit, QListWidget, QListWidgetItem, QScrollArea)
@@ -45,29 +47,6 @@ SHAPE_MIME = "application/x-meridian-shape"
 CANVAS_COLOR = QColor("#f8fafc")
 DOT_COLOR = QColor("#cbd5e1")
 DOT_MAJOR_COLOR = QColor("#94a3b8")
-
-PANEL_BUTTON_STYLE = f"""
-    QPushButton {{ background-color: {AppColors.surface_raised}; color: {AppColors.text_primary};
-                   border: 1px solid {AppColors.surface_hover_alt}; border-radius: 6px;
-                   padding: 6px 10px; font-size: 12px; }}
-    QPushButton:hover {{ border-color: {AppColors.accent}; }}
-    QPushButton:checked {{ background-color: {AppColors.accent}; border-color: {AppColors.accent}; color: white;
-                           font-weight: bold; }}
-    QPushButton:disabled {{ background-color: transparent; color: {AppColors.text_faint};
-                            border-color: {AppColors.surface_raised}; }}
-"""
-PRIMARY_BUTTON_STYLE = f"""
-    QPushButton {{ background-color: {AppColors.accent}; border-color: {AppColors.accent}; color: white; font-weight: bold; }}
-    QPushButton:hover {{ background-color: {AppColors.accent_dark}; }}
-"""
-MENU_STYLE = f"""
-    QMenu {{ background-color: {AppColors.surface_raised}; color: {AppColors.text_primary};
-             border: 1px solid {AppColors.surface_hover_alt}; padding: 4px; }}
-    QMenu::item {{ padding: 6px 22px 6px 10px; border-radius: 3px; }}
-    QMenu::item:selected {{ background-color: {AppColors.accent}; }}
-    QMenu::separator {{ height: 1px; background: {AppColors.surface_hover_alt}; margin: 4px 6px; }}
-"""
-
 
 def color_swatch(color, size=14):
     pixmap = QPixmap(size, size)
@@ -183,10 +162,7 @@ class MindMapList(QWidget):
         self.search = QLineEdit()
         self.search.setPlaceholderText("Search mind maps")
         self.search.setClearButtonEnabled(True)
-        self.search.setStyleSheet(f"""
-            QLineEdit {{ background-color: {AppColors.surface_raised}; color: {AppColors.text_primary};
-                         border: 1px solid {AppColors.surface_hover_alt}; border-radius: 6px; padding: 6px 8px; }}
-            QLineEdit:focus {{ border-color: {AppColors.accent}; }}""")
+        self.search.setStyleSheet(SEARCH_BOX_STYLE)
         self.search.textChanged.connect(self._filter)
         layout.addWidget(self.search)
 
@@ -195,13 +171,7 @@ class MindMapList(QWidget):
         self.list.setVerticalScrollMode(QListWidget.ScrollPerPixel)
         self.list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.list.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.list.setStyleSheet(f"""
-            QListWidget {{ background: transparent; border: none; outline: none; }}
-            QListWidget::item {{ background-color: {AppColors.surface_raised}; border: 1px solid {AppColors.surface_hover_alt};
-                                 border-radius: 8px; }}
-            QListWidget::item:hover {{ border-color: {AppColors.accent}; }}
-            QListWidget::item:selected {{ background-color: {AppColors.accent_background_color_dark};
-                                          border: 1px solid {AppColors.accent}; }}""")
+        self.list.setStyleSheet(CARD_LIST_STYLE)
         self.list.itemClicked.connect(lambda item: self.openRequested.emit(item.data(Qt.UserRole)))
         self.list.customContextMenuRequested.connect(self._menu)
         layout.addWidget(self.list, 1)
@@ -209,7 +179,7 @@ class MindMapList(QWidget):
         self.empty = QLabel("No saved mind maps yet.\nSave the one you're working on and it will appear here.")
         self.empty.setWordWrap(True)
         self.empty.setAlignment(Qt.AlignCenter)
-        self.empty.setStyleSheet(f"color: {AppColors.text_muted}; font-size: 12px; padding: 20px;")
+        self.empty.setStyleSheet(EMPTY_HINT_STYLE)
         layout.addWidget(self.empty)
 
     def populate(self, mindmaps, current_id, unsaved):
@@ -597,6 +567,7 @@ class SpatialTracker:
 
 
 class MindMapScreen(QWidget):
+    projectRequested = pyqtSignal(str)  # project id: open that project (View Project)
     def __init__(self, logger, parent=None):
         super().__init__(parent)
         self.logger = logger
@@ -1652,15 +1623,7 @@ class MindMapScreen(QWidget):
         mindmap = mindmaps.get(self.current_mindmap_id)
 
         if mindmap and mindmap.project_id:
-            # Signal to main window to open project detail
-            if hasattr(self.parent(), 'openProjectDetail'):
-                self.parent().openProjectDetail(mindmap.project_id)
-            else:
-                dialogs.information(
-                    self,
-                    "View Project",
-                    f"Project ID: {mindmap.project_id}\n\nProject detail integration will be completed in the next step."
-                )
+            self.projectRequested.emit(mindmap.project_id)
 
 
 class GridScene(QGraphicsScene):
