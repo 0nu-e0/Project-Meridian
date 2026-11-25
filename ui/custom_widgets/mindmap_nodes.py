@@ -402,7 +402,7 @@ class FrameItem(QGraphicsRectItem):
     def _layout(self):
         self.prepareGeometryChange()
         self.setRect(0, 0, self.width, self.height)
-        for handle, (x, y) in zip(self.handles, ((0, 0), (self.width, 0), (0, self.height), (self.width, self.height)), strict=True):
+        for handle, (x, y) in zip(self.handles, ((0, 0), (self.width, 0), (0, self.height), (self.width, self.height))):  # noqa: B905 (always 4 corners; strict= needs Python 3.10)
             handle.setPos(x, y)
         self.title_item.setTextWidth(max(60, self.width - 20))
         self.setColor(self.color)
@@ -916,7 +916,7 @@ class ConnectionItem(QGraphicsPathItem):
         self._refreshGripsNow()
 
     def _placeBendHandles(self):
-        for handle, point in zip(self.bend_handles, self.waypoints, strict=False):  # handles rebuild lazily
+        for handle, point in zip(self.bend_handles, self.waypoints):  # noqa: B905 (handles rebuild lazily)  # handles rebuild lazily
             handle.setPos(point)
 
     def boundingRect(self):
