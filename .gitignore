@@ -44,3 +44,10 @@ logs/
 *.log
 *.db
 *.sqlite3
+
+# Private development notes and plans (kept locally, not published)
+BUG_HUNT_PLAN.md
+FEATURE_GAPS.md
+MINDMAP_IMPROVEMENT_PLAN.md
+PROJECTS_MODULE_PLAN.md
+app_notes.json
